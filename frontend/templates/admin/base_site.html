@@ -1,0 +1,98 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | Trang quản trị SummarEase{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script>
+    (function () {
+        const storedTheme = localStorage.getItem("summarease-theme");
+        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = storedTheme || systemTheme;
+    }());
+</script>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260514-1">
+{% endblock %}
+
+{% block userlinks %}
+    {% if site_url %}
+        <a href="{{ site_url }}">Xem trang</a> /
+    {% endif %}
+    {% if user.is_active and user.is_staff %}
+        {% url 'django-admindocs-docroot' as docsroot %}
+        {% if docsroot %}
+            <a href="{{ docsroot }}">Tài liệu</a> /
+        {% endif %}
+    {% endif %}
+    {% if user.has_usable_password %}
+        <a href="{% url 'admin:password_change' %}">Đổi mật khẩu</a> /
+    {% endif %}
+    <form id="logout-form" method="post" action="{% url 'admin:logout' %}">
+        {% csrf_token %}
+        <button type="submit">Đăng xuất</button>
+    </form>
+{% endblock %}
+
+{% block branding %}
+<div class="admin-branding">
+    <div class="admin-mark">S</div>
+    <div class="admin-copy">
+        <h1 id="site-name"><a href="{% url 'admin:index' %}">Trang quản trị SummarEase</a></h1>
+        <span>Không gian quản trị tài liệu và tóm tắt</span>
+    </div>
+    <button type="button" class="admin-theme-toggle" data-admin-theme-toggle aria-label="Chuyển giao diện admin">
+        <span class="admin-theme-toggle__icon" data-admin-theme-icon>&#9788;</span>
+        <span class="admin-theme-toggle__label" data-admin-theme-label>Giao diện sáng</span>
+    </button>
+</div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block footer %}
+{{ block.super }}
+<script>
+    (function () {
+        const root = document.documentElement;
+        const toggle = document.querySelector("[data-admin-theme-toggle]");
+        const icon = document.querySelector("[data-admin-theme-icon]");
+        const label = document.querySelector("[data-admin-theme-label]");
+
+        function syncThemeUi(theme) {
+            const isDark = theme === "dark";
+            if (icon) {
+                icon.textContent = isDark ? "\u263e" : "\u2600";
+            }
+            if (label) {
+                label.textContent = isDark ? "Giao diện tối" : "Giao diện sáng";
+            }
+        }
+
+        function getTheme() {
+            const storedTheme = localStorage.getItem("summarease-theme");
+            if (storedTheme === "light" || storedTheme === "dark") {
+                return storedTheme;
+            }
+            return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+
+        function applyTheme(theme) {
+            root.dataset.theme = theme;
+            localStorage.setItem("summarease-theme", theme);
+            syncThemeUi(theme);
+        }
+
+        applyTheme(getTheme());
+        if (toggle) {
+            toggle.addEventListener("click", function () {
+                applyTheme(root.dataset.theme === "dark" ? "light" : "dark");
+            });
+        }
+    }());
+</script>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends "summaries/base.html" %}
+
+{% block title %}SummarEase | Django{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="hero hero-home">
+        <div class="hero-copy">
+            <p class="eyebrow">Kh&#244;ng gian t&#243;m t&#7855;t</p>
+            <h1>Bi&#7871;n v&#259;n b&#7843;n d&#224;i th&#224;nh b&#7843;n t&#243;m t&#7855;t ng&#7855;n, d&#7877; &#273;&#7885;c v&#224; d&#7877; qu&#7843;n l&#253;.</h1>
+            <p class="lede">SummarEase k&#7871;t h&#7907;p khu x&#7917; l&#253; n&#7897;i dung, l&#7883;ch s&#7917; t&#243;m t&#7855;t v&#224; b&#7843;ng qu&#7843;n tr&#7883; trong m&#7897;t giao di&#7879;n r&#245; r&#224;ng cho ng&#432;&#7901;i d&#249;ng v&#224; qu&#7843;n tr&#7883; vi&#234;n.</p>
+            <div class="access-banner">
+                {% if request.user.is_authenticated %}
+                    {% if request.user.is_staff %}
+                        <span class="status-badge admin">Quản trị</span>
+                        <p>H&#7879; th&#7889;ng &#273;&#227; nh&#7853;n di&#7879;n t&#224;i kho&#7843;n {{ request.user.username }} v&#7899;i quy&#7873;n qu&#7843;n tr&#7883; v&#224; truy c&#7853;p &#273;&#7847;y &#273;&#7911;.</p>
+                    {% else %}
+                        <span class="status-badge member">Ng&#432;&#7901;i d&#249;ng</span>
+                        <p>H&#7879; th&#7889;ng &#273;&#227; nh&#7853;n di&#7879;n {{ request.user.username }} v&#224; m&#7903; s&#7861;n kh&#244;ng gian l&#224;m vi&#7879;c, l&#7883;ch s&#7917; v&#224; l&#432;u tr&#7919; c&#225; nh&#226;n.</p>
+                    {% endif %}
+                {% else %}
+                    <span class="status-badge guest">Kh&#225;ch</span>
+                    <p>B&#7841;n &#273;ang &#7903; ch&#7871; &#273;&#7897; xem giao di&#7879;n. &#272;&#259;ng nh&#7853;p &#273;&#7875; l&#432;u k&#7871;t qu&#7843;, theo d&#245;i l&#7883;ch s&#7917; v&#224; qu&#7843;n l&#253; b&#7843;n t&#243;m t&#7855;t.</p>
+                {% endif %}
+            </div>
+            <div class="hero-actions">
+                {% if request.user.is_authenticated %}
+                    <a class="button-primary" href="#workspace">B&#7855;t &#273;&#7847;u t&#243;m t&#7855;t</a>
+                    <a class="button-secondary" href="{% url 'history' %}">M&#7903; l&#7883;ch s&#7917;</a>
+                {% else %}
+                    <a class="button-primary" href="{% url 'register' %}">T&#7841;o t&#224;i kho&#7843;n</a>
+                    <a class="button-secondary" href="{% url 'login' %}">&#272;&#259;ng nh&#7853;p</a>
+                {% endif %}
+            </div>
+            <div class="hero-ribbon">
+                <span>TextRank</span>
+                <span>Gemini</span>
+                <span>Văn bản / Tệp / URL</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="access-strip">
+        <article class="access-card panel">
+            <p class="eyebrow">Nh&#7853;n di&#7879;n</p>
+            {% if request.user.is_authenticated %}
+                {% if request.user.is_staff %}
+                    <h3>Phi&#234;n qu&#7843;n tr&#7883;</h3>
+                    <p>&#272;&#259;ng nh&#7853;p th&#224;nh c&#244;ng v&#224; c&#243; quy&#7873;n truy c&#7853;p khu qu&#7843;n tr&#7883; h&#7879; th&#7889;ng.</p>
+                {% else %}
+                    <h3>Phi&#234;n ng&#432;&#7901;i d&#249;ng</h3>
+                    <p>&#272;&#227; nh&#7853;n di&#7879;n t&#224;i kho&#7843;n ng&#432;&#7901;i d&#249;ng v&#224; li&#234;n k&#7871;t l&#7883;ch s&#7917; t&#243;m t&#7855;t c&#225; nh&#226;n.</p>
+                {% endif %}
+            {% else %}
+                <h3>Phi&#234;n kh&#225;ch</h3>
+                <p>&#272;ang truy c&#7853;p v&#7899;i quy&#7873;n xem giao di&#7879;n, ch&#432;a m&#7903; l&#432;u tr&#7919; c&#225; nh&#226;n.</p>
+            {% endif %}
+        </article>
+        <article class="access-card panel">
+            <p class="eyebrow">Truy c&#7853;p</p>
+            {% if request.user.is_authenticated %}
+                    <h3>&#272;&#227; m&#7903; kh&#244;ng gian l&#224;m vi&#7879;c</h3>
+                <p>C&#243; th&#7875; t&#7841;o b&#7843;n t&#243;m t&#7855;t m&#7899;i, xem l&#7883;ch s&#7917; v&#224; ti&#7871;p t&#7909;c quy tr&#236;nh l&#224;m vi&#7879;c.</p>
+            {% else %}
+                <h3>C&#7847;n &#273;&#259;ng nh&#7853;p</h3>
+                <p>&#272;&#259;ng nh&#7853;p &#273;&#7875; k&#237;ch ho&#7841;t l&#432;u SQL, l&#7883;ch s&#7917; c&#225; nh&#226;n v&#224; &#273;i&#7873;u h&#432;&#7899;ng theo t&#224;i kho&#7843;n.</p>
+            {% endif %}
+        </article>
+        <article class="access-card panel">
+            <p class="eyebrow">Giao di&#7879;n</p>
+            <h3 data-theme-badge>Ch&#7871; &#273;&#7897; s&#225;ng</h3>
+            <p data-theme-copy>H&#7879; th&#7889;ng &#273;ang hi&#7875;n th&#7883; theme s&#225;ng &#273;&#7875; &#273;&#7885;c v&#224; thao t&#225;c r&#245; r&#224;ng.</p>
+        </article>
+    </section>
+
+    {% if request.user.is_authenticated %}
+        <section class="dashboard-strip">
+            <article class="dashboard-card dashboard-card-user">
+                <p class="eyebrow">Ng&#432;&#7901;i d&#249;ng</p>
+                <h3>{{ request.user.username }}</h3>
+                <p>H&#7879; th&#7889;ng &#273;ang s&#7861;n s&#224;ng t&#7841;o b&#7843;n t&#243;m t&#7855;t m&#7899;i v&#224; c&#7853;p nh&#7853;t l&#7883;ch s&#7917; c&#225; nh&#226;n.</p>
+            </article>
+            <article class="dashboard-card dashboard-card-ratio">
+                <p class="eyebrow">M&#7863;c &#273;&#7883;nh</p>
+                <h3>{% widthratio form.initial.ratio|default:0.2 1 100 %}%</h3>
+                <span class="stat-caption">T&#7927; l&#7879; kh&#7903;i t&#7841;o cho m&#7895;i phi&#234;n t&#243;m t&#7855;t</span>
+                <p>T&#7881; l&#7879; t&#243;m t&#7855;t hi&#7879;n t&#7841;i s&#7869; &#273;&#432;&#7907;c d&#249;ng &#273;&#7875; kh&#7903;i t&#7841;o cho m&#7895;i phi&#234;n l&#224;m vi&#7879;c.</p>
+            </article>
+            <article class="dashboard-card dashboard-card-admin">
+                <p class="eyebrow">Qu&#7843;n tr&#7883;</p>
+                {% if request.user.is_staff %}
+                    <h3>Có quyền quản trị</h3>
+                    <p>B&#7841;n c&#243; th&#7875; v&#224;o khu admin &#273;&#7875; qu&#7843;n l&#253; người dùng, tài liệu, bản tóm tắt và đánh giá.</p>
+                {% else %}
+                    <h3>Tài khoản người dùng</h3>
+                    <p>S&#7917; d&#7909;ng khu l&#7883;ch s&#7917; &#273;&#7875; theo d&#245;i c&#225;c b&#7843;n t&#243;m t&#7855;t &#273;&#227; t&#7841;o.</p>
+                {% endif %}
+            </article>
+        </section>
+    {% endif %}
+
+    <section id="workspace" class="workspace">
+        <form id="summary-form" class="panel compose-panel" method="post" enctype="multipart/form-data" action="{% url 'create_summary' %}">
+            {% csrf_token %}
+            <div class="panel-head">
+                <div>
+                    <p class="eyebrow">Không gian làm việc</p>
+                    <h2>T&#7841;o b&#7843;n t&#243;m t&#7855;t m&#7899;i</h2>
+                </div>
+                <span class="panel-chip">X&#7917; l&#253; tr&#7921;c ti&#7871;p</span>
+            </div>
+            <div class="field-grid">
+                <label>
+                    <span>Ngu&#7891;n</span>
+                    <select name="source_type" id="source_type">
+                        <option value="text">V&#259;n b&#7843;n</option>
+                        <option value="file">T&#7879;p</option>
+                        <option value="url">URL</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Ph&#432;&#417;ng ph&#225;p</span>
+                    <select name="method">
+                        <option value="textrank">TextRank</option>
+                        <option value="gemini">Gemini</option>
+                    </select>
+                </label>
+                <label>
+                    <span>T&#7881; l&#7879;</span>
+                    <div class="ratio-control">
+                        <input type="range" id="ratio_slider" min="0" max="100" step="1" value="{% widthratio form.initial.ratio|default:0.2 1 100 %}">
+                        <div class="ratio-meta">
+                            <strong id="ratio_value">{% widthratio form.initial.ratio|default:0.2 1 100 %}%</strong>
+                            <span>M&#7913;c &#273;&#7897; r&#250;t g&#7885;n n&#7897;i dung</span>
+                        </div>
+                        <input type="hidden" name="ratio" id="ratio_input" value="{{ form.initial.ratio|default:0.2 }}">
+                    </div>
+                </label>
+            </div>
+
+            <label id="text-wrap" class="stack-field">
+                <span>V&#259;n b&#7843;n g&#7889;c</span>
+                <textarea name="text" rows="14" placeholder="D&#225;n n&#7897;i dung c&#7847;n t&#243;m t&#7855;t..."></textarea>
+            </label>
+
+            <label id="file-wrap" class="stack-field is-hidden">
+                <span>Ch&#7885;n t&#7879;p</span>
+                <input type="file" name="upload" accept=".txt,.md,.markdown,.docx,.pdf,.epub">
+            </label>
+
+            <label id="url-wrap" class="stack-field is-hidden">
+                <span>Nh&#7853;p URL</span>
+                <input type="url" name="source_url" placeholder="https://example.com/article">
+            </label>
+
+            {% if request.user.is_authenticated %}
+                <button class="button-primary wide" type="submit">T&#7841;o b&#7843;n t&#243;m t&#7855;t</button>
+            {% else %}
+                <p class="helper-note">C&#7847;n &#273;&#259;ng nh&#7853;p &#273;&#7875; l&#432;u b&#7843;n t&#243;m t&#7855;t v&#224;o SQL v&#224; m&#7903; l&#7883;ch s&#7917;.</p>
+                <a class="button-primary wide center-link" href="{% url 'login' %}">&#272;&#259;ng nh&#7853;p &#273;&#7875; s&#7917; d&#7909;ng</a>
+            {% endif %}
+
+            <p id="form-message" class="form-message"></p>
+        </form>
+
+        <article class="panel result-panel">
+            <div class="panel-head">
+                <div class="result-top">
+                    <p class="eyebrow">K&#7871;t qu&#7843;</p>
+                    <h2 id="result-title">Ch&#432;a c&#243; b&#7843;n t&#243;m t&#7855;t</h2>
+                </div>
+                <span class="panel-chip subtle">Xem tr&#432;&#7899;c</span>
+            </div>
+            <div id="result-meta" class="result-meta"></div>
+            <div id="result-keywords" class="keyword-list"></div>
+            <div id="summary-output" class="summary-output">B&#7843;n t&#243;m t&#7855;t s&#7869; hi&#7879;n &#7903; &#273;&#226;y sau khi x&#7917; l&#253;.</div>
+            <a id="detail-link" class="ghost-link is-hidden" href="#">M&#7903; b&#7843;n ghi &#273;&#227; l&#432;u</a>
+        </article>
+    </section>
+
+    {% if request.user.is_authenticated and user_history %}
+        <section class="panel history-section">
+            <div class="section-head">
+                <p class="eyebrow">C&#7911;a b&#7841;n</p>
+                <h2>B&#7843;n t&#243;m t&#7855;t g&#7847;n &#273;&#226;y</h2>
+            </div>
+            <div class="card-grid">
+                {% for item in user_history %}
+                    <article class="history-card">
+                        <div class="card-top">
+                            <span class="badge">{{ item.get_method_display }}</span>
+                            <span class="muted">{{ item.created_at|date:"d/m/Y H:i" }}</span>
+                        </div>
+                        <h3>{{ item.title }}</h3>
+                        <p>{{ item.summary_text|truncatechars:160 }}</p>
+                        <a href="{% url 'history_detail' item.id %}">Xem chi ti&#7871;t</a>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+</main>
+{% endblock %}

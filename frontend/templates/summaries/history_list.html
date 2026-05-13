@@ -1,0 +1,53 @@
+{% extends "summaries/base.html" %}
+
+{% block title %}L&#7883;ch s&#7917;{% endblock %}
+
+{% block content %}
+<main class="page-shell narrow">
+    <section class="panel history-section">
+        <div class="section-head">
+            <p class="eyebrow">L&#7883;ch s&#7917;</p>
+            {% if is_admin_view %}
+                <h1>L&#7883;ch s&#7917; t&#243;m t&#7855;t c&#7911;a to&#224;n b&#7897; ng&#432;&#7901;i d&#249;ng</h1>
+                <p class="section-copy">Quản trị có th&#7875; xem l&#7841;i t&#7845;t c&#7843; b&#7843;n t&#243;m t&#7855;t trong h&#7879; th&#7889;ng, theo t&#7915;ng t&#224;i kho&#7843;n v&#224; m&#7903; chi ti&#7871;t t&#7915;ng m&#7909;c.</p>
+            {% else %}
+                <h1>T&#7845;t c&#7843; b&#7843;n t&#243;m t&#7855;t c&#7911;a b&#7841;n</h1>
+                <p class="section-copy">Theo d&#245;i c&#225;c b&#7843;n t&#243;m t&#7855;t &#273;&#227; t&#7841;o, m&#7903; chi ti&#7871;t t&#7915;ng m&#7909;c v&#224; x&#243;a b&#7843;n ghi kh&#244;ng c&#242;n c&#7847;n d&#249;ng.</p>
+            {% endif %}
+        </div>
+        <div class="list-stack">
+            {% for item in items %}
+                <article class="history-row">
+                    <div class="history-main">
+                        <div class="card-top">
+                            <span class="badge">{{ item.get_method_display }}</span>
+                            <span class="badge warm">{{ item.document.get_source_type_display }}</span>
+                            {% if is_admin_view %}
+                                <span class="badge neutral">{{ item.user.username }}</span>
+                            {% endif %}
+                        </div>
+                        <h2>{{ item.title }}</h2>
+                        <p>{{ item.summary_text|truncatechars:220 }}</p>
+                        <span class="muted">{{ item.created_at|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    <div class="row-actions">
+                        <a class="button-secondary slim" href="{% url 'history_detail' item.id %}">Chi ti&#7871;t</a>
+                        {% if item.user_id == request.user.id %}
+                            <form method="post" action="{% url 'history_delete' item.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="button-danger slim">X&#243;a</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </article>
+            {% empty %}
+                {% if is_admin_view %}
+                    <p>H&#7879; th&#7889;ng ch&#432;a c&#243; b&#7843;n t&#243;m t&#7855;t n&#224;o.</p>
+                {% else %}
+                    <p>B&#7841;n ch&#432;a c&#243; b&#7843;n t&#243;m t&#7855;t n&#224;o.</p>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

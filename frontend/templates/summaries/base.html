@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}SummarEase Rebuild{% endblock %}</title>
+    <script>
+        (function () {
+            const storedTheme = localStorage.getItem("summarease-theme");
+            const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            document.documentElement.dataset.theme = storedTheme || systemTheme;
+        }());
+    </script>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260514-1">
+</head>
+<body data-auth-state="{% if request.user.is_authenticated %}{% if request.user.is_staff %}admin{% else %}member{% endif %}{% else %}guest{% endif %}">
+    <div class="site-backdrop">
+        <div class="site-glow site-glow-one"></div>
+        <div class="site-glow site-glow-two"></div>
+    </div>
+
+    <header class="site-header">
+        <a class="brand" href="{% url 'home' %}">
+            <span class="brand-mark">S</span>
+            <span class="brand-copy">
+                <strong>SummarEase</strong>
+                <small>N&#7873;n t&#7843;ng t&#243;m t&#7855;t t&#224;i li&#7879;u</small>
+            </span>
+        </a>
+        <div class="header-stack">
+            <div class="header-tools">
+                <div class="presence-card">
+                    <span class="presence-dot"></span>
+                    <div class="presence-copy">
+                        {% if request.user.is_authenticated %}
+                            {% if request.user.is_staff %}
+                                <strong>Quản trị &#273;ang truy c&#7853;p</strong>
+                                <small>{{ request.user.username }} c&#243; quy&#7873;n qu&#7843;n tr&#7883; h&#7879; th&#7889;ng.</small>
+                            {% else %}
+                                <strong>Ng&#432;&#7901;i d&#249;ng &#273;&#227; &#273;&#259;ng nh&#7853;p</strong>
+                                <small>{{ request.user.username }} &#273;ang s&#7917; d&#7909;ng workspace c&#225; nh&#226;n.</small>
+                            {% endif %}
+                        {% else %}
+                            <strong>Kh&#225;ch truy c&#7853;p</strong>
+                            <small>C&#243; th&#7875; xem giao di&#7879;n, c&#7847;n &#273;&#259;ng nh&#7853;p &#273;&#7875; l&#432;u l&#7883;ch s&#7917;.</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <button type="button" class="theme-toggle" data-theme-toggle aria-label="Chuy&#7875;n ch&#7871; &#273;&#7897; s&#225;ng t&#7889;i">
+                    <span class="theme-toggle-icon" data-theme-icon>&#9788;</span>
+                    <span data-theme-label>Ch&#7871; &#273;&#7897; s&#225;ng</span>
+                </button>
+            </div>
+            <nav class="site-nav">
+                <a href="{% url 'home' %}">Trang ch&#7911;</a>
+                {% if request.user.is_authenticated %}
+                    <a href="{% url 'history' %}">L&#7883;ch s&#7917;</a>
+                    {% if request.user.is_staff %}
+                        <a href="/admin/">Quản trị</a>
+                    {% endif %}
+                    <span class="nav-user">{{ request.user.username }}</span>
+                    <form method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="nav-button">&#272;&#259;ng xu&#7845;t</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}">&#272;&#259;ng nh&#7853;p</a>
+                    <a href="{% url 'register' %}" class="nav-cta">&#272;&#259;ng k&#253;</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    {% if messages %}
+        <div class="flash-wrap">
+            {% for message in messages %}
+                <div class="flash {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+    <script src="{% static 'js/app.js' %}?v=20260514-1"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
