@@ -12,7 +12,7 @@
             document.documentElement.dataset.theme = storedTheme || systemTheme;
         }());
     </script>
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260514-1">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260514-2">
 </head>
 <body data-auth-state="{% if request.user.is_authenticated %}{% if request.user.is_staff %}admin{% else %}member{% endif %}{% else %}guest{% endif %}">
     <div class="site-backdrop">
@@ -81,7 +81,7 @@
     {% endif %}
 
     {% block content %}{% endblock %}
-    <script src="{% static 'js/app.js' %}?v=20260514-1"></script>
+    <script src="{% static 'js/app.js' %}?v=20260514-2"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>
