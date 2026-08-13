@@ -9,7 +9,7 @@ $pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
 $certFile = Join-Path $projectRoot "backend\ssl\cert.pem"
 $keyFile = Join-Path $projectRoot "backend\ssl\key.pem"
 
-$env:PYTHONPATH = "$projectRoot;$env:PYTHONPATH"
+$env:PYTHONPATH = "$projectRoot\backend;$env:PYTHONPATH"
 Set-Location $projectRoot
 
 Write-Host "Dang chay HTTPS dev server tai: https://localhost:$Port/" -ForegroundColor Green
