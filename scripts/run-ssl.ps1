@@ -10,6 +10,11 @@ $certFile = Join-Path $projectRoot "backend\ssl\cert.pem"
 $keyFile = Join-Path $projectRoot "backend\ssl\key.pem"
 
 $env:PYTHONPATH = "$projectRoot\backend;$env:PYTHONPATH"
+$certFile = "backend/ssl/cert.pem"
+$keyFile = "backend/ssl/key.pem"
+if (-not (Test-Path "$projectRoot\$certFile")) {
+    & $pythonExe "$projectRoot\scripts\gen-cert.py"
+}
 Set-Location $projectRoot
 
 Write-Host "Dang chay HTTPS dev server tai: https://localhost:$Port/" -ForegroundColor Green
@@ -20,4 +25,4 @@ if (-not $NoBrowser) {
     try { Start-Process "https://localhost:$Port/" } catch {}
 }
 
-& $pythonExe -m daphne -e ssl:$Port`:privateKey=$keyFile`:certKey=$certFile config.asgi:application
+& $pythonExe -m daphne -e "ssl:$Port`:privateKey=$keyFile`:certKey=$certFile" config.asgi:application

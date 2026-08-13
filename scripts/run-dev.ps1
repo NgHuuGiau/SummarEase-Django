@@ -56,18 +56,25 @@ Write-Host "Dang dong bo database..." -ForegroundColor Cyan
 & $pythonExe manage.py setup
 
 Write-Host "Mo dung URL nay trong trinh duyet:" -ForegroundColor Green
-Write-Host "  $baseUrl" -ForegroundColor Green
+Write-Host "  https://127.0.0.1:$selectedPort/" -ForegroundColor Green
 Write-Host "Admin:" -ForegroundColor Green
-Write-Host "  ${baseUrl}admin/" -ForegroundColor Green
-Write-Host "Chi dung http://, khong dung https:// trong local runner nay." -ForegroundColor Yellow
+Write-Host "  https://127.0.0.1:${selectedPort}/admin/" -ForegroundColor Green
+Write-Host "Day la HTTPS (daphne + chung chi self-signed)." -ForegroundColor Yellow
 
 if (-not $NoBrowser) {
     try {
-        Start-Process $baseUrl | Out-Null
+        Start-Process "https://127.0.0.1:$selectedPort/" | Out-Null
     } catch {
         Write-Host "Khong the tu dong mo trinh duyet. Hay mo URL ben tren thu cong." -ForegroundColor Yellow
     }
 }
 
-& $pythonExe manage.py runserver "127.0.0.1:$selectedPort"
+$certFile = "backend/ssl/cert.pem"
+$keyFile = "backend/ssl/key.pem"
+if (-not (Test-Path "$projectRoot\$certFile")) {
+    & $pythonExe "$projectRoot\scripts\gen-cert.py"
+}
+
+$env:PYTHONPATH = "$projectRoot\backend;$env:PYTHONPATH"
+& $pythonExe -m daphne -e "ssl:$selectedPort`:privateKey=$keyFile`:certKey=$certFile" config.asgi:application
 exit $LASTEXITCODE
