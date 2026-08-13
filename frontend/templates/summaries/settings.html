@@ -1,0 +1,59 @@
+{% extends "summaries/base.html" %}
+
+{% block title %}Cài đặt - SummarEase{% endblock %}
+
+{% block content %}
+<main class="page-shell narrow">
+    <section class="panel">
+        <div class="section-head">
+            <p class="eyebrow">Cài đặt</p>
+            <h1>Cài đặt tài khoản</h1>
+            <p class="section-copy">Quản lý tỉ lệ tóm tắt mặc định và API key Gemini cá nhân.</p>
+        </div>
+
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+
+            <label>
+                <span>{{ form.default_summary_ratio.label }}</span>
+                {{ form.default_summary_ratio }}
+                {% if form.default_summary_ratio.help_text %}
+                    <span class="field-help">{{ form.default_summary_ratio.help_text }}</span>
+                {% endif %}
+                {% if form.default_summary_ratio.errors %}
+                    <span class="field-error">{{ form.default_summary_ratio.errors.0 }}</span>
+                {% endif %}
+            </label>
+
+            <label>
+                <span>{{ form.gemini_api_key.label }}</span>
+                {{ form.gemini_api_key }}
+                <div class="api-status">
+                    {% if setting.gemini_api_key %}
+                        <span class="status-badge member">Đã cấu hình key cá nhân</span>
+                    {% elif system_has_key %}
+                        <span class="status-badge guest">Đang dùng key hệ thống</span>
+                    {% else %}
+                        <span class="status-badge unconfigured">Chưa cấu hình</span>
+                    {% endif %}
+                </div>
+                {% if form.gemini_api_key.help_text %}
+                    <span class="field-help">{{ form.gemini_api_key.help_text }}</span>
+                {% endif %}
+                {% if form.gemini_api_key.errors %}
+                    <span class="field-error">{{ form.gemini_api_key.errors.0 }}</span>
+                {% endif %}
+            </label>
+
+            <div class="info-card">
+                <strong>Về Gemini API Key</strong>
+                <p>Bạn có thể dùng key cá nhân để tóm tắt bằng Gemini. Nếu để trống, hệ thống sẽ dùng key mặc định (nếu có).</p>
+                <p>Lấy key miễn phí tại: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="external-link">aistudio.google.com/apikey</a></p>
+            </div>
+
+            <button type="submit" class="button-primary wide">Lưu cài đặt</button>
+        </form>
+    </section>
+</main>
+{% endblock %}

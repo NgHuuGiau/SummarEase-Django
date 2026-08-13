@@ -1,0 +1,32 @@
+### Trang chủ
+GET http://localhost:8000/
+
+### Đăng nhập
+GET http://localhost:8000/login/
+
+### Đăng ký
+GET http://localhost:8000/register/
+
+### Tóm tắt văn bản (TextRank)
+POST http://localhost:8000/api/summaries/create/
+Content-Type: application/x-www-form-urlencoded
+
+source_type=text&method=textrank&text=Đây là một đoạn văn bản để kiểm thử hệ thống tóm tắt Django. Hệ thống SummarEase cho phép người dùng tóm tắt nội dung từ nhiều nguồn khác nhau bao gồm văn bản thuần, URL và file tải lên.&ratio=0.4
+
+### Tóm tắt văn bản (Gemini)
+POST http://localhost:8000/api/summaries/create/
+Content-Type: application/x-www-form-urlencoded
+
+source_type=text&method=gemini&text=Đây là một đoạn văn bản để kiểm thử hệ thống tóm tắt Django. Hệ thống SummarEase cho phép người dùng tóm tắt nội dung từ nhiều nguồn khác nhau bao gồm văn bản thuần, URL và file tải lên.&ratio=0.3
+
+### Lịch sử tóm tắt
+GET http://localhost:8000/history/
+
+### Cài đặt
+GET http://localhost:8000/settings/
+
+### Trang admin
+GET http://localhost:8000/admin/
+
+### Endpoint không tồn tại
+GET http://localhost:8000/nonexistent/

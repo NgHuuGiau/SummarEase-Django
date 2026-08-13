@@ -9,8 +9,10 @@ __pycache__/
 .env
 backend/.env
 
-media/
-staticfiles/
+backend/media/
+backend/staticfiles/
+backend/ssl/
+backend/sql/*.sqlite3
 
 .pytest_cache/
 .mypy_cache/

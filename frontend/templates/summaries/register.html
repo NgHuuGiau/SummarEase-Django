@@ -1,54 +1,72 @@
 {% extends "summaries/base.html" %}
 
-{% block title %}&#272;&#259;ng k&#253;{% endblock %}
+{% block title %}Đăng ký - SummarEase{% endblock %}
 
 {% block content %}
 <main class="auth-shell">
     <section class="auth-layout">
         <aside class="auth-story panel accent">
-            <p class="eyebrow">T&#7841;o t&#224;i kho&#7843;n</p>
-            <h1>B&#7855;t &#273;&#7847;u l&#432;u tr&#7919; v&#224; qu&#7843;n l&#253; b&#7843;n t&#243;m t&#7855;t c&#7911;a b&#7841;n.</h1>
-            <p class="lede">T&#7841;o t&#224;i kho&#7843;n &#273;&#7875; l&#432;u l&#7883;ch s&#7917;, quay l&#7841;i c&#225;c phi&#234;n l&#224;m vi&#7879;c tr&#432;&#7899;c &#273;&#243; v&#224; duy tr&#236; m&#7897;t quy tr&#236;nh t&#243;m t&#7855;t nh&#7845;t qu&#225;n.</p>
+            <p class="eyebrow">Tạo tài khoản</p>
+            <h1>Bắt đầu lưu trữ và quản lý bản tóm tắt của bạn.</h1>
+            <p class="lede">Tạo tài khoản để lưu lịch sử, quay lại các phiên làm việc trước đó và duy trì một quy trình tóm tắt nhất quán.</p>
             <div class="auth-points">
                 <div class="auth-point">
-                    <strong>L&#432;u l&#7883;ch s&#7917; theo t&#224;i kho&#7843;n</strong>
-                    <span>M&#7895;i b&#7843;n t&#243;m t&#7855;t &#273;&#432;&#7907;c g&#7855;n v&#7899;i t&#224;i kho&#7843;n &#273;&#7875; tra c&#7913;u v&#224; qu&#7843;n l&#253; d&#7877; h&#417;n.</span>
+                    <strong>Lưu lịch sử theo tài khoản</strong>
+                    <span>Mỗi bản tóm tắt được gắn với tài khoản để tra cứu và quản lý dễ hơn.</span>
                 </div>
                 <div class="auth-point">
-                    <strong>Ti&#7871;p t&#7909;c quy tr&#236;nh c&#225; nh&#226;n</strong>
-                    <span>H&#7879; th&#7889;ng ghi nh&#7899; c&#225;c thi&#7871;t l&#7853;p c&#7847;n thi&#7871;t &#273;&#7875; b&#7841;n l&#224;m vi&#7879;c nhanh h&#417;n trong c&#225;c l&#7847;n sau.</span>
+                    <strong>Tiếp tục quy trình cá nhân</strong>
+                    <span>Hệ thống ghi nhớ các thiết lập cần thiết để bạn làm việc nhanh hơn trong các lần sau.</span>
                 </div>
                 <div class="auth-point">
-                    <strong>S&#7861;n s&#224;ng m&#7903; r&#7897;ng</strong>
-                    <span>Khi c&#7847;n, b&#7841;n c&#243; th&#7875; m&#7903; r&#7897;ng sang qu&#7843;n tr&#7883;, &#273;&#225;nh gi&#225; v&#224; theo d&#245;i to&#224;n b&#7897; d&#7919; li&#7879;u.</span>
+                    <strong>Sẵn sàng mở rộng</strong>
+                    <span>Khi cần, bạn có thể mở rộng sang quản trị, đánh giá và theo dõi toàn bộ dữ liệu.</span>
                 </div>
             </div>
         </aside>
         <section class="panel auth-panel">
-            <p class="eyebrow">&#272;&#259;ng k&#253;</p>
-            <h2>T&#7841;o t&#224;i kho&#7843;n &#273;&#7875; b&#7855;t &#273;&#7847;u.</h2>
+            <p class="eyebrow">Đăng ký</p>
+            <h2>Tạo tài khoản để bắt đầu.</h2>
             <form method="post" class="auth-form">
                 {% csrf_token %}
-                {{ form.non_field_errors }}
+                {% if form.non_field_errors %}
+                    <div class="form-errors">
+                        {% for error in form.non_field_errors %}
+                            <p class="error-text">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
                 <label>
-                    <span>T&#234;n &#273;&#259;ng nh&#7853;p</span>
+                    <span>Tên đăng nhập</span>
                     {{ form.username }}
+                    {% if form.username.errors %}
+                        <span class="field-error">{{ form.username.errors.0 }}</span>
+                    {% endif %}
                 </label>
                 <label>
                     <span>Email</span>
                     {{ form.email }}
+                    {% if form.email.errors %}
+                        <span class="field-error">{{ form.email.errors.0 }}</span>
+                    {% endif %}
                 </label>
                 <label>
-                    <span>M&#7853;t kh&#7849;u</span>
+                    <span>Mật khẩu</span>
                     {{ form.password1 }}
+                    {% if form.password1.errors %}
+                        <span class="field-error">{{ form.password1.errors.0 }}</span>
+                    {% endif %}
                 </label>
                 <label>
-                    <span>X&#225;c nh&#7853;n m&#7853;t kh&#7849;u</span>
+                    <span>Xác nhận mật khẩu</span>
                     {{ form.password2 }}
+                    {% if form.password2.errors %}
+                        <span class="field-error">{{ form.password2.errors.0 }}</span>
+                    {% endif %}
                 </label>
-                <button type="submit" class="button-primary wide">&#272;&#259;ng k&#253;</button>
+                <button type="submit" class="button-primary wide">Đăng ký</button>
             </form>
-            <p class="helper-note">&#272;&#227; c&#243; t&#224;i kho&#7843;n? <a href="{% url 'login' %}">&#272;&#259;ng nh&#7853;p</a></p>
+            <p class="helper-note">Đã có tài khoản? <a href="{% url 'login' %}">Đăng nhập</a></p>
         </section>
     </section>
 </main>

@@ -1,173 +1,261 @@
-# SummarEase Django
+﻿# 📝 SummarEase Django
 
-SummarEase Django là phiên bản xây dựng lại hệ thống tóm tắt nội dung bằng Django, tập trung vào trải nghiệm web, lưu lịch sử người dùng và khu quản trị dành cho admin.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white" alt="Django">
+  <img src="https://img.shields.io/badge/TextRank-Summary-00ADD8" alt="TextRank">
+  <img src="https://img.shields.io/badge/Gemini-AI-4285F4?logo=google-gemini&logoColor=white" alt="Gemini">
+  <img src="https://img.shields.io/badge/SQL_Server-CC2927?logo=microsoft-sql-server&logoColor=white" alt="SQL Server">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+</p>
 
-## Công nghệ sử dụng
+**SummarEase Django** là ứng dụng web tóm tắt nội dung thông minh, hỗ trợ tóm tắt từ văn bản, URL hoặc file tải lên (PDF, DOCX, EPUB, TXT). Hệ thống cung cấp hai phương pháp tóm tắt: **TextRank** (cổ điển) và **Gemini AI** (hiện đại), kèm theo quản lý lịch sử và tài khoản người dùng.
 
-- Python 3.12
-- Django
-- HTML, CSS, JavaScript
-- SQLite mặc định, hỗ trợ MySQL nếu cần
+---
 
-## Tính năng chính
+## 📋 Mục lục
 
-- Đăng ký, đăng nhập, đăng xuất
-- Tóm tắt từ văn bản, tệp hoặc URL
-- Hỗ trợ nhiều phương pháp tóm tắt như `TextRank` và `Gemini`
-- Lưu lịch sử tóm tắt theo tài khoản
-- Xem chi tiết nội dung gốc và bản tóm tắt đã lưu
-- Phân quyền cơ bản giữa người dùng và quản trị viên
-- Giao diện sáng/tối cho khu người dùng và admin
+- [Tính năng](#-tính-năng)
+- [Công nghệ sử dụng](#-công-nghệ-sử-dụng)
+- [Cấu trúc dự án](#-cấu-trúc-dự-án)
+- [Cài đặt nhanh](#-cài-đặt-nhanh)
+- [Hướng dẫn sử dụng](#-hướng-dẫn-sử-dụng)
+- [Chạy với Docker](#-chạy-với-docker)
+- [API Endpoints](#-api-endpoints)
+- [Đóng góp](#-đóng-góp)
+- [Giấy phép](#-giấy-phép)
 
-## Cấu trúc thư mục
+---
 
-- `backend/`: mã nguồn Django
-- `backend/config/`: cấu hình dự án như `settings.py`, `urls.py`, `wsgi.py`, `asgi.py`
-- `backend/summaries/`: app chính cho chức năng tóm tắt
-- `frontend/templates/`: template HTML
-- `frontend/static/`: CSS và JavaScript
-- `sql/`: schema tham khảo và file SQLite
-- `media/`: dữ liệu người dùng tải lên trong lúc chạy
-- `testsAPI/`: file test API thủ công
-- `docker/`: cấu hình Docker
-- `docs/`: tài liệu bổ sung
+## 🚀 Tính năng
 
-## Yêu cầu môi trường
+| Tính năng | Mô tả |
+|-----------|-------|
+| **📄 Tóm tắt văn bản** | Nhập trực tiếp nội dung cần tóm tắt |
+| **🔗 Tóm tắt URL** | Trích xuất và tóm tắt nội dung trang web |
+| **📁 Tải file lên** | Hỗ trợ PDF, DOCX, EPUB, TXT |
+| **🧠 TextRank** | Thuật toán xếp hạng câu cổ điển, không cần API |
+| **🤖 Gemini AI** | Tóm tắt thông minh bằng Google Gemini |
+| **📊 Tuỳ chỉnh tỷ lệ** | Chọn độ dài bản tóm tắt từ 10%–90% |
+| **👤 Quản lý tài khoản** | Đăng ký, đăng nhập, phân quyền |
+| **📜 Lịch sử tóm tắt** | Lưu và xem lại các bản tóm tắt đã tạo |
+| **🌓 Giao diện tối/sáng** | Theme mặc định theo hệ thống, có thể chuyển đổi |
+| **🔒 Bảo mật** | API key được mã hoá, XSS-safe, rate limiting |
 
-- Python 3.12 trở lên được khuyến nghị
-- Windows PowerShell, Command Prompt hoặc terminal tương đương
+---
 
-## Hướng dẫn chạy dự án
+## 🛠 Công nghệ sử dụng
 
-### 1. Di chuyển vào thư mục dự án
+### Ngôn ngữ & Framework
 
-```powershell
-cd D:\Downloads\SummarEase_Django
+| Công nghệ | Phiên bản | Mục đích |
+|-----------|-----------|----------|
+| Python | 3.12+ | Ngôn ngữ lập trình |
+| Django | 5.2 | Web framework |
+| HTML5 / CSS3 | — | Giao diện người dùng |
+| JavaScript | Vanilla | Tương tác frontend |
+
+### Thư viện chính
+
+| Thư viện | Phiên bản | Mục đích |
+|----------|-----------|----------|
+| `sumy` | 0.11.0 | Tóm tắt TextRank |
+| `numpy` | 2.3.0 | Tính toán ma trận cho TextRank |
+| `PyMuPDF` | 1.28.0 | Đọc file PDF |
+| `python-docx` | 1.1.0 | Đọc file DOCX |
+| `ebooklib` | 0.19 | Đọc file EPUB |
+| `beautifulsoup4` | 4.13.4 | Trích xuất nội dung HTML/URL |
+| `requests` | 2.32.4 | Gọi API Gemini & tải URL |
+| `chardet` | 5.2.0 | Phát hiện mã hoá file TXT |
+| `mssql-django` | 1.7.4 | Kết nối SQL Server |
+| `daphne` | 4.2.3 | ASGI server (HTTPS dev) |
+| `whitenoise` | 6.12.0 | Phục vụ file tĩnh |
+| `cryptography` | 44.0.3 | Tạo chứng chỉ SSL |
+
+### Cơ sở dữ liệu
+
+- **SQL Server** — mặc định (`mssql-django` + pyodbc)
+- Hỗ trợ Windows Auth (`Trusted_Connection=yes`) hoặc SQL Auth (`sa` user)
+
+---
+
+## 📁 Cấu trúc dự án
+
+```
+SummarEase-Django/
+├── .github/workflows/       # CI/CD pipeline (GitHub Actions)
+│   └── django.yml           #   Chạy test + lint
+├── backend/                 # Mã nguồn chính (Django)
+│   ├── config/              #   Settings, URLs, WSGI/ASGI
+│   │   ├── settings.py      #     Cấu hình Django (SQL Server, whitenoise, CSP)
+│   │   ├── urls.py          #     URL routing chính
+│   │   ├── wsgi.py          #     WSGI entry point
+│   │   ├── asgi.py          #     ASGI entry point (Daphne)
+│   │   ├── csp.py           #     CSP middleware
+│   │   └── _setup.py        #     Chung cho WSGI/ASGI
+│   ├── summaries/           #   Django app chính
+│   │   ├── models.py        #     Document, Summary, Tag, UserProfile, UserSetting
+│   │   ├── views.py         #     View logic
+│   │   ├── nlp.py           #     Xử lý NLP, TextRank, Gemini
+│   │   ├── forms.py         #     Django forms
+│   │   ├── admin.py         #     Django Admin config
+│   │   ├── tests.py         #     96 tests
+│   │   ├── urls.py          #     URL routing
+│   │   ├── signing.py       #     Mã hoá API key
+│   │   ├── stopwords.txt    #     Stopwords tiếng Việt
+│   │   ├── management/
+│   │   │   └── commands/
+│   │   │       └── setup.py #     Management command: migrate + superuser
+│   │   └── migrations/      #     DB migrations
+│   ├── api-tests/           #   Bruno API test collection
+│   ├── media/               #   File upload (gitignored)
+│   ├── sql/
+│   │   └── schema_sqlserver.sql # Schema SQL Server
+│   ├── ssl/                 #   Chứng chỉ SSL tự ký (gitignored)
+│   │   ├── cert.pem         #     Certificate
+│   │   └── key.pem          #     Private key
+│   ├── staticfiles/         #   File tĩnh đã collect (auto-gen, gitignored)
+│   ├── .env                 #   Biến môi trường (local)
+│   ├── .env.example         #   Mẫu biến môi trường
+│   └── conftest.py          #   Pytest config
+├── docker/                  # Docker config
+│   ├── docker-compose.yml   #   Docker Compose
+│   ├── Dockerfile-python    #   Python container
+│   ├── Dockerfile-mysql     #   MySQL container
+│   └── gunicorn.conf.py     #   Gunicorn config (production)
+├── docs/                    # Tài liệu
+│   ├── architecture.md      #   Kiến trúc hệ thống
+│   ├── help.md              #   Hướng dẫn chi tiết
+│   ├── CONTRIBUTING.md      #   Hướng dẫn đóng góp
+│   └── SECURITY.md          #   Chính sách bảo mật
+├── frontend/                # Giao diện người dùng
+│   ├── static/css/          #   Stylesheets (app.css, admin.css)
+│   ├── static/js/app.js     #   JavaScript
+│   └── templates/           #   HTML templates
+│       ├── 404.html         #     Lỗi 404
+│       ├── 500.html         #     Lỗi 500
+│       ├── admin/           #     Admin custom
+│       └── summaries/       #     App templates
+├── scripts/                 # Scripts dev
+│   ├── run-dev.bat          #   Script chạy dev (Windows)
+│   ├── run-dev.ps1          #   Script chạy dev HTTP (PowerShell)
+│   └── run-ssl.ps1          #   Script chạy dev HTTPS (PowerShell/Daphne)
+├── .dockerignore
+├── .gitignore
+├── LICENSE
+├── manage.py                # Django CLI entry point
+├── pyproject.toml           # Cấu hình ruff, pytest, coverage
+└── requirements.txt         # Dependencies
 ```
 
-### 2. Tạo môi trường ảo
+---
+
+## ⚡ Cài đặt nhanh
+
+### Yêu cầu
+
+- Python 3.12+
+- pip
+- SQL Server (local hoặc remote) — TCP/IP port 1433
+- ODBC Driver 17 for SQL Server
+
+### Các bước
 
 ```powershell
+# 1. Clone repo
+git clone https://github.com/your-username/SummarEase-Django.git
+cd SummarEase-Django
+
+# 2. Tạo môi trường ảo + cài dependencies
 python -m venv .venv
-```
-
-### 3. Kích hoạt môi trường ảo
-
-```powershell
-.\.venv\Scripts\activate
-```
-
-Nếu PowerShell chặn script:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\activate
-```
-
-### 4. Cài đặt thư viện
-
-```powershell
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+
+# 3. Tạo database SQL Server (nếu chưa có)
+sqlcmd -S 127.0.0.1 -U sa -P "Admin@123" -i backend\sql\schema_sqlserver.sql
+
+# 4. MỘT LỆNH -> migrate + chạy server
+.\scripts\run-dev.ps1
 ```
 
-### 5. Cấu hình môi trường
-
-Nếu dự án có file mẫu `.env`, hãy sao chép và chỉnh lại theo nhu cầu:
-
+Hoặc chạy từng bước:
 ```powershell
-copy backend\.env.example backend\.env
-```
-
-Nếu chưa có file mẫu, bạn có thể tự tạo `backend/.env` để cấu hình các giá trị như khóa `GEMINI_API_KEY` hoặc thông tin MySQL.
-
-### 6. Chạy migrate
-
-```powershell
-python manage.py migrate
-```
-
-Với cấu hình mặc định, file SQLite sẽ được tạo tại:
-
-```text
-sql/db.sqlite3
-```
-
-### 7. Tạo tài khoản quản trị
-
-```powershell
-python manage.py createsuperuser
-```
-
-### 8. Chạy dự án
-
-```powershell
+python manage.py setup                    # migrate (không tạo superuser)
+python manage.py setup --create-superuser # migrate + tạo admin
 python manage.py runserver
 ```
 
-Sau đó truy cập:
+- Superuser mặc định: `admin` / `admin`
+- Web: **http://127.0.0.1:8000/**
+- Admin: **http://127.0.0.1:8000/admin/**
 
-```text
-http://127.0.0.1:8000/
-```
+### Cấu hình Gemini (tuỳ chọn)
 
-Khu quản trị:
-
-```text
-http://127.0.0.1:8000/admin/
-```
-
-## Chạy kiểm tra
-
-```powershell
-python manage.py check
-python manage.py test summaries
-```
-
-## Cấu hình cơ sở dữ liệu
-
-### Mặc định: SQLite
-
-Không cần chỉnh thêm nếu bạn chỉ muốn chạy nhanh dự án cục bộ.
-
-### Tùy chọn: MySQL
-
-Thêm hoặc chỉnh các biến trong `backend/.env`:
-
+Thêm vào `backend/.env`:
 ```env
-DB_ENGINE=mysql
-DB_NAME=summarease_django
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
+GEMINI_API_KEY=your_google_api_key
 ```
 
-Sau đó chạy lại:
+---
+
+## 🎯 Hướng dẫn sử dụng
+
+1. **Đăng ký** tài khoản mới hoặc **đăng nhập**
+2. Chọn nguồn dữ liệu: `Văn bản`, `File` hoặc `URL`
+3. Chọn phương pháp tóm tắt: `TextRank` hoặc `Gemini`
+4. Điều chỉnh tỷ lệ tóm tắt (10%–90%)
+5. Nhấn **Tóm tắt** để nhận kết quả
+6. Xem lại lịch sử trong mục **Lịch sử**
+
+---
+
+## 🔐 Chạy HTTPS
+
+Trình duyệt có thể tự động chuyển sang HTTPS. Sử dụng script SSL:
 
 ```powershell
-python manage.py migrate
+.\scripts\run-ssl.ps1              # Mặc định port 8443
+.\scripts\run-ssl.ps1 -Port 8443   # Tùy chỉnh port
 ```
 
-## Một số lệnh hữu ích
+Server chạy tại **https://localhost:8443/** (hoặc port tùy chọn).
+
+> Sử dụng **Daphne** ASGI server + chứng chỉ self-signed + whitenoise.
+
+---
+
+## 🐳 Chạy với Docker (MySQL)
 
 ```powershell
-python manage.py check
-python manage.py test summaries
-python manage.py createsuperuser
-python manage.py runserver
+cd docker
+docker compose up --build
 ```
 
-## Khi gặp lỗi
+> **Lưu ý:** Cần có file `backend/.env` với nội dung hợp lệ trước khi chạy Docker. Xem `docker/gunicorn.conf.py` cho production config.
 
-- Lỗi `No module named django`: chưa kích hoạt `.venv` hoặc chưa cài thư viện.
-- Lỗi PowerShell không cho activate: dùng `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
-- Lỗi liên quan đến Gemini: kiểm tra lại `GEMINI_API_KEY` trong `backend/.env`.
-- Lỗi MySQL: kiểm tra `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` và bảo đảm MySQL đang chạy.
+---
 
-## Đóng góp
+## 🌐 API Endpoints
 
-Nếu muốn đóng góp, hãy xem thêm tại [CONTRIBUTING.md](CONTRIBUTING.md).
+| Endpoint | Phương thức | Mô tả |
+|----------|------------|-------|
+| `/` | GET | Trang chủ |
+| `/login/` | GET/POST | Đăng nhập |
+| `/register/` | GET/POST | Đăng ký |
+| `/logout/` | GET | Đăng xuất |
+| `/settings/` | GET/POST | Cài đặt (API key) |
+| `/history/` | GET | Lịch sử tóm tắt |
+| `/history/<id>/` | GET | Chi tiết bản tóm tắt |
+| `/history/<id>/delete/` | POST | Xoá bản tóm tắt |
+| `/api/summaries/create/` | POST | Tạo bản tóm tắt mới |
+| `/admin/` | GET | Trang quản trị Django |
 
-## Bảo mật
+---
 
-Nếu phát hiện vấn đề bảo mật, hãy xem hướng dẫn tại [SECURITY.md](SECURITY.md).
+## 👥 Đóng góp
+
+Xem [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) để biết chi tiết.
+
+## 📄 Giấy phép
+
+Dự án được phân phối dưới giấy phép MIT. Xem [LICENSE](LICENSE) để biết thêm chi tiết.

@@ -1,46 +1,58 @@
 {% extends "summaries/base.html" %}
 
-{% block title %}&#272;&#259;ng nh&#7853;p{% endblock %}
+{% block title %}Đăng nhập - SummarEase{% endblock %}
 
 {% block content %}
 <main class="auth-shell">
     <section class="auth-layout">
         <aside class="auth-story panel">
-            <p class="eyebrow">Ch&#224;o m&#7915;ng tr&#7903; l&#7841;i</p>
-            <h1>Ti&#7871;p t&#7909;c phi&#234;n l&#224;m vi&#7879;c c&#7911;a b&#7841;n.</h1>
-            <p class="lede">&#272;&#259;ng nh&#7853;p &#273;&#7875; m&#7903; l&#7841;i l&#7883;ch s&#7917; t&#243;m t&#7855;t, ti&#7871;p t&#7909;c x&#7917; l&#253; n&#7897;i dung v&#224; truy c&#7853;p khu qu&#7843;n tr&#7883; n&#7871;u t&#224;i kho&#7843;n c&#243; quy&#7873;n.</p>
+            <p class="eyebrow">Chào mừng trở lại</p>
+            <h1>Tiếp tục phiên làm việc của bạn.</h1>
+            <p class="lede">Đăng nhập để mở lại lịch sử tóm tắt, tiếp tục xử lý nội dung và truy cập khu quản trị nếu tài khoản có quyền.</p>
             <div class="auth-points">
                 <div class="auth-point">
-                    <strong>L&#7883;ch s&#7917; c&#225; nh&#226;n</strong>
-                    <span>Xem l&#7841;i c&#225;c b&#7843;n t&#243;m t&#7855;t &#273;&#227; l&#432;u v&#224; m&#7903; chi ti&#7871;t t&#7915;ng phi&#234;n l&#224;m vi&#7879;c.</span>
+                    <strong>Lịch sử cá nhân</strong>
+                    <span>Xem lại các bản tóm tắt đã lưu và mở chi tiết từng phiên làm việc.</span>
                 </div>
                 <div class="auth-point">
                     <strong>Không gian làm việc liền mạch</strong>
-                    <span>L&#224;m vi&#7879;c v&#7899;i v&#259;n b&#7843;n, t&#7879;p v&#224; URL trong c&#249;ng m&#7897;t quy tr&#236;nh t&#243;m t&#7855;t.</span>
+                    <span>Làm việc với văn bản, tệp và URL trong cùng một quy trình tóm tắt.</span>
                 </div>
                 <div class="auth-point">
-                    <strong>Quy&#7873;n qu&#7843;n tr&#7883;</strong>
-                    <span>N&#7871;u l&#224; admin, b&#7841;n c&#243; th&#7875; qu&#7843;n l&#253; ng&#432;&#7901;i d&#249;ng, b&#7843;n t&#243;m t&#7855;t v&#224; d&#7919; li&#7879;u to&#224;n h&#7879; th&#7889;ng.</span>
+                    <strong>Quyền quản trị</strong>
+                    <span>Nếu là admin, bạn có thể quản lý người dùng, bản tóm tắt và dữ liệu toàn hệ thống.</span>
                 </div>
             </div>
         </aside>
         <section class="panel auth-panel">
-            <p class="eyebrow">&#272;&#259;ng nh&#7853;p</p>
-            <h2>&#272;&#259;ng nh&#7853;p &#273;&#7875; ti&#7871;p t&#7909;c.</h2>
+            <p class="eyebrow">Đăng nhập</p>
+            <h2>Đăng nhập để tiếp tục.</h2>
             <form method="post" class="auth-form">
                 {% csrf_token %}
-                {{ form.non_field_errors }}
+                {% if form.non_field_errors %}
+                    <div class="form-errors">
+                        {% for error in form.non_field_errors %}
+                            <p class="error-text">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
                 <label>
-                    <span>T&#234;n &#273;&#259;ng nh&#7853;p</span>
+                    <span>Tên đăng nhập</span>
                     {{ form.username }}
+                    {% if form.username.errors %}
+                        <span class="field-error">{{ form.username.errors.0 }}</span>
+                    {% endif %}
                 </label>
                 <label>
-                    <span>M&#7853;t kh&#7849;u</span>
+                    <span>Mật khẩu</span>
                     {{ form.password }}
+                    {% if form.password.errors %}
+                        <span class="field-error">{{ form.password.errors.0 }}</span>
+                    {% endif %}
                 </label>
-                <button type="submit" class="button-primary wide">&#272;&#259;ng nh&#7853;p</button>
+                <button type="submit" class="button-primary wide">Đăng nhập</button>
             </form>
-            <p class="helper-note">Ch&#432;a c&#243; t&#224;i kho&#7843;n? <a href="{% url 'register' %}">&#272;&#259;ng k&#253;</a></p>
+            <p class="helper-note">Chưa có tài khoản? <a href="{% url 'register' %}">Đăng ký</a></p>
         </section>
     </section>
 </main>

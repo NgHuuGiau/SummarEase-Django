@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Document, Evaluation, Summary, SummarySentence, Tag, UserProfile, UserSetting
+from .models import Document, Summary, SummarySentence, Tag, UserProfile, UserSetting
 
 admin.site.site_header = "Trang quản trị SummarEase"
 admin.site.site_title = "Quản trị SummarEase"
@@ -14,7 +14,8 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(UserSetting)
 class UserSettingAdmin(admin.ModelAdmin):
-    list_display = ("user", "default_summary_ratio", "language_preference")
+    list_display = ("user", "default_summary_ratio", "language_preference", "gemini_api_key")
+    search_fields = ("user__username",)
 
 
 class SummarySentenceInline(admin.TabularInline):
@@ -40,8 +41,4 @@ class SummaryAdmin(admin.ModelAdmin):
 class TagAdmin(admin.ModelAdmin):
     search_fields = ("name",)
 
-
-@admin.register(Evaluation)
-class EvaluationAdmin(admin.ModelAdmin):
-    list_display = ("summary", "evaluator_type", "clarity_score", "coverage_score", "fluency_score", "overall_score")
 

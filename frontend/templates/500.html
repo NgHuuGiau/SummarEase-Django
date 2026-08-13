@@ -1,0 +1,14 @@
+{% extends "summaries/base.html" %}
+{% load static %}
+
+{% block title %}500 - Lỗi máy chủ - SummarEase{% endblock %}
+
+{% block content %}
+<main class="page-shell narrow">
+  <section class="panel error-card">
+    <h1 class="error-code danger">500</h1>
+    <p class="error-message">Máy chủ gặp sự cố. Vui lòng thử lại sau.</p>
+    <a href="/" class="button-primary">Quay về trang chủ</a>
+  </section>
+</main>
+{% endblock %}

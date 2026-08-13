@@ -1,17 +1,17 @@
 {% extends "summaries/base.html" %}
 
-{% block title %}Chi ti&#7871;t b&#7843;n t&#243;m t&#7855;t{% endblock %}
+{% block title %}Chi tiết bản tóm tắt - SummarEase{% endblock %}
 
 {% block content %}
 <main class="page-shell narrow">
     <section class="panel detail-panel">
         <div class="section-head">
-            <p class="eyebrow">Chi ti&#7871;t</p>
+            <p class="eyebrow">Chi tiết</p>
             <h1>{{ item.title }}</h1>
             {% if is_admin_view %}
-                <p class="section-copy">B&#7843;n ghi n&#224;y thu&#7897;c v&#7873; t&#224;i kho&#7843;n {{ item.user.username }} v&#224; g&#7891;m n&#7897;i dung g&#7889;c, b&#7843;n t&#243;m t&#7855;t v&#224; nh&#243;m t&#7915; kh&#243;a &#273;&#227; &#273;&#432;&#7907;c l&#432;u trong h&#7879; th&#7889;ng.</p>
+                <p class="section-copy">Bản ghi này thuộc về tài khoản {{ item.user.username }} và gồm nội dung gốc, bản tóm tắt và nhóm từ khóa đã được lưu trong hệ thống.</p>
             {% else %}
-                <p class="section-copy">B&#7843;n ghi n&#224;y g&#7891;m n&#7897;i dung g&#7889;c, b&#7843;n t&#243;m t&#7855;t v&#224; nh&#243;m t&#7915; kh&#243;a &#273;&#227; &#273;&#432;&#7907;c l&#432;u trong h&#7879; th&#7889;ng.</p>
+                <p class="section-copy">Bản ghi này gồm nội dung gốc, bản tóm tắt và nhóm từ khóa đã được lưu trong hệ thống.</p>
             {% endif %}
         </div>
 
@@ -22,40 +22,52 @@
                 <span class="badge neutral">{{ item.user.username }}</span>
             {% endif %}
             <span class="badge neutral">{{ item.language }}</span>
-            <span class="badge neutral">T&#7881; l&#7879; {{ item.ratio }}</span>
+            <span class="badge neutral">Tỉ lệ {{ item.ratio }}</span>
             <span class="muted">{{ item.created_at|date:"d/m/Y H:i" }}</span>
         </div>
 
         <div class="detail-grid">
             <div>
-                <h2>N&#7897;i dung g&#7889;c</h2>
+                <h2>Nội dung gốc</h2>
                 <div class="detail-box">{{ item.document.content }}</div>
             </div>
 
             <div>
-                <h2>B&#7843;n t&#243;m t&#7855;t</h2>
+                <h2>Bản tóm tắt</h2>
                 <div class="detail-box emphasis">{{ item.summary_text }}</div>
             </div>
         </div>
 
-        <h2>T&#7915; kh&#243;a</h2>
+        <h2>Từ khóa</h2>
         <div class="keyword-list">
             {% for tag in item.tags.all %}
                 <span>{{ tag.name }}</span>
             {% empty %}
-                <span>Ch&#432;a c&#243;</span>
+                <span>Chưa có</span>
             {% endfor %}
         </div>
 
         <div class="row-actions top-space">
-            <a class="button-secondary" href="{% url 'history' %}">Quay l&#7841;i l&#7883;ch s&#7917;</a>
-            {% if item.user_id == request.user.id %}
-                <form method="post" action="{% url 'history_delete' item.id %}">
+            <a class="button-secondary" href="{% url 'history' %}">Quay lại lịch sử</a>
+            {% if item.user_id == request.user.id or request.user.is_staff %}
+                <form method="post" action="{% url 'history_delete' item.id %}" data-confirm-delete>
                     {% csrf_token %}
-                    <button type="submit" class="button-danger">X&#243;a b&#7843;n ghi</button>
+                    <button type="submit" class="button-danger">Xóa bản ghi</button>
                 </form>
             {% endif %}
         </div>
     </section>
 </main>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ request.csp_nonce }}">
+document.querySelectorAll("form[data-confirm-delete]").forEach(function (form) {
+    form.addEventListener("submit", function (e) {
+        if (!confirm("Bạn có chắc muốn xóa bản tóm tắt này?")) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
 {% endblock %}

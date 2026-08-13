@@ -1,5 +1,19 @@
+from pathlib import Path
+
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
+
+
+def _cleanup_uploaded_file(file_path: str) -> None:
+    if not file_path:
+        return
+    full_path = Path(settings.MEDIA_ROOT) / file_path
+    try:
+        if full_path.exists():
+            full_path.unlink()
+    except OSError:
+        pass
 
 
 class UserProfile(models.Model):
@@ -21,6 +35,11 @@ class UserSetting(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="setting")
     default_summary_ratio = models.FloatField(default=0.2)
     language_preference = models.CharField(max_length=20, default="auto")
+    gemini_api_key = models.CharField(max_length=255, blank=True, default="", help_text="API key Gemini cá nhân (nếu có)")
+
+    class Meta:
+        verbose_name = "Cài đặt"
+        verbose_name_plural = "Cài đặt"
 
     def __str__(self) -> str:
         return f"Cài đặt của {self.user.username}"
@@ -36,16 +55,23 @@ class Document(models.Model):
         (SOURCE_URL, "URL"),
     )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="documents")
-    source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="documents", db_index=True)
+    source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
     title = models.CharField(max_length=255)
     source_name = models.CharField(max_length=255, blank=True)
-    uploaded_file = models.FileField(upload_to="documents/", blank=True)
+    uploaded_file = models.CharField(max_length=500, blank=True, default="")
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def delete(self, *args, **kwargs):
+        _cleanup_uploaded_file(self.uploaded_file)
+        super().delete(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.title
@@ -66,8 +92,8 @@ class Summary(models.Model):
         (METHOD_GEMINI, "Gemini"),
     )
 
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="summaries")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="summaries")
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="summaries", db_index=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="summaries", db_index=True)
     title = models.CharField(max_length=255)
     method = models.CharField(max_length=20, choices=METHOD_CHOICES, default=METHOD_TEXTRANK)
     language = models.CharField(max_length=20, default="english")
@@ -77,42 +103,19 @@ class Summary(models.Model):
     tags = models.ManyToManyField(Tag, blank=True, related_name="summaries")
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+        ]
 
     def __str__(self) -> str:
         return self.title
 
 
 class SummarySentence(models.Model):
-    summary = models.ForeignKey(Summary, on_delete=models.CASCADE, related_name="sentences")
+    summary = models.ForeignKey(Summary, on_delete=models.CASCADE, related_name="sentences", db_index=True)
     sentence_text = models.TextField()
     sentence_index = models.PositiveIntegerField(default=0)
-    is_highlighted = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["sentence_index"]
-
-
-class Evaluation(models.Model):
-    EVALUATOR_AI = "ai"
-    EVALUATOR_HUMAN = "human"
-    EVALUATOR_CHOICES = (
-        (EVALUATOR_AI, "AI"),
-        (EVALUATOR_HUMAN, "Người"),
-    )
-
-    summary = models.ForeignKey(Summary, on_delete=models.CASCADE, related_name="evaluations")
-    evaluator_type = models.CharField(max_length=10, choices=EVALUATOR_CHOICES, default=EVALUATOR_HUMAN)
-    clarity_score = models.PositiveSmallIntegerField(null=True, blank=True)
-    coverage_score = models.PositiveSmallIntegerField(null=True, blank=True)
-    fluency_score = models.PositiveSmallIntegerField(null=True, blank=True)
-    comments = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    @property
-    def overall_score(self) -> float | None:
-        scores = [self.clarity_score, self.coverage_score, self.fluency_score]
-        values = [score for score in scores if score is not None]
-        if not values:
-            return None
-        return round(sum(values) / len(values), 2)
