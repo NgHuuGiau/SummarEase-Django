@@ -21,6 +21,7 @@
 - [Cài đặt nhanh](#-cài-đặt-nhanh)
 - [Hướng dẫn sử dụng](#-hướng-dẫn-sử-dụng)
 - [Chạy với Docker](#-chạy-với-docker)
+- [Kiểm thử](#-kiểm-thử)
 - [API Endpoints](#-api-endpoints)
 - [Đóng góp](#-đóng-góp)
 - [Giấy phép](#-giấy-phép)
@@ -71,6 +72,7 @@
 | `daphne` | 4.2.3 | ASGI server (HTTPS dev) |
 | `whitenoise` | 6.12.0 | Phục vụ file tĩnh |
 | `cryptography` | 44.0.3 | Tạo chứng chỉ SSL |
+| `pytest` / `pytest-django` | — | Kiểm thử (106 tests) |
 
 ### Cơ sở dữ liệu
 
@@ -99,7 +101,7 @@ SummarEase-Django/
 │   │   ├── nlp.py           #     Xử lý NLP, TextRank, Gemini
 │   │   ├── forms.py         #     Django forms
 │   │   ├── admin.py         #     Django Admin config
-│   │   ├── tests.py         #     96 tests
+│   │   ├── tests.py         #     106 tests
 │   │   ├── urls.py          #     URL routing
 │   │   ├── signing.py       #     Mã hoá API key
 │   │   ├── stopwords.txt    #     Stopwords tiếng Việt
@@ -138,8 +140,9 @@ SummarEase-Django/
 │       └── summaries/       #     App templates
 ├── scripts/                 # Scripts dev
 │   ├── run-dev.bat          #   Script chạy dev (Windows)
-│   ├── run-dev.ps1          #   Script chạy dev HTTP (PowerShell)
-│   └── run-ssl.ps1          #   Script chạy dev HTTPS (PowerShell/Daphne)
+│   ├── run-dev.ps1          #   Script chạy dev HTTPS (Daphne, port 8000)
+│   ├── run-ssl.ps1          #   Script chạy dev HTTPS (PowerShell/Daphne)
+│   └── gen-cert.py          #   Tự sinh chứng chỉ SSL self-signed
 ├── .dockerignore
 ├── .gitignore
 ├── LICENSE
@@ -175,19 +178,19 @@ pip install -r requirements.txt
 sqlcmd -S 127.0.0.1 -U sa -P "Admin@123" -i backend\sql\schema_sqlserver.sql
 
 # 4. MỘT LỆNH -> migrate + chạy server
-.\scripts\run-dev.ps1
+.\scripts\run-dev.bat
 ```
 
 Hoặc chạy từng bước:
 ```powershell
 python manage.py setup                    # migrate (không tạo superuser)
 python manage.py setup --create-superuser # migrate + tạo admin
-python manage.py runserver
+.\scripts\run-dev.ps1                     # daphne HTTPS trên cổng 8000
 ```
 
 - Superuser mặc định: `admin` / `admin`
-- Web: **http://127.0.0.1:8000/**
-- Admin: **http://127.0.0.1:8000/admin/**
+- Web: **https://127.0.0.1:8000/** (tự sinh chứng chỉ SSL nếu chưa có)
+- Admin: **https://127.0.0.1:8000/admin/**
 
 ### Cấu hình Gemini (tuỳ chọn)
 
@@ -211,7 +214,7 @@ GEMINI_API_KEY=your_google_api_key
 
 ## 🔐 Chạy HTTPS
 
-Trình duyệt có thể tự động chuyển sang HTTPS. Sử dụng script SSL:
+Mặc định `run-dev.ps1` đã chạy Daphne + HTTPS trên cổng 8000. Muốn chạy ở cổng khác:
 
 ```powershell
 .\scripts\run-ssl.ps1              # Mặc định port 8443
@@ -220,7 +223,55 @@ Trình duyệt có thể tự động chuyển sang HTTPS. Sử dụng script SS
 
 Server chạy tại **https://localhost:8443/** (hoặc port tùy chọn).
 
-> Sử dụng **Daphne** ASGI server + chứng chỉ self-signed + whitenoise.
+> Sử dụng **Daphne** ASGI server + chứng chỉ self-signed (tự sinh bằng `scripts/gen-cert.py`, lưu tại `backend/ssl/`) + whitenoise.
+
+---
+
+## 🧪 Kiểm thử
+
+Chạy toàn bộ bộ test (106 tests):
+
+```powershell
+python -m pytest backend -q
+```
+
+Chạy theo nhóm:
+
+```powershell
+python -m pytest backend/summaries/tests.py -k Nlp      # test NLP
+python -m pytest backend/summaries/tests.py -k Summary  # luồng tóm tắt
+python -m pytest backend/summaries/tests.py -k Security # bảo mật
+python -m pytest backend/summaries/tests.py -k Error    # trang lỗi 404/500
+```
+
+**Phạm vi bộ test (106 tests / 24 nhóm):**
+
+| Nhóm | Số test | Nội dung |
+|------|--------:|----------|
+| NLP — tách câu/từ | 5 | Viết tắt, tiếng Việt |
+| NLP — chuẩn hóa | 2 | Khoảng trắng, trim |
+| NLP — nhận diện ngôn ngữ | 4 | Việt/Anh theo dấu |
+| NLP — từ khóa | 3 | Lọc, highlight `<mark>`, escape HTML |
+| NLP — tiêu đề | 3 | Tự sinh tiêu đề |
+| NLP — cắt ngắn | 2 | Văn bản dài/ngắn |
+| NLP — trường hợp biên | 16 | Rỗng, ký tự đặc biệt, dấu `?!` |
+| Model (Document/Summary/Profile/Health) | 6 | Tạo bản ghi, timestamp, role |
+| Trang auth | 4 | Home, login, register, static CSS |
+| Luồng auth | 2 | Đăng ký, đăng nhập/đăng xuất |
+| Luồng tóm tắt | 6 | TextRank, lỗi, rate limit, phân quyền |
+| Cài đặt | 5 | Tỉ lệ, API key mã hoá |
+| Form validation | 5 | Ratio, API key, thiếu field |
+| Admin | 5 | Trang quản trị, phân quyền |
+| Phân trang lịch sử | 3 | Page 1/2, page lỗi |
+| Phân quyền | 4 | Xoá bản ghi của mình/người khác |
+| Xoá cascade | 2 | Document → Summary |
+| Trích URL | 6 | Scheme lạ, timeout, bỏ script |
+| Upload file | 4 | Quá lớn, định dạng, thiếu file |
+| Trích file | 4 | TXT/DOCX/PDF/EPUB |
+| Gemini | 5 | Thiếu key, HTTP lỗi, JSON sai (mock) |
+| **Trang lỗi 404/500** | 2 | Template custom render đúng |
+| **Bảo mật headers** | 5 | CSP, clickjacking, nosniff, referrer, CSRF |
+| **Biên nội dung** | 3 | Text 1 ký tự, text trắng, text rất dài |
 
 ---
 

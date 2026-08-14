@@ -873,3 +873,122 @@ class FileExtractionTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         mock_extract.assert_called_once()
+
+
+# ──────────────────────────────────────────────
+#  ERROR PAGE TESTS (404 / 500)
+# ──────────────────────────────────────────────
+
+@override_settings(DEBUG=False, ALLOWED_HOSTS=["*"])
+class ErrorPageTests(TestCase):
+    def setUp(self):
+        self.client.raise_request_exception = False
+
+    def test_missing_page_renders_custom_404(self):
+        response = self.client.get("/nonexistent-page/")
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("Trang bạn tìm kiếm không tồn tại.", response.content.decode())
+        self.assertIn("error-code", response.content.decode())
+
+    def test_server_error_renders_custom_500(self):
+        with override_settings(ROOT_URLCONF="summaries.tests"):
+            response = self.client.get("/__boom__/")
+        self.assertEqual(response.status_code, 500)
+        content = response.content.decode()
+        self.assertIn("Lỗi máy chủ", content)
+        self.assertIn("Vui lòng thử lại sau", content)
+
+
+# ──────────────────────────────────────────────
+#  SECURITY HEADER TESTS
+# ──────────────────────────────────────────────
+
+class SecurityHeaderTests(TestCase):
+    def test_csp_policy_present_on_all_pages(self):
+        response = self.client.get(reverse("home"))
+        csp = response.headers.get("Content-Security-Policy", "")
+        self.assertIn("default-src 'self'", csp)
+        self.assertIn("script-src 'self' 'nonce-", csp)
+        self.assertIn("style-src 'self'", csp)
+        self.assertIn("img-src 'self' data:", csp)
+        self.assertIn("base-uri 'self'", csp)
+        self.assertIn("form-action 'self'", csp)
+
+    def test_clickjacking_protection_enabled(self):
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+
+    def test_nosniff_header(self):
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+
+    def test_referrer_policy(self):
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin")
+
+    def test_csrf_blocks_missing_token(self):
+        from django.test import Client
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(reverse("login"), {"username": "nobody", "password": "x"})
+        self.assertEqual(response.status_code, 403)
+
+
+# ──────────────────────────────────────────────
+#  CONTENT EDGE CASE TESTS
+# ──────────────────────────────────────────────
+
+@override_settings(RATE_LIMIT_SECONDS=0)
+class ContentEdgeCaseTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="edge-test", password="secret123")
+        UserProfile.objects.create(user=self.user)
+        UserSetting.objects.create(user=self.user)
+        self.client.login(username="edge-test", password="secret123")
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_single_character_text(self):
+        response = self.client.post(reverse("create_summary"), {
+            "source_type": "text", "method": "textrank", "text": "A", "ratio": 0.2,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+
+    def test_whitespace_only_text_rejected(self):
+        response = self.client.post(reverse("create_summary"), {
+            "source_type": "text", "method": "textrank", "text": "   \n\t  ", "ratio": 0.2,
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
+
+    def test_very_long_text_summarized(self):
+        long_text = ("Đây là một câu dùng để kiểm tra khả năng xử lý văn bản dài. "
+                     "Khi dữ liệu lớn, hệ thống vẫn phải tóm tắt chính xác và đầy đủ. ") * 60
+        response = self.client.post(reverse("create_summary"), {
+            "source_type": "text", "method": "textrank", "text": long_text, "ratio": 0.2,
+        })
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["data"]["summary"])
+
+
+# ── ROOT_URLCONF nhỏ dùng riêng cho ErrorPageTests ──
+from django.urls import path as _path  # noqa: E402
+
+from .views import LoginPageView as _Login  # noqa: E402
+from .views import RegisterPageView as _Register  # noqa: E402
+from .views import home as _home  # noqa: E402
+
+
+def _boom_view(_request):  # noqa: N802
+    raise RuntimeError("boom")
+
+
+urlpatterns = [
+    _path("", _home, name="home"),
+    _path("login/", _Login.as_view(), name="login"),
+    _path("register/", _Register.as_view(), name="register"),
+    _path("__boom__/", _boom_view),
+]
