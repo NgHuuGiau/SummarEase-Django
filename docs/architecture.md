@@ -22,7 +22,7 @@ SummarEase-Django/
 │   │   ├── nlp.py               #   Xử lý NLP, TextRank, Gemini
 │   │   ├── forms.py             #   Django forms
 │   │   ├── admin.py             #   Django Admin config
-│   │   ├── tests.py             #   96 tests
+│   │   ├── tests.py             #   106 tests
 │   │   ├── stopwords.txt        #   Stopwords tiếng Việt
 │   │   ├── management/
 │   │   │   └── commands/
@@ -150,4 +150,4 @@ Hệ thống sử dụng **Daphne** làm ASGI server cho HTTPS development:
 | `python manage.py setup` | Migrate DB + tạo superuser (nếu `--create-superuser`) |
 | `python manage.py migrate` | Áp migration |
 | `python manage.py collectstatic` | Gom file tĩnh |
-| `python manage.py test` | Chạy tất cả tests (96 tests) |
+| `python manage.py test` | Chạy tất cả tests (106 tests) |

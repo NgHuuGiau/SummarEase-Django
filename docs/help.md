@@ -155,7 +155,7 @@ Mặc định: **https://localhost:8443/**
 
 ```powershell
 python manage.py check                  # Kiểm tra hệ thống
-python manage.py test                   # Chạy tất cả test (96 tests)
+python manage.py test                   # Chạy tất cả test (106 tests)
 python manage.py test summaries         # Chạy test app summaries
 python manage.py setup                  # Migrate + (tuỳ chọn) tạo superuser
 python manage.py setup --create-superuser  # Migrate + tạo admin luôn
