@@ -5,6 +5,9 @@
 
 {% block extrahead %}
 {{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script nonce="{{ request.csp_nonce }}">
     (function () {
         const storedTheme = localStorage.getItem("summarease-theme");
@@ -16,7 +19,7 @@
 
 {% block extrastyle %}
 {{ block.super }}
-<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260514-3">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}?v=20260813-1">
 {% endblock %}
 
 {% block userlinks %}

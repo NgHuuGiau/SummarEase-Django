@@ -1,7 +1,11 @@
 (function () {
     "use strict";
 
-    const sourceSelect = document.querySelector("#source_type");
+    const sourceBtns = document.querySelectorAll("[data-source]");
+    const methodBtns = document.querySelectorAll("[data-method]");
+    const sourceInput = document.querySelector("#source_type");
+    const methodInput = document.querySelector("#method");
+    const methodHint = document.querySelector("#method-hint");
     const textWrap = document.querySelector("#text-wrap");
     const fileWrap = document.querySelector("#file-wrap");
     const urlWrap = document.querySelector("#url-wrap");
@@ -12,6 +16,7 @@
     const resultKeywords = document.querySelector("#result-keywords");
     const summaryOutput = document.querySelector("#summary-output");
     const detailLink = document.querySelector("#detail-link");
+    const copyBtn = document.querySelector("#copy-btn");
     const submitBtn = document.querySelector("#submit-btn");
     const btnText = submitBtn && submitBtn.querySelector(".btn-text");
     const btnSpinner = submitBtn && submitBtn.querySelector(".btn-spinner");
@@ -64,15 +69,27 @@
     }
 
     function updateSourceFields() {
-        if (!sourceSelect) {
+        if (!sourceInput) {
             return;
         }
-        const type = sourceSelect.value;
+        const type = sourceInput.value;
         textWrap.classList.toggle("is-hidden", type !== "text");
         fileWrap.classList.toggle("is-hidden", type !== "file");
         urlWrap.classList.toggle("is-hidden", type !== "url");
         Object.values(errorMap).forEach(function (el) {
             if (el) el.textContent = "";
+        });
+    }
+
+    function bindSegmented(buttons, input, onActivate) {
+        buttons.forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                buttons.forEach(function (b) { b.classList.remove("is-active"); b.setAttribute("aria-selected", "false"); });
+                btn.classList.add("is-active");
+                btn.setAttribute("aria-selected", "true");
+                input.value = btn.dataset.source || btn.dataset.method;
+                if (onActivate) onActivate(input.value);
+            });
         });
     }
 
@@ -144,6 +161,7 @@
             summaryOutput.innerHTML = data.highlighted_summary;
             detailLink.href = data.history_url;
             detailLink.classList.remove("is-hidden");
+            if (copyBtn) copyBtn.classList.remove("is-hidden");
             message.textContent = "Đã lưu bản tóm tắt vào hệ thống.";
             message.style.color = "";
         } catch (error) {
@@ -155,9 +173,25 @@
     }
 
     // Init
-    if (sourceSelect) {
-        sourceSelect.addEventListener("change", updateSourceFields);
-        updateSourceFields();
+    bindSegmented(sourceBtns, sourceInput, updateSourceFields);
+    bindSegmented(methodBtns, methodInput, function (method) {
+        if (methodHint) {
+            methodHint.textContent = method === "gemini"
+                ? "Gemini nâng cao, hiểu ngữ nghĩa — cần khóa API Gemini."
+                : "TextRank hoạt động nhanh, không cần API — phù hợp văn bản tiếng Việt.";
+        }
+    });
+    updateSourceFields();
+
+    if (copyBtn) {
+        copyBtn.addEventListener("click", function () {
+            const text = (summaryOutput.textContent || "").trim();
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(function () {
+                copyBtn.textContent = "✓ Đã sao chép";
+                setTimeout(function () { copyBtn.textContent = "📋 Sao chép"; }, 1600);
+            });
+        });
     }
 
     if (ratioSlider && ratioInput) {

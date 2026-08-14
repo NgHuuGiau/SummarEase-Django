@@ -109,21 +109,22 @@
                 </div>
                 <span class="panel-chip">Xử lý trực tiếp</span>
             </div>
+
+            <div class="seg-control" role="tablist" aria-label="Chọn nguồn dữ liệu">
+                <button type="button" class="seg-btn is-active" data-source="text" role="tab" aria-selected="true">📝 Văn bản</button>
+                <button type="button" class="seg-btn" data-source="file" role="tab" aria-selected="false">📁 Tệp</button>
+                <button type="button" class="seg-btn" data-source="url" role="tab" aria-selected="false">🔗 URL</button>
+            </div>
+            <input type="hidden" name="source_type" id="source_type" value="text">
+
             <div class="field-grid">
                 <label>
-                    <span>Nguồn</span>
-                    <select name="source_type" id="source_type">
-                        <option value="text">Văn bản</option>
-                        <option value="file">Tệp</option>
-                        <option value="url">URL</option>
-                    </select>
-                </label>
-                <label>
                     <span>Phương pháp</span>
-                    <select name="method">
-                        <option value="textrank">TextRank</option>
-                        <option value="gemini">Gemini</option>
-                    </select>
+                    <div class="seg-control seg-control-compact" role="tablist" aria-label="Chọn phương pháp">
+                        <button type="button" class="seg-btn is-active" data-method="textrank" role="tab" aria-selected="true">🧠 TextRank</button>
+                        <button type="button" class="seg-btn" data-method="gemini" role="tab" aria-selected="false">✨ Gemini</button>
+                    </div>
+                    <input type="hidden" name="method" id="method" value="textrank">
                 </label>
                 <label>
                     <span>Tỉ lệ</span>
@@ -136,6 +137,10 @@
                         <input type="hidden" name="ratio" id="ratio_input" value="{{ form.initial.ratio|default:0.2 }}">
                     </div>
                 </label>
+                <div class="method-hint">
+                    <span>Gợi ý</span>
+                    <p data-method-hint id="method-hint">TextRank hoạt động nhanh, không cần API — phù hợp văn bản tiếng Việt.</p>
+                </div>
             </div>
 
             <label id="text-wrap" class="stack-field">
@@ -183,7 +188,10 @@
             <div id="result-meta" class="result-meta"></div>
             <div id="result-keywords" class="keyword-list"></div>
             <div id="summary-output" class="summary-output">Bản tóm tắt sẽ hiện ở đây sau khi xử lý.</div>
-            <a id="detail-link" class="ghost-link is-hidden" href="#">Mở bản ghi đã lưu</a>
+            <div class="result-actions">
+                <a id="detail-link" class="ghost-link is-hidden" href="#">Mở bản ghi đã lưu</a>
+                <button type="button" id="copy-btn" class="button-secondary slim is-hidden" data-copy-target="summary-output">📋 Sao chép</button>
+            </div>
         </article>
     </section>
 

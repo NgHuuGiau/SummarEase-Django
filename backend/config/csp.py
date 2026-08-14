@@ -14,7 +14,8 @@ class CSPMiddleware:
         response["Content-Security-Policy"] = (
             f"default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}'; "
-            f"style-src 'self'; "
+            f"style-src 'self' https://fonts.googleapis.com; "
+            f"font-src 'self' https://fonts.gstatic.com data:; "
             f"img-src 'self' data:; "
             f"connect-src 'self' https://generativelanguage.googleapis.com; "
             f"base-uri 'self'; "
