@@ -802,6 +802,75 @@ class UrlExtractionTests(TestCase):
             extract_text("http://")
 
 
+class UrlSourceFlowTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="url-test", password="secret123")
+        UserProfile.objects.create(user=self.user)
+        UserSetting.objects.create(user=self.user)
+        self.client.login(username="url-test", password="secret123")
+
+    def tearDown(self):
+        cache.clear()
+
+    @patch("summaries.nlp._get_http_session")
+    def test_create_summary_from_url_view(self, mock_session):
+        sess = mock_session.return_value
+        sess.get.return_value.status_code = 200
+        sess.get.return_value.headers = {"Content-Type": "text/html; charset=utf-8"}
+        sess.get.return_value.text = (
+            "<html><body><p>First useful sentence. "
+            "Second useful sentence. Third sentence.</p></body></html>"
+        )
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "url",
+                "source_url": "https://example.com/article",
+                "method": "textrank",
+                "ratio": 0.3,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["data"]["source_type"], "url")
+
+    def test_create_summary_url_requires_url(self):
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "url",
+                "method": "textrank",
+                "ratio": 0.3,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class SigningTests(TestCase):
+    def test_encrypt_decrypt_roundtrip(self):
+        text = "my-api-key-123"
+        self.assertEqual(decrypt_value(encrypt_value(text)), text)
+
+    def test_encrypt_empty_returns_empty(self):
+        self.assertEqual(encrypt_value(""), "")
+
+    def test_decrypt_invalid_token_returns_raw(self):
+        self.assertEqual(decrypt_value("not-a-valid-token"), "not-a-valid-token")
+
+
+class SuperuserRoleEvolutionTests(TestCase):
+    def test_superuser_profile_becomes_admin_on_home_and_ratio_initialized(self):
+        User.objects.create_superuser(username="boss", password="secret123")
+        self.client.login(username="boss", password="secret123")
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        profile = UserProfile.objects.get(user__username="boss")
+        self.assertEqual(profile.role, "admin")
+        setting = UserSetting.objects.get(user__username="boss")
+        self.assertEqual(setting.default_summary_ratio, 0.2)
+
+
 # ──────────────────────────────────────────────
 #  FILE UPLOAD TESTS
 # ──────────────────────────────────────────────
