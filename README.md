@@ -72,7 +72,7 @@
 | `daphne` | 4.2.3 | ASGI server (HTTPS dev) |
 | `whitenoise` | 6.12.0 | Phục vụ file tĩnh |
 | `cryptography` | 44.0.3 | Tạo chứng chỉ SSL |
-| `pytest` / `pytest-django` | — | Kiểm thử (106 tests) |
+| `pytest` / `pytest-django` | — | Kiểm thử (112 tests) |
 
 ### Cơ sở dữ liệu
 
@@ -101,7 +101,7 @@ SummarEase-Django/
 │   │   ├── nlp.py           #     Xử lý NLP, TextRank, Gemini
 │   │   ├── forms.py         #     Django forms
 │   │   ├── admin.py         #     Django Admin config
-│   │   ├── tests.py         #     106 tests
+│   │   ├── tests.py         #     112 tests
 │   │   ├── urls.py          #     URL routing
 │   │   ├── signing.py       #     Mã hoá API key
 │   │   ├── stopwords.txt    #     Stopwords tiếng Việt
@@ -229,7 +229,7 @@ Server chạy tại **https://localhost:8443/** (hoặc port tùy chọn).
 
 ## 🧪 Kiểm thử
 
-Chạy toàn bộ bộ test (106 tests):
+Chạy toàn bộ bộ test (112 tests):
 
 ```powershell
 python -m pytest backend -q
@@ -244,7 +244,7 @@ python -m pytest backend/summaries/tests.py -k Security # bảo mật
 python -m pytest backend/summaries/tests.py -k Error    # trang lỗi 404/500
 ```
 
-**Phạm vi bộ test (106 tests / 24 nhóm):**
+**Phạm vi bộ test (112 tests / 27 nhóm):**
 
 | Nhóm | Số test | Nội dung |
 |------|--------:|----------|
@@ -272,6 +272,9 @@ python -m pytest backend/summaries/tests.py -k Error    # trang lỗi 404/500
 | **Trang lỗi 404/500** | 2 | Template custom render đúng |
 | **Bảo mật headers** | 5 | CSP, clickjacking, nosniff, referrer, CSRF |
 | **Biên nội dung** | 3 | Text 1 ký tự, text trắng, text rất dài |
+| Tóm tắt từ URL | 2 | Xem URL trên view, thiếu source_url |
+| Mã hoá token | 3 | Roundtrip, rỗng, token không hợp lệ |
+| Superuser → admin | 1 | Hồ sơ admin + tỉ lệ mặc định khi đăng nhập |
 
 ---
 

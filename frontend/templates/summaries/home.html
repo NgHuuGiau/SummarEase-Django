@@ -63,7 +63,7 @@
                 <p>Có thể tạo bản tóm tắt mới, xem lịch sử và tiếp tục quy trình làm việc.</p>
             {% else %}
                 <h3>Cần đăng nhập</h3>
-                <p>Đăng nhập để kích hoạt lưu SQL, lịch sử cá nhân và điều hướng theo tài khoản.</p>
+                <p>Đăng nhập để lưu lịch sử cá nhân, tóm tắt theo tài khoản và điều hướng đầy đủ.</p>
             {% endif %}
         </article>
         <article class="access-card panel">
@@ -83,7 +83,7 @@
             <article class="dashboard-card dashboard-card-ratio">
                 <p class="eyebrow">Mặc định</p>
                 <h3>{% widthratio form.initial.ratio|default:0.2 1 100 %}%</h3>
-                <span class="stat-caption">Tỷ lệ khởi tạo cho mỗi phiên tóm tắt</span>
+                <span class="stat-caption">Tỉ lệ khởi tạo cho mỗi phiên tóm tắt</span>
                 <p>Tỉ lệ tóm tắt hiện tại sẽ được dùng để khởi tạo cho mỗi phiên làm việc.</p>
             </article>
             <article class="dashboard-card dashboard-card-admin">
@@ -170,7 +170,7 @@
                     </span>
                 </button>
             {% else %}
-                <p class="helper-note">Cần đăng nhập để lưu bản tóm tắt vào SQL và mở lịch sử.</p>
+                <p class="helper-note">Cần đăng nhập để lưu bản tóm tắt vào lịch sử cá nhân.</p>
                 <a class="button-primary wide center-link" href="{% url 'login' %}">Đăng nhập để sử dụng</a>
             {% endif %}
 
