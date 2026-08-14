@@ -18,12 +18,15 @@ class LoginForm(AuthenticationForm):
 
 class SettingsForm(forms.Form):
     default_summary_ratio = forms.FloatField(
-        min_value=0.0, max_value=1.0, required=False,
+        min_value=0.0,
+        max_value=1.0,
+        required=False,
         label="Tỉ lệ tóm tắt mặc định",
         help_text="0.1 = 10%, 0.5 = 50%",
     )
     gemini_api_key = forms.CharField(
-        required=False, max_length=255,
+        required=False,
+        max_length=255,
         label="Gemini API Key",
         help_text="API key cá nhân (để trống nếu dùng key hệ thống)",
         widget=forms.PasswordInput(render_value=True),

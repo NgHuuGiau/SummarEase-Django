@@ -38,7 +38,9 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 def _ensure_user_defaults(user) -> None:
     if hasattr(user, "_defaults_ensured"):
         return
-    profile, _ = UserProfile.objects.get_or_create(user=user, defaults={"role": UserProfile.ROLE_USER})
+    profile, _ = UserProfile.objects.get_or_create(
+        user=user, defaults={"role": UserProfile.ROLE_USER}
+    )
     setting, _ = UserSetting.objects.get_or_create(
         user=user, defaults={"default_summary_ratio": 0.2, "language_preference": "auto"}
     )
@@ -69,10 +71,14 @@ def home(request: HttpRequest) -> HttpResponse:
         user_history = list(
             Summary.objects.filter(user=request.user)
             .select_related("document")
-            .only("title", "method", "language", "created_at", "summary_text", "document__title")[:6]
+            .only("title", "method", "language", "created_at", "summary_text", "document__title")[
+                :6
+            ]
         )
         initial_ratio = request.user.setting.default_summary_ratio
-    form = SummaryRequestForm(initial={"source_type": "text", "method": "textrank", "ratio": initial_ratio})
+    form = SummaryRequestForm(
+        initial={"source_type": "text", "method": "textrank", "ratio": initial_ratio}
+    )
     return render(
         request,
         "summaries/home.html",
@@ -112,26 +118,40 @@ class HistoryListView(LoginRequiredMixin, View):
 
     def get(self, request: HttpRequest) -> HttpResponse:
         base = Summary.objects.select_related("document", "user").only(
-            "title", "method", "language", "created_at", "summary_text",
-            "document__title", "document__source_type", "user__username",
+            "title",
+            "method",
+            "language",
+            "created_at",
+            "summary_text",
+            "document__title",
+            "document__source_type",
+            "user__username",
         )
         if not request.user.is_staff:
             base = base.filter(user=request.user)
         paginator = Paginator(base, PAGE_SIZE)
         page_number = request.GET.get("page", 1)
         page_obj = paginator.get_page(page_number)
-        return render(request, self.template_name, {"page_obj": page_obj, "is_admin_view": request.user.is_staff})
+        return render(
+            request,
+            self.template_name,
+            {"page_obj": page_obj, "is_admin_view": request.user.is_staff},
+        )
 
 
 class HistoryDetailView(LoginRequiredMixin, View):
     template_name = "summaries/history_detail.html"
 
     def get(self, request: HttpRequest, pk: int) -> HttpResponse:
-        queryset = Summary.objects.select_related("document", "user").prefetch_related("tags", "sentences")
+        queryset = Summary.objects.select_related("document", "user").prefetch_related(
+            "tags", "sentences"
+        )
         if not request.user.is_staff:
             queryset = queryset.filter(user=request.user)
         item = get_object_or_404(queryset, pk=pk)
-        return render(request, self.template_name, {"item": item, "is_admin_view": request.user.is_staff})
+        return render(
+            request, self.template_name, {"item": item, "is_admin_view": request.user.is_staff}
+        )
 
 
 @login_required
@@ -149,17 +169,25 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             messages.success(request, "Đã lưu cài đặt.")
             return redirect("settings")
     else:
-        form = SettingsForm(initial={
-            "default_summary_ratio": setting.default_summary_ratio,
-            "gemini_api_key": decrypt_value(setting.gemini_api_key) if setting.gemini_api_key else "",
-        })
+        form = SettingsForm(
+            initial={
+                "default_summary_ratio": setting.default_summary_ratio,
+                "gemini_api_key": decrypt_value(setting.gemini_api_key)
+                if setting.gemini_api_key
+                else "",
+            }
+        )
 
     system_has_key = bool(settings.GEMINI_API_KEY)
-    return render(request, "summaries/settings.html", {
-        "form": form,
-        "setting": setting,
-        "system_has_key": system_has_key,
-    })
+    return render(
+        request,
+        "summaries/settings.html",
+        {
+            "form": form,
+            "setting": setting,
+            "system_has_key": system_has_key,
+        },
+    )
 
 
 @login_required
@@ -238,7 +266,9 @@ def create_summary(request: HttpRequest) -> JsonResponse:
         language = detect_language(original_text)
         if method == "gemini":
             user_key = decrypt_value(request.user.setting.gemini_api_key)
-            result = gemini_summarize(original_text, ratio=ratio, language=language, user_api_key=user_key)
+            result = gemini_summarize(
+                original_text, ratio=ratio, language=language, user_api_key=user_key
+            )
         else:
             result = textrank_summarize(original_text, ratio=ratio, language=language)
 
@@ -264,7 +294,9 @@ def create_summary(request: HttpRequest) -> JsonResponse:
             )
             tag_names = list(dict.fromkeys(kw[:100] for kw in result["keywords"]))
             if tag_names:
-                existing_names = set(Tag.objects.filter(name__in=tag_names).values_list("name", flat=True))
+                existing_names = set(
+                    Tag.objects.filter(name__in=tag_names).values_list("name", flat=True)
+                )
                 new_tags = [Tag(name=n) for n in tag_names if n not in existing_names]
                 if new_tags:
                     Tag.objects.bulk_create(new_tags)

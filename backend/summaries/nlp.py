@@ -21,21 +21,58 @@ except ImportError:
     chardet = None
 
 VIETNAMESE_HINTS = {
-    "va", "cua", "trong", "voi", "cho", "duoc", "nhung", "cac",
-    "la", "nay", "mot", "nguoi", "khong", "co", "them", "ve",
-    "hoac", "neu", "rat", "sau", "khi", "tai", "tu",
+    "va",
+    "cua",
+    "trong",
+    "voi",
+    "cho",
+    "duoc",
+    "nhung",
+    "cac",
+    "la",
+    "nay",
+    "mot",
+    "nguoi",
+    "khong",
+    "co",
+    "them",
+    "ve",
+    "hoac",
+    "neu",
+    "rat",
+    "sau",
+    "khi",
+    "tai",
+    "tu",
 }
 
 VIETNAMESE_CHARS = re.compile(
-    "[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩị"
-    "òóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]",
+    "[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]",
     re.IGNORECASE,
 )
 
 ENGLISH_HINTS = {
-    "the", "be", "to", "of", "and", "that", "have", "for",
-    "not", "with", "this", "from", "but", "they", "which",
-    "would", "there", "their", "what", "about", "been",
+    "the",
+    "be",
+    "to",
+    "of",
+    "and",
+    "that",
+    "have",
+    "for",
+    "not",
+    "with",
+    "this",
+    "from",
+    "but",
+    "they",
+    "which",
+    "would",
+    "there",
+    "their",
+    "what",
+    "about",
+    "been",
 }
 
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".docx", ".pdf", ".epub"}
@@ -62,14 +99,17 @@ def _get_http_session() -> requests.Session:
     global _HTTP_SESSION
     if _HTTP_SESSION is None:
         import requests
+
         _HTTP_SESSION = requests.Session()
-        _HTTP_SESSION.headers.update({
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/125.0.0.0 Safari/537.36"
-            ),
-        })
+        _HTTP_SESSION.headers.update(
+            {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0.0.0 Safari/537.36"
+                ),
+            }
+        )
     return _HTTP_SESSION
 
 
@@ -95,7 +135,9 @@ def detect_language(text: str) -> str:
 
 def split_sentences(text: str) -> list[str]:
     text = re.sub(r"\s+", " ", text).strip()
-    text = re.sub(r"(?<!\w)(Mr|Mrs|Ms|Dr|Prof|St|vs|etc)\.(?=\s|$)", r"\1<DOT>", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"(?<!\w)(Mr|Mrs|Ms|Dr|Prof|St|vs|etc)\.(?=\s|$)", r"\1<DOT>", text, flags=re.IGNORECASE
+    )
     text = re.sub(r"\b([Tt]p|[Tt]r|[Tt]h|[Nn]xb|[Tt]g)\.(?=\s|$)", r"\1<DOT>", text)
     parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(\[{])", text)
     sentences = [s.strip() for s in parts if s.strip()]
@@ -243,7 +285,9 @@ def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english")
     return _build_summary_result(summary, language, normalized)
 
 
-def gemini_summarize(text: str, ratio: float = 0.2, language: str = "english", user_api_key: str = "") -> dict[str, Any]:
+def gemini_summarize(
+    text: str, ratio: float = 0.2, language: str = "english", user_api_key: str = ""
+) -> dict[str, Any]:
     try:
         import requests
     except ImportError as exc:
@@ -259,10 +303,7 @@ def gemini_summarize(text: str, ratio: float = 0.2, language: str = "english", u
     truncated = truncate_text(text)
     prompt = _build_prompt(truncated, ratio, language)
 
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent"
-    )
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
     headers = {
         "Content-Type": "application/json",
@@ -276,9 +317,11 @@ def gemini_summarize(text: str, ratio: float = 0.2, language: str = "english", u
         try:
             response = session.post(url, headers=headers, json=payload, timeout=60)
         except requests.exceptions.Timeout:
-            raise ValueError("Gemini API không phản hồi sau 60 giây. Vui lòng thử lại sau.")
+            raise ValueError(
+                "Gemini API không phản hồi sau 60 giây. Vui lòng thử lại sau."
+            ) from None
         except requests.exceptions.ConnectionError:
-            raise ValueError("Không thể kết nối tới Gemini API. Kiểm tra kết nối mạng.")
+            raise ValueError("Không thể kết nối tới Gemini API. Kiểm tra kết nối mạng.") from None
 
         if response.status_code == 403:
             raise ValueError(
@@ -294,9 +337,7 @@ def gemini_summarize(text: str, ratio: float = 0.2, language: str = "english", u
             raise ValueError(f"Gemini API lỗi: {msg[:200]}")
 
         if response.status_code in (429, 502, 503):
-            last_error = ValueError(
-                f"Gemini API lỗi {response.status_code}: {response.text[:100]}"
-            )
+            last_error = ValueError(f"Gemini API lỗi {response.status_code}: {response.text[:100]}")
             if attempt < GEMINI_RETRY_MAX - 1:
                 wait = 2 ** (attempt + 1)
                 time_module.sleep(wait)
@@ -307,7 +348,7 @@ def gemini_summarize(text: str, ratio: float = 0.2, language: str = "english", u
         except requests.exceptions.HTTPError:
             raise ValueError(
                 f"Gemini API lỗi HTTP {response.status_code}: {response.text[:200]}"
-            )
+            ) from None
         break
     else:
         raise last_error or ValueError("Gemini API không phản hồi sau nhiều lần thử.")
@@ -406,12 +447,12 @@ def extract_text_from_url(url: str) -> str:
         )
         response.raise_for_status()
     except requests.exceptions.Timeout:
-        raise ValueError("Không thể tải URL: yêu cầu đã hết thời gian chờ.")
+        raise ValueError("Không thể tải URL: yêu cầu đã hết thời gian chờ.") from None
     except requests.exceptions.ConnectionError:
-        raise ValueError("Không thể kết nối tới URL. Kiểm tra địa chỉ hoặc kết nối mạng.")
+        raise ValueError("Không thể kết nối tới URL. Kiểm tra địa chỉ hoặc kết nối mạng.") from None
     except requests.exceptions.HTTPError as exc:
         status = exc.response.status_code if exc.response is not None else "unknown"
-        raise ValueError(f"URL trả về lỗi HTTP {status}.")
+        raise ValueError(f"URL trả về lỗi HTTP {status}.") from None
 
     content_type = response.headers.get("Content-Type", "")
     if "text/html" not in content_type and "application/xhtml" not in content_type:
@@ -420,7 +461,9 @@ def extract_text_from_url(url: str) -> str:
         raise ValueError(f"URL không phải trang HTML (Content-Type: {content_type}).")
 
     soup = BeautifulSoup(response.text, "html.parser")
-    for tag in soup(["script", "style", "noscript", "meta", "link", "nav", "footer", "header", "aside"]):
+    for tag in soup(
+        ["script", "style", "noscript", "meta", "link", "nav", "footer", "header", "aside"]
+    ):
         tag.decompose()
     text = soup.get_text(separator=" ", strip=True)
     if not text.strip():

@@ -36,9 +36,11 @@ class TestHelperMixin:
         UserSetting.objects.create(user=user)
         return user
 
+
 # ──────────────────────────────────────────────
 #  NLP UNIT TESTS
 # ──────────────────────────────────────────────
+
 
 class NlpSplitTests(TestCase):
     def test_split_sentences_basic(self):
@@ -145,6 +147,7 @@ class NlpTruncateTests(TestCase):
 #  MODEL TESTS
 # ──────────────────────────────────────────────
 
+
 class DocumentModelTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="doc-tester", password="secret123")
@@ -169,19 +172,31 @@ class HealthCheckTests(TestCase):
 class SummaryModelTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="sum-tester", password="secret123")
-        self.doc = Document.objects.create(user=self.user, source_type="text", title="Doc", content="Content")
+        self.doc = Document.objects.create(
+            user=self.user, source_type="text", title="Doc", content="Content"
+        )
 
     def test_create_summary(self):
         summary = Summary.objects.create(
-            document=self.doc, user=self.user, title="Sum", method="textrank",
-            language="english", ratio=0.5, summary_text="Summary text",
+            document=self.doc,
+            user=self.user,
+            title="Sum",
+            method="textrank",
+            language="english",
+            ratio=0.5,
+            summary_text="Summary text",
         )
         self.assertEqual(str(summary), "Sum")
 
     def test_summary_timestamps(self):
         summary = Summary.objects.create(
-            document=self.doc, user=self.user, title="Sum", method="textrank",
-            language="english", ratio=0.5, summary_text="Text",
+            document=self.doc,
+            user=self.user,
+            title="Sum",
+            method="textrank",
+            language="english",
+            ratio=0.5,
+            summary_text="Text",
         )
         self.assertIsNotNone(summary.created_at)
 
@@ -201,6 +216,7 @@ class UserProfileModelTests(TestCase):
 # ──────────────────────────────────────────────
 #  VIEW / INTEGRATION TESTS
 # ──────────────────────────────────────────────
+
 
 class AuthPageTests(TestCase):
     def test_home_page(self):
@@ -223,20 +239,26 @@ class AuthPageTests(TestCase):
 
 class AuthFlowTests(TestCase):
     def test_register_creates_user_and_redirects(self):
-        response = self.client.post(reverse("register"), {
-            "username": "newuser",
-            "password1": "StrongPass123!",
-            "password2": "StrongPass123!",
-        })
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "newuser",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(User.objects.filter(username="newuser").exists())
 
     def test_login_and_logout(self):
         User.objects.create_user(username="logintest", password="secret123")
-        response = self.client.post(reverse("login"), {
-            "username": "logintest",
-            "password": "secret123",
-        })
+        response = self.client.post(
+            reverse("login"),
+            {
+                "username": "logintest",
+                "password": "secret123",
+            },
+        )
         self.assertEqual(response.status_code, 302)
 
 
@@ -256,50 +278,83 @@ class SummaryFlowTests(TestCase):
         UserSetting.objects.create(user=self.admin)
 
     def test_login_required_for_create_summary(self):
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "textrank",
-            "text": "test text", "ratio": 0.2,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "textrank",
+                "text": "test text",
+                "ratio": 0.2,
+            },
+        )
         self.assertEqual(response.status_code, 302)
 
     def test_create_summary_textrank(self):
         self.client.login(username="tester", password="secret123")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "textrank",
-            "text": "First sentence here. Second sentence follows. Third one is final.",
-            "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "textrank",
+                "text": "First sentence here. Second sentence follows. Third one is final.",
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
         self.assertEqual(Summary.objects.count(), 1)
 
     def test_create_summary_empty_text_returns_error(self):
         self.client.login(username="tester", password="secret123")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "textrank", "text": "", "ratio": 0.2,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "textrank",
+                "text": "",
+                "ratio": 0.2,
+            },
+        )
         self.assertEqual(response.status_code, 400)
         self.assertIn("errors", response.json())
 
     def test_rate_limit_blocks_rapid_requests(self):
         self.client.login(username="tester", password="secret123")
-        self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "textrank",
-            "text": "A sentence. B sentence. C sentence.", "ratio": 0.2,
-        })
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "textrank",
-            "text": "D sentence. E sentence. F sentence.", "ratio": 0.2,
-        })
+        self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "textrank",
+                "text": "A sentence. B sentence. C sentence.",
+                "ratio": 0.2,
+            },
+        )
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "textrank",
+                "text": "D sentence. E sentence. F sentence.",
+                "ratio": 0.2,
+            },
+        )
         self.assertEqual(response.status_code, 429)
 
     def test_admin_can_view_all_history(self):
         doc = Document.objects.create(
-            user=self.other, source_type="text", title="Doc", content="Content",
+            user=self.other,
+            source_type="text",
+            title="Doc",
+            content="Content",
         )
         Summary.objects.create(
-            document=doc, user=self.other, title="Other summary",
-            method="textrank", language="en", ratio=0.2, summary_text="Text",
+            document=doc,
+            user=self.other,
+            title="Other summary",
+            method="textrank",
+            language="en",
+            ratio=0.2,
+            summary_text="Text",
         )
         self.client.login(username="admin", password="secret123")
         response = self.client.get(reverse("history"))
@@ -307,11 +362,19 @@ class SummaryFlowTests(TestCase):
 
     def test_user_cannot_view_others_detail(self):
         doc = Document.objects.create(
-            user=self.other, source_type="text", title="Doc", content="Content",
+            user=self.other,
+            source_type="text",
+            title="Doc",
+            content="Content",
         )
         summary = Summary.objects.create(
-            document=doc, user=self.other, title="Private",
-            method="textrank", language="en", ratio=0.2, summary_text="Text",
+            document=doc,
+            user=self.other,
+            title="Private",
+            method="textrank",
+            language="en",
+            ratio=0.2,
+            summary_text="Text",
         )
         self.client.login(username="tester", password="secret123")
         response = self.client.get(reverse("history_detail", kwargs={"pk": summary.pk}))
@@ -321,6 +384,7 @@ class SummaryFlowTests(TestCase):
 class SettingsFlowTests(TestCase):
     def tearDown(self):
         cache.clear()
+
     def setUp(self):
         self.user = User.objects.create_user(username="settings-test", password="secret123")
         UserProfile.objects.create(user=self.user)
@@ -338,35 +402,52 @@ class SettingsFlowTests(TestCase):
 
     def test_settings_update_ratio(self):
         self.client.login(username="settings-test", password="secret123")
-        self.client.post(reverse("settings"), {
-            "default_summary_ratio": 0.7, "gemini_api_key": "",
-        })
+        self.client.post(
+            reverse("settings"),
+            {
+                "default_summary_ratio": 0.7,
+                "gemini_api_key": "",
+            },
+        )
         updated = UserSetting.objects.get(user=self.user)
         self.assertEqual(updated.default_summary_ratio, 0.7)
 
     def test_settings_save_and_clear_api_key(self):
         self.client.login(username="settings-test", password="secret123")
-        self.client.post(reverse("settings"), {
-            "default_summary_ratio": 0.2, "gemini_api_key": "my-key-123",
-        })
+        self.client.post(
+            reverse("settings"),
+            {
+                "default_summary_ratio": 0.2,
+                "gemini_api_key": "my-key-123",
+            },
+        )
         stored = UserSetting.objects.get(user=self.user).gemini_api_key
         self.assertEqual(decrypt_value(stored), "my-key-123")
-        self.client.post(reverse("settings"), {
-            "default_summary_ratio": 0.2, "gemini_api_key": "",
-        })
+        self.client.post(
+            reverse("settings"),
+            {
+                "default_summary_ratio": 0.2,
+                "gemini_api_key": "",
+            },
+        )
         self.assertEqual(UserSetting.objects.get(user=self.user).gemini_api_key, "")
 
     def test_settings_invalid_ratio_shows_error(self):
         self.client.login(username="settings-test", password="secret123")
-        response = self.client.post(reverse("settings"), {
-            "default_summary_ratio": 5.0, "gemini_api_key": "",
-        })
+        response = self.client.post(
+            reverse("settings"),
+            {
+                "default_summary_ratio": 5.0,
+                "gemini_api_key": "",
+            },
+        )
         self.assertContains(response, "value")
 
 
 # ──────────────────────────────────────────────
 #  NLP EDGE CASE TESTS
 # ──────────────────────────────────────────────
+
 
 class NlpEdgeCaseTests(TestCase):
     def test_split_sentences_single_sentence(self):
@@ -449,6 +530,7 @@ class NlpEdgeCaseTests(TestCase):
 #  FORM VALIDATION TESTS
 # ──────────────────────────────────────────────
 
+
 class FormValidationTests(TestCase):
     def test_settings_form_valid(self):
         form = SettingsForm(data={"default_summary_ratio": 0.3, "gemini_api_key": ""})
@@ -475,10 +557,12 @@ class FormValidationTests(TestCase):
 #  ADMIN PAGE TESTS
 # ──────────────────────────────────────────────
 
+
 class AdminPageTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_superuser(
-            username="superadmin", password="secret123",
+            username="superadmin",
+            password="secret123",
         )
         UserProfile.objects.create(user=self.admin, role="admin")
         UserSetting.objects.create(user=self.admin)
@@ -512,18 +596,27 @@ class AdminPageTests(TestCase):
 #  HISTORY PAGINATION TESTS
 # ──────────────────────────────────────────────
 
+
 class HistoryPaginationTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="paginator", password="secret123")
         UserProfile.objects.create(user=self.user)
         UserSetting.objects.create(user=self.user)
         doc = Document.objects.create(
-            user=self.user, source_type="text", title="Doc", content="Content",
+            user=self.user,
+            source_type="text",
+            title="Doc",
+            content="Content",
         )
         for i in range(15):
             Summary.objects.create(
-                document=doc, user=self.user, title=f"Summary {i}",
-                method="textrank", language="en", ratio=0.2, summary_text=f"Text {i}",
+                document=doc,
+                user=self.user,
+                title=f"Summary {i}",
+                method="textrank",
+                language="en",
+                ratio=0.2,
+                summary_text=f"Text {i}",
             )
         self.client.login(username="paginator", password="secret123")
 
@@ -546,6 +639,7 @@ class HistoryPaginationTests(TestCase):
 #  PERMISSION TESTS
 # ──────────────────────────────────────────────
 
+
 class PermissionTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="normaluser", password="secret123")
@@ -555,11 +649,19 @@ class PermissionTests(TestCase):
         UserProfile.objects.create(user=self.admin, role="admin")
         UserSetting.objects.create(user=self.admin)
         self.doc = Document.objects.create(
-            user=self.user, source_type="text", title="My doc", content="My content",
+            user=self.user,
+            source_type="text",
+            title="My doc",
+            content="My content",
         )
         self.summary = Summary.objects.create(
-            document=self.doc, user=self.user, title="My summary",
-            method="textrank", language="en", ratio=0.2, summary_text="My text",
+            document=self.doc,
+            user=self.user,
+            title="My summary",
+            method="textrank",
+            language="en",
+            ratio=0.2,
+            summary_text="My text",
         )
 
     def test_own_history_detail_accessible(self):
@@ -592,6 +694,7 @@ class PermissionTests(TestCase):
 #  DELETE CASCADE TESTS
 # ──────────────────────────────────────────────
 
+
 class DeleteCascadeTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="cascade-user", password="secret123")
@@ -600,22 +703,38 @@ class DeleteCascadeTests(TestCase):
 
     def test_delete_document_cascades_summary(self):
         doc = Document.objects.create(
-            user=self.user, source_type="text", title="Doc", content="Content",
+            user=self.user,
+            source_type="text",
+            title="Doc",
+            content="Content",
         )
         summary = Summary.objects.create(
-            document=doc, user=self.user, title="Sum",
-            method="textrank", language="en", ratio=0.2, summary_text="Text",
+            document=doc,
+            user=self.user,
+            title="Sum",
+            method="textrank",
+            language="en",
+            ratio=0.2,
+            summary_text="Text",
         )
         doc.delete()
         self.assertFalse(Summary.objects.filter(pk=summary.pk).exists())
 
     def test_delete_user_does_not_delete_summary(self):
         doc = Document.objects.create(
-            user=self.user, source_type="text", title="Doc", content="Content",
+            user=self.user,
+            source_type="text",
+            title="Doc",
+            content="Content",
         )
         Summary.objects.create(
-            document=doc, user=self.user, title="Sum",
-            method="textrank", language="en", ratio=0.2, summary_text="Text",
+            document=doc,
+            user=self.user,
+            title="Sum",
+            method="textrank",
+            language="en",
+            ratio=0.2,
+            summary_text="Text",
         )
         self.user.delete()
         self.assertEqual(Summary.objects.count(), 0)
@@ -625,6 +744,7 @@ class DeleteCascadeTests(TestCase):
 # ──────────────────────────────────────────────
 #  URL EXTRACTION TESTS (MOCKED)
 # ──────────────────────────────────────────────
+
 
 class UrlExtractionTests(TestCase):
     def _mock_session_get(self, mock_get):
@@ -667,6 +787,7 @@ class UrlExtractionTests(TestCase):
     @patch("summaries.nlp._get_http_session")
     def test_extract_text_from_url_raises_on_timeout(self, mock_session):
         from requests.exceptions import Timeout as RequestsTimeout
+
         sess = mock_session.return_value
         sess.get.side_effect = RequestsTimeout("Timeout")
         with self.assertRaises(ValueError):
@@ -685,6 +806,7 @@ class UrlExtractionTests(TestCase):
 #  FILE UPLOAD TESTS
 # ──────────────────────────────────────────────
 
+
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp(), RATE_LIMIT_SECONDS=0)
 class FileUploadTests(TestCase):
     def setUp(self):
@@ -696,10 +818,15 @@ class FileUploadTests(TestCase):
     def test_upload_txt_file(self):
         text_content = b"This is a test document. It has multiple sentences. We need enough text."
         uploaded = SimpleUploadedFile("test.txt", text_content, content_type="text/plain")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "file", "method": "textrank",
-            "upload": uploaded, "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "upload": uploaded,
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data["ok"])
@@ -707,30 +834,48 @@ class FileUploadTests(TestCase):
     def test_upload_file_too_large(self):
         big_content = b"x" * (10 * 1024 * 1024 + 1)
         uploaded = SimpleUploadedFile("big.txt", big_content, content_type="text/plain")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "file", "method": "textrank",
-            "upload": uploaded, "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "upload": uploaded,
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 400)
 
     def test_upload_no_file_sent(self):
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "file", "method": "textrank", "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 400)
 
     def test_upload_unsupported_format(self):
-        uploaded = SimpleUploadedFile("test.exe", b"fake content", content_type="application/octet-stream")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "file", "method": "textrank",
-            "upload": uploaded, "ratio": 0.3,
-        })
+        uploaded = SimpleUploadedFile(
+            "test.exe", b"fake content", content_type="application/octet-stream"
+        )
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "upload": uploaded,
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 400)
 
 
 # ──────────────────────────────────────────────
 #  GEMINI SUMMARIZE TESTS (MOCKED)
 # ──────────────────────────────────────────────
+
 
 @override_settings(RATE_LIMIT_SECONDS=0)
 class GeminiSummarizeTests(TestCase):
@@ -751,6 +896,7 @@ class GeminiSummarizeTests(TestCase):
         mock_resp.text = ""
         if status_code >= 400:
             from requests.exceptions import HTTPError
+
             mock_resp.raise_for_status.side_effect = HTTPError(f"HTTP {status_code}")
         sess.post.return_value = mock_resp
         return sess
@@ -761,11 +907,15 @@ class GeminiSummarizeTests(TestCase):
     @patch("summaries.nlp._get_http_session")
     def test_gemini_summarize_success(self, mock_get_session):
         self._mock_session(mock_get_session)
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "gemini",
-            "text": "This is the first sentence. Here is another one. Yet a third sentence.",
-            "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "gemini",
+                "text": "This is the first sentence. Here is another one. Yet a third sentence.",
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data["ok"])
@@ -776,10 +926,15 @@ class GeminiSummarizeTests(TestCase):
         self._mock_session(mock_get_session)
         UserSetting.objects.filter(user=self.user).update(gemini_api_key="")
         cache.clear()
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "gemini",
-            "text": "Some text for summary.", "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "gemini",
+                "text": "Some text for summary.",
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 400)
         data = response.json()
         self.assertFalse(data["ok"])
@@ -788,35 +943,51 @@ class GeminiSummarizeTests(TestCase):
     def test_gemini_summarize_empty_response(self, mock_get_session):
         bad_resp = {"candidates": [{"content": {"parts": [{"text": ""}]}}]}
         self._mock_session(mock_get_session, response_data=bad_resp)
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "gemini",
-            "text": "First word. Second word. Third word.", "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "gemini",
+                "text": "First word. Second word. Third word.",
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 400)
 
     @patch("summaries.nlp._get_http_session")
     def test_gemini_summarize_http_error(self, mock_get_session):
         self._mock_session(mock_get_session, status_code=500)
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "gemini",
-            "text": "First word. Second word. Third word.", "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "gemini",
+                "text": "First word. Second word. Third word.",
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 400)
 
     @patch("summaries.nlp._get_http_session")
     def test_gemini_summarize_malformed_json(self, mock_get_session):
         bad_resp = {"unexpected": "format"}
         self._mock_session(mock_get_session, response_data=bad_resp)
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "gemini",
-            "text": "Some text here. More text there.", "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "gemini",
+                "text": "Some text here. More text there.",
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 400)
 
 
 # ──────────────────────────────────────────────
 #  FILE EXTRACTION TESTS (MOCKED)
 # ──────────────────────────────────────────────
+
 
 @override_settings(RATE_LIMIT_SECONDS=0)
 class FileExtractionTests(TestCase):
@@ -831,12 +1002,19 @@ class FileExtractionTests(TestCase):
 
     @patch("summaries.nlp._extract_text_from_txt")
     def test_txt_file_extraction(self, mock_extract):
-        mock_extract.return_value = "This is extracted text from a txt file. It has multiple sentences."
+        mock_extract.return_value = (
+            "This is extracted text from a txt file. It has multiple sentences."
+        )
         uploaded = SimpleUploadedFile("test.txt", b"ignored", content_type="text/plain")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "file", "method": "textrank",
-            "upload": uploaded, "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "upload": uploaded,
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
         mock_extract.assert_called_once()
@@ -844,11 +1022,20 @@ class FileExtractionTests(TestCase):
     @patch("summaries.nlp._extract_text_from_docx")
     def test_docx_file_extraction(self, mock_extract):
         mock_extract.return_value = "Extracted content from a DOCX file."
-        uploaded = SimpleUploadedFile("test.docx", b"ignored", content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "file", "method": "textrank",
-            "upload": uploaded, "ratio": 0.3,
-        })
+        uploaded = SimpleUploadedFile(
+            "test.docx",
+            b"ignored",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "upload": uploaded,
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         mock_extract.assert_called_once()
 
@@ -856,10 +1043,15 @@ class FileExtractionTests(TestCase):
     def test_pdf_file_extraction(self, mock_extract):
         mock_extract.return_value = "Extracted content from a PDF file."
         uploaded = SimpleUploadedFile("test.pdf", b"ignored", content_type="application/pdf")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "file", "method": "textrank",
-            "upload": uploaded, "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "upload": uploaded,
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         mock_extract.assert_called_once()
 
@@ -867,10 +1059,15 @@ class FileExtractionTests(TestCase):
     def test_epub_file_extraction(self, mock_extract):
         mock_extract.return_value = "Extracted content from an EPUB file."
         uploaded = SimpleUploadedFile("test.epub", b"ignored", content_type="application/epub+zip")
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "file", "method": "textrank",
-            "upload": uploaded, "ratio": 0.3,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "upload": uploaded,
+                "ratio": 0.3,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         mock_extract.assert_called_once()
 
@@ -878,6 +1075,7 @@ class FileExtractionTests(TestCase):
 # ──────────────────────────────────────────────
 #  ERROR PAGE TESTS (404 / 500)
 # ──────────────────────────────────────────────
+
 
 @override_settings(DEBUG=False, ALLOWED_HOSTS=["*"])
 class ErrorPageTests(TestCase):
@@ -902,6 +1100,7 @@ class ErrorPageTests(TestCase):
 # ──────────────────────────────────────────────
 #  SECURITY HEADER TESTS
 # ──────────────────────────────────────────────
+
 
 class SecurityHeaderTests(TestCase):
     def test_csp_policy_present_on_all_pages(self):
@@ -928,6 +1127,7 @@ class SecurityHeaderTests(TestCase):
 
     def test_csrf_blocks_missing_token(self):
         from django.test import Client
+
         client = Client(enforce_csrf_checks=True)
         response = client.post(reverse("login"), {"username": "nobody", "password": "x"})
         self.assertEqual(response.status_code, 403)
@@ -936,6 +1136,7 @@ class SecurityHeaderTests(TestCase):
 # ──────────────────────────────────────────────
 #  CONTENT EDGE CASE TESTS
 # ──────────────────────────────────────────────
+
 
 @override_settings(RATE_LIMIT_SECONDS=0)
 class ContentEdgeCaseTests(TestCase):
@@ -949,25 +1150,45 @@ class ContentEdgeCaseTests(TestCase):
         cache.clear()
 
     def test_single_character_text(self):
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "textrank", "text": "A", "ratio": 0.2,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "textrank",
+                "text": "A",
+                "ratio": 0.2,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
 
     def test_whitespace_only_text_rejected(self):
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "textrank", "text": "   \n\t  ", "ratio": 0.2,
-        })
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "textrank",
+                "text": "   \n\t  ",
+                "ratio": 0.2,
+            },
+        )
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.json()["ok"])
 
     def test_very_long_text_summarized(self):
-        long_text = ("Đây là một câu dùng để kiểm tra khả năng xử lý văn bản dài. "
-                     "Khi dữ liệu lớn, hệ thống vẫn phải tóm tắt chính xác và đầy đủ. ") * 60
-        response = self.client.post(reverse("create_summary"), {
-            "source_type": "text", "method": "textrank", "text": long_text, "ratio": 0.2,
-        })
+        long_text = (
+            "Đây là một câu dùng để kiểm tra khả năng xử lý văn bản dài. "
+            "Khi dữ liệu lớn, hệ thống vẫn phải tóm tắt chính xác và đầy đủ. "
+        ) * 60
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "text",
+                "method": "textrank",
+                "text": long_text,
+                "ratio": 0.2,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertTrue(payload["ok"])

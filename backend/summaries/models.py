@@ -35,7 +35,9 @@ class UserSetting(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="setting")
     default_summary_ratio = models.FloatField(default=0.2)
     language_preference = models.CharField(max_length=20, default="auto")
-    gemini_api_key = models.CharField(max_length=255, blank=True, default="", help_text="API key Gemini cá nhân (nếu có)")
+    gemini_api_key = models.CharField(
+        max_length=255, blank=True, default="", help_text="API key Gemini cá nhân (nếu có)"
+    )
 
     class Meta:
         verbose_name = "Cài đặt"
@@ -55,7 +57,9 @@ class Document(models.Model):
         (SOURCE_URL, "URL"),
     )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="documents", db_index=True)
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="documents", db_index=True
+    )
     source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
     title = models.CharField(max_length=255)
     source_name = models.CharField(max_length=255, blank=True)
@@ -92,8 +96,12 @@ class Summary(models.Model):
         (METHOD_GEMINI, "Gemini"),
     )
 
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="summaries", db_index=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="summaries", db_index=True)
+    document = models.ForeignKey(
+        Document, on_delete=models.CASCADE, related_name="summaries", db_index=True
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="summaries", db_index=True
+    )
     title = models.CharField(max_length=255)
     method = models.CharField(max_length=20, choices=METHOD_CHOICES, default=METHOD_TEXTRANK)
     language = models.CharField(max_length=20, default="english")
@@ -113,7 +121,9 @@ class Summary(models.Model):
 
 
 class SummarySentence(models.Model):
-    summary = models.ForeignKey(Summary, on_delete=models.CASCADE, related_name="sentences", db_index=True)
+    summary = models.ForeignKey(
+        Summary, on_delete=models.CASCADE, related_name="sentences", db_index=True
+    )
     sentence_text = models.TextField()
     sentence_index = models.PositiveIntegerField(default=0)
 
