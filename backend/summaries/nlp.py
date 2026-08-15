@@ -51,6 +51,14 @@ VIETNAMESE_CHARS = re.compile(
     re.IGNORECASE,
 )
 
+# Chữ hoa tiếng Việt (nằm ngoài khoảng A-Z của regex ASCII).
+VIETNAMESE_UPPERCASE = (
+    "ÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆ"
+    "ÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ"
+)
+
+_SENTENCE_START_CHARS = VIETNAMESE_UPPERCASE + r"A-Z0-9\"'([{"
+
 ENGLISH_HINTS = {
     "the",
     "be",
@@ -139,7 +147,7 @@ def split_sentences(text: str) -> list[str]:
         r"(?<!\w)(Mr|Mrs|Ms|Dr|Prof|St|vs|etc)\.(?=\s|$)", r"\1<DOT>", text, flags=re.IGNORECASE
     )
     text = re.sub(r"\b([Tt]p|[Tt]r|[Tt]h|[Nn]xb|[Tt]g)\.(?=\s|$)", r"\1<DOT>", text)
-    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(\[{])", text)
+    parts = re.split(r"(?<=[.!?])\s+(?=[" + _SENTENCE_START_CHARS + r"])", text)
     sentences = [s.strip() for s in parts if s.strip()]
     return [s.replace("<DOT>", ".") for s in sentences]
 

@@ -47,6 +47,11 @@ class NlpSplitTests(TestCase):
         result = split_sentences("Hello world. This is fun!")
         self.assertEqual(len(result), 2)
 
+    def test_split_sentences_vietnamese_diacritic_start(self):
+        text = "Em là học sinh. Ở trường tôi học giỏi. Đó là điều quan trọng."
+        result = split_sentences(text)
+        self.assertEqual(len(result), 3)
+
     def test_split_sentences_abbreviations(self):
         text = "Dr. Smith went to New York. He arrived at 5 p.m."
         result = split_sentences(text)
