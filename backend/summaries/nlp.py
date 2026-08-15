@@ -52,10 +52,7 @@ VIETNAMESE_CHARS = re.compile(
 )
 
 # Chữ hoa tiếng Việt (nằm ngoài khoảng A-Z của regex ASCII).
-VIETNAMESE_UPPERCASE = (
-    "ÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆ"
-    "ÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ"
-)
+VIETNAMESE_UPPERCASE = "ÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ"
 
 _SENTENCE_START_CHARS = VIETNAMESE_UPPERCASE + r"A-Z0-9\"'([{"
 
