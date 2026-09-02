@@ -3,58 +3,86 @@
 {% block title %}Chi tiết bản tóm tắt - SummarEase{% endblock %}
 
 {% block content %}
-<main class="page-shell narrow">
-    <section class="panel detail-panel">
-        <div class="section-head">
-            <p class="eyebrow">Chi tiết</p>
-            <h1>{{ item.title }}</h1>
-            {% if is_admin_view %}
-                <p class="section-copy">Bản ghi này thuộc về tài khoản {{ item.user.username }} và gồm nội dung gốc, bản tóm tắt và nhóm từ khóa đã được lưu trong hệ thống.</p>
-            {% else %}
-                <p class="section-copy">Bản ghi này gồm nội dung gốc, bản tóm tắt và nhóm từ khóa đã được lưu trong hệ thống.</p>
-            {% endif %}
-        </div>
-
-        <div class="detail-meta">
-            <span class="badge">{{ item.get_method_display }}</span>
-            <span class="badge warm">{{ item.document.get_source_type_display }}</span>
-            {% if is_admin_view %}
-                <span class="badge neutral">{{ item.user.username }}</span>
-            {% endif %}
-            <span class="badge neutral">{{ item.language }}</span>
-            <span class="badge neutral">Tỉ lệ {{ item.ratio }}</span>
-            <span class="muted">{{ item.created_at|date:"d/m/Y H:i" }}</span>
-        </div>
-
-        <div class="detail-grid">
-            <div>
-                <h2>Nội dung gốc</h2>
-                <div class="detail-box">{{ item.document.content }}</div>
+<main class="page-shell">
+    <section class="panel detail-view-panel">
+        <div class="panel-header">
+            <div class="panel-header-title">
+                <span class="panel-icon">📄</span>
+                <div>
+                    <h2>{{ item.title }}</h2>
+                    <p class="panel-desc">
+                        {% if is_admin_view %}
+                            Bản ghi của tài khoản <strong>{{ item.user.username }}</strong>
+                        {% else %}
+                            Bản tóm tắt được lưu trong tài khoản cá nhân
+                        {% endif %}
+                    </p>
+                </div>
             </div>
-
-            <div>
-                <h2>Bản tóm tắt</h2>
-                <div class="detail-box emphasis">{{ item.summary_text }}</div>
+            <div class="detail-top-actions">
+                <a class="button-secondary slim" href="{% url 'history' %}">← Quay lại danh sách</a>
+                {% if item.user_id == request.user.id or request.user.is_staff %}
+                    <form method="post" action="{% url 'history_delete' item.id %}" data-confirm-delete class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="button-danger slim">Xóa bản ghi</button>
+                    </form>
+                {% endif %}
             </div>
         </div>
 
-        <h2>Từ khóa</h2>
-        <div class="keyword-list">
-            {% for tag in item.tags.all %}
-                <span>{{ tag.name }}</span>
-            {% empty %}
-                <span>Chưa có</span>
-            {% endfor %}
+        <!-- Meta info pills -->
+        <div class="detail-meta-strip">
+            <span class="badge {% if item.method == 'gemini' %}gemini{% else %}textrank{% endif %}">
+                {{ item.get_method_display }}
+            </span>
+            <span class="badge source-badge">{{ item.document.get_source_type_display }}</span>
+            <span class="badge lang-badge">🌐 {{ item.language|upper }}</span>
+            <span class="badge-ratio">Tỉ lệ {{ item.ratio }}</span>
+            <span class="meta-date">🕒 {{ item.created_at|date:"d/m/Y H:i:s" }}</span>
+            {% if is_admin_view %}
+                <span class="badge user-badge">👤 {{ item.user.username }}</span>
+            {% endif %}
         </div>
 
-        <div class="row-actions top-space">
-            <a class="button-secondary" href="{% url 'history' %}">Quay lại lịch sử</a>
-            {% if item.user_id == request.user.id or request.user.is_staff %}
-                <form method="post" action="{% url 'history_delete' item.id %}" data-confirm-delete>
-                    {% csrf_token %}
-                    <button type="submit" class="button-danger">Xóa bản ghi</button>
-                </form>
-            {% endif %}
+        <!-- Keywords Section -->
+        {% if item.tags.all %}
+            <div class="detail-keywords-section">
+                <span class="keyword-label">Từ khóa quan trọng:</span>
+                <div class="keyword-tags">
+                    {% for tag in item.tags.all %}
+                        <span class="keyword-chip"># {{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Side by Side Comparative Boxes -->
+        <div class="comparative-grid">
+            <!-- Original Content -->
+            <div class="comparative-card">
+                <div class="comparative-card-header">
+                    <span class="card-tag original">Văn bản gốc</span>
+                    <span class="char-count">{{ item.document.content|length }} ký tự</span>
+                </div>
+                <div class="comparative-content-box original-box">
+                    {{ item.document.content }}
+                </div>
+            </div>
+
+            <!-- Summary Content -->
+            <div class="comparative-card">
+                <div class="comparative-card-header">
+                    <span class="card-tag summary">Bản tóm tắt</span>
+                    <div class="summary-card-tools">
+                        <button type="button" class="button-secondary slim" id="copy-detail-btn" data-copy-target="detail-summary-text">
+                            📋 Sao chép
+                        </button>
+                    </div>
+                </div>
+                <div class="comparative-content-box summary-box" id="detail-summary-text">
+                    {{ item.summary_text }}
+                </div>
+            </div>
         </div>
     </section>
 </main>
@@ -64,10 +92,22 @@
 <script nonce="{{ request.csp_nonce }}">
 document.querySelectorAll("form[data-confirm-delete]").forEach(function (form) {
     form.addEventListener("submit", function (e) {
-        if (!confirm("Bạn có chắc muốn xóa bản tóm tắt này?")) {
+        if (!confirm("Bạn có chắc muốn xóa bản tóm tắt này? Hành động này không thể hoàn tác.")) {
             e.preventDefault();
         }
     });
 });
+
+const copyBtn = document.getElementById("copy-detail-btn");
+if (copyBtn) {
+    copyBtn.addEventListener("click", function () {
+        const text = (document.getElementById("detail-summary-text").textContent || "").trim();
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(function () {
+            copyBtn.textContent = "✓ Đã sao chép";
+            setTimeout(function () { copyBtn.textContent = "📋 Sao chép"; }, 1600);
+        });
+    });
+}
 </script>
 {% endblock %}

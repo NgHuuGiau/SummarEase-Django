@@ -1,59 +1,79 @@
 {% extends "summaries/base.html" %}
 
-{% block title %}Lịch sử - SummarEase{% endblock %}
+{% block title %}Lịch sử tóm tắt - SummarEase{% endblock %}
 
 {% block content %}
 <main class="page-shell narrow">
-    <section class="panel history-section">
-        <div class="section-head">
-            <p class="eyebrow">Lịch sử</p>
-            {% if is_admin_view %}
-                <h1>Lịch sử tóm tắt của toàn bộ người dùng</h1>
-                <p class="section-copy">Quản trị có thể xem lại tất cả bản tóm tắt trong hệ thống, theo từng tài khoản và mở chi tiết từng mục.</p>
-            {% else %}
-                <h1>Tất cả bản tóm tắt của bạn</h1>
-                <p class="section-copy">Theo dõi các bản tóm tắt đã tạo, mở chi tiết từng mục và xóa bản ghi không còn cần dùng.</p>
+    <section class="panel history-list-panel">
+        <div class="panel-header">
+            <div class="panel-header-title">
+                <span class="panel-icon">📚</span>
+                <div>
+                    {% if is_admin_view %}
+                        <h2>Lịch sử toàn bộ hệ thống</h2>
+                        <p class="panel-desc">Theo dõi và quản trị các bản tóm tắt của tất cả người dùng trong hệ thống.</p>
+                    {% else %}
+                        <h2>Lịch sử tóm tắt của bạn</h2>
+                        <p class="panel-desc">Theo dõi, sao chép và quản lý các phiên tóm tắt đã lưu.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% if page_obj %}
+                <span class="count-badge">{{ page_obj.paginator.count }} bản ghi</span>
             {% endif %}
         </div>
-        <div class="list-stack">
+
+        <div class="history-stack-list">
             {% for item in page_obj %}
-                <article class="history-row">
-                    <div class="history-main">
-                        <div class="card-top">
-                            <span class="badge">{{ item.get_method_display }}</span>
-                            <span class="badge warm">{{ item.document.get_source_type_display }}</span>
+                <article class="history-list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-badges">
+                            <span class="badge {% if item.method == 'gemini' %}gemini{% else %}textrank{% endif %}">
+                                {{ item.get_method_display }}
+                            </span>
+                            <span class="badge source-badge">{{ item.document.get_source_type_display }}</span>
                             {% if is_admin_view %}
-                                <span class="badge neutral">{{ item.user.username }}</span>
+                                <span class="badge user-badge">👤 {{ item.user.username }}</span>
                             {% endif %}
+                            <span class="badge-ratio">Tỉ lệ {{ item.ratio }}</span>
+                            <span class="list-item-date">{{ item.created_at|date:"d/m/Y H:i" }}</span>
                         </div>
-                        <h2>{{ item.title }}</h2>
-                        <p>{{ item.summary_text|truncatechars:220 }}</p>
-                        <span class="muted">{{ item.created_at|date:"d/m/Y H:i" }}</span>
+                        <h3 class="list-item-title">
+                            <a href="{% url 'history_detail' item.id %}">{{ item.title }}</a>
+                        </h3>
+                        <p class="list-item-snippet">{{ item.summary_text|truncatechars:220 }}</p>
                     </div>
-                    <div class="row-actions">
-                        <a class="button-secondary slim" href="{% url 'history_detail' item.id %}">Chi tiết</a>
+                    <div class="list-item-actions">
+                        <a class="button-secondary slim" href="{% url 'history_detail' item.id %}">
+                            Xem chi tiết
+                        </a>
                         {% if item.user_id == request.user.id or request.user.is_staff %}
-                            <form method="post" action="{% url 'history_delete' item.id %}" data-confirm-delete>
+                            <form method="post" action="{% url 'history_delete' item.id %}" data-confirm-delete class="inline-form">
                                 {% csrf_token %}
-                                <button type="submit" class="button-danger slim">Xóa</button>
+                                <button type="submit" class="button-danger slim" title="Xóa bản ghi này">Xóa</button>
                             </form>
                         {% endif %}
                     </div>
                 </article>
             {% empty %}
-                <div class="empty-state">
-                    <p>{% if is_admin_view %}Hệ thống chưa có bản tóm tắt nào.{% else %}Bạn chưa có bản tóm tắt nào.{% endif %}</p>
+                <div class="empty-state-card">
+                    <div class="empty-icon">📭</div>
+                    <h3>Chưa có bản tóm tắt nào</h3>
+                    <p>{% if is_admin_view %}Hệ thống chưa có bản ghi tóm tắt nào từ người dùng.{% else %}Bạn chưa tạo bản tóm tắt nào. Hãy bắt đầu ngay tại trang chủ!{% endif %}</p>
+                    {% if not is_admin_view %}
+                        <a href="{% url 'home' %}" class="button-primary slim">Tạo bản tóm tắt mới</a>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>
 
         {% if page_obj.has_other_pages %}
-            <div class="pagination">
+            <div class="pagination-wrapper">
                 {% if page_obj.has_previous %}
                     <a href="?page=1" class="button-secondary slim">&laquo; Đầu</a>
                     <a href="?page={{ page_obj.previous_page_number }}" class="button-secondary slim">‹ Trước</a>
                 {% endif %}
-                <span class="page-info">Trang {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                <span class="page-indicator">Trang {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
                 {% if page_obj.has_next %}
                     <a href="?page={{ page_obj.next_page_number }}" class="button-secondary slim">Sau ›</a>
                     <a href="?page={{ page_obj.paginator.num_pages }}" class="button-secondary slim">Cuối &raquo;</a>

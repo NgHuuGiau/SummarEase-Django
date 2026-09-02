@@ -6,29 +6,46 @@
 <main class="auth-shell">
     <section class="auth-layout">
         <aside class="auth-story panel">
-            <p class="eyebrow">Chào mừng trở lại</p>
-            <h1>Tiếp tục phiên làm việc của bạn.</h1>
-            <p class="lede">Đăng nhập để mở lại lịch sử tóm tắt, tiếp tục xử lý nội dung và truy cập khu quản trị nếu tài khoản có quyền.</p>
+            <div class="auth-story-badge">
+                <span>SummarEase Cloud</span>
+            </div>
+            <h1>Đăng nhập không gian làm việc.</h1>
+            <p class="lede">Tiếp tục phiên tóm tắt thông minh, xem lại toàn bộ lịch sử tài liệu và quản lý các thiết lập cá nhân.</p>
+            
             <div class="auth-points">
                 <div class="auth-point">
-                    <strong>Lịch sử cá nhân</strong>
-                    <span>Xem lại các bản tóm tắt đã lưu và mở chi tiết từng phiên làm việc.</span>
+                    <div class="point-icon">📚</div>
+                    <div>
+                        <strong>Lịch sử cá nhân</strong>
+                        <span>Lưu trữ toàn bộ bản tóm tắt, xuất kết quả và tra cứu tức thì mọi lúc.</span>
+                    </div>
                 </div>
                 <div class="auth-point">
-                    <strong>Không gian làm việc liền mạch</strong>
-                    <span>Làm việc với văn bản, tệp và URL trong cùng một quy trình tóm tắt.</span>
+                    <div class="point-icon">⚡</div>
+                    <div>
+                        <strong>Xử lý đa định dạng</strong>
+                        <span>Hỗ trợ tệp Word, PDF, EPUB, văn bản thô và cào bài viết tự động từ liên kết URL.</span>
+                    </div>
                 </div>
                 <div class="auth-point">
-                    <strong>Quyền quản trị</strong>
-                    <span>Nếu là admin, bạn có thể quản lý người dùng, bản tóm tắt và dữ liệu toàn hệ thống.</span>
+                    <div class="point-icon">✨</div>
+                    <div>
+                        <strong>Tích hợp Gemini AI</strong>
+                        <span>Hỗ trợ phân tích ngữ nghĩa sâu, tạo tiêu đề thông minh và trích xuất từ khóa.</span>
+                    </div>
                 </div>
             </div>
         </aside>
+
         <section class="panel auth-panel">
-            <p class="eyebrow">Đăng nhập</p>
-            <h2>Đăng nhập để tiếp tục.</h2>
+            <div class="auth-panel-header">
+                <h2>Chào mừng trở lại</h2>
+                <p>Nhập thông tin tài khoản của bạn để tiếp tục</p>
+            </div>
+
             <form method="post" class="auth-form">
                 {% csrf_token %}
+                
                 {% if form.non_field_errors %}
                     <div class="form-errors">
                         {% for error in form.non_field_errors %}
@@ -36,23 +53,29 @@
                         {% endfor %}
                     </div>
                 {% endif %}
-                <label>
-                    <span>Tên đăng nhập</span>
+
+                <div class="form-group">
+                    <label for="{{ form.username.id_for_label }}" class="control-label">Tên đăng nhập</label>
                     {{ form.username }}
                     {% if form.username.errors %}
                         <span class="field-error">{{ form.username.errors.0 }}</span>
                     {% endif %}
-                </label>
-                <label>
-                    <span>Mật khẩu</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.password.id_for_label }}" class="control-label">Mật khẩu</label>
                     {{ form.password }}
                     {% if form.password.errors %}
                         <span class="field-error">{{ form.password.errors.0 }}</span>
                     {% endif %}
-                </label>
-                <button type="submit" class="button-primary wide">Đăng nhập</button>
+                </div>
+
+                <button type="submit" class="button-primary wide lg">Đăng nhập ngay</button>
             </form>
-            <p class="helper-note">Chưa có tài khoản? <a href="{% url 'register' %}">Đăng ký</a></p>
+
+            <div class="auth-switch-note">
+                Chưa có tài khoản? <a href="{% url 'register' %}">Đăng ký tài khoản mới</a>
+            </div>
         </section>
     </section>
 </main>

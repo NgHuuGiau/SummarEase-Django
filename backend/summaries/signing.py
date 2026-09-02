@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_fernet() -> "Fernet":
-    raw = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
+    raw = hashlib.sha256(settings.API_ENCRYPTION_KEY.encode()).digest()
     key = base64.urlsafe_b64encode(raw)
     return Fernet(key)
 

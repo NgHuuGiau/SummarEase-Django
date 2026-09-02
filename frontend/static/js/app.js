@@ -9,11 +9,14 @@
     const textWrap = document.querySelector("#text-wrap");
     const fileWrap = document.querySelector("#file-wrap");
     const urlWrap = document.querySelector("#url-wrap");
+    const fileInput = document.querySelector("#file-input");
     const form = document.querySelector("#summary-form");
     const message = document.querySelector("#form-message");
     const resultTitle = document.querySelector("#result-title");
+    const resultDesc = document.querySelector("#result-desc");
     const resultMeta = document.querySelector("#result-meta");
     const resultKeywords = document.querySelector("#result-keywords");
+    const summaryEmpty = document.querySelector("#summary-empty");
     const summaryOutput = document.querySelector("#summary-output");
     const detailLink = document.querySelector("#detail-link");
     const copyBtn = document.querySelector("#copy-btn");
@@ -24,8 +27,6 @@
     const themeToggle = document.querySelector("[data-theme-toggle]");
     const themeLabel = document.querySelector("[data-theme-label]");
     const themeIcon = document.querySelector("[data-theme-icon]");
-    const themeBadge = document.querySelector("[data-theme-badge]");
-    const themeCopy = document.querySelector("[data-theme-copy]");
     const ratioSlider = document.querySelector("#ratio_slider");
     const ratioInput = document.querySelector("#ratio_input");
     const ratioValue = document.querySelector("#ratio_value");
@@ -47,18 +48,10 @@
     function syncThemeUi(theme) {
         const isDark = theme === "dark";
         if (themeLabel) {
-            themeLabel.textContent = isDark ? "Chế độ tối" : "Chế độ sáng";
+            themeLabel.textContent = isDark ? "Tối" : "Sáng";
         }
         if (themeIcon) {
             themeIcon.textContent = isDark ? "\u263e" : "\u2600";
-        }
-        if (themeBadge) {
-            themeBadge.textContent = isDark ? "Chế độ tối" : "Chế độ sáng";
-        }
-        if (themeCopy) {
-            themeCopy.textContent = isDark
-                ? "Hệ thống đang hiển thị theme tối để tập trung vào nội dung và thao tác buổi tối."
-                : "Hệ thống đang hiển thị theme sáng để đọc và thao tác rõ ràng.";
         }
     }
 
@@ -73,9 +66,9 @@
             return;
         }
         const type = sourceInput.value;
-        textWrap.classList.toggle("is-hidden", type !== "text");
-        fileWrap.classList.toggle("is-hidden", type !== "file");
-        urlWrap.classList.toggle("is-hidden", type !== "url");
+        if (textWrap) textWrap.classList.toggle("is-hidden", type !== "text");
+        if (fileWrap) fileWrap.classList.toggle("is-hidden", type !== "file");
+        if (urlWrap) urlWrap.classList.toggle("is-hidden", type !== "url");
         Object.values(errorMap).forEach(function (el) {
             if (el) el.textContent = "";
         });
@@ -84,11 +77,16 @@
     function bindSegmented(buttons, input, onActivate) {
         buttons.forEach(function (btn) {
             btn.addEventListener("click", function () {
-                buttons.forEach(function (b) { b.classList.remove("is-active"); b.setAttribute("aria-selected", "false"); });
+                buttons.forEach(function (b) {
+                    b.classList.remove("is-active");
+                    b.setAttribute("aria-selected", "false");
+                });
                 btn.classList.add("is-active");
                 btn.setAttribute("aria-selected", "true");
-                input.value = btn.dataset.source || btn.dataset.method;
-                if (onActivate) onActivate(input.value);
+                if (input) {
+                    input.value = btn.dataset.source || btn.dataset.method;
+                }
+                if (onActivate) onActivate(btn.dataset.source || btn.dataset.method);
             });
         });
     }
@@ -107,8 +105,8 @@
     function setLoading(loading) {
         if (!submitBtn) return;
         submitBtn.disabled = loading;
-        btnText.classList.toggle("is-hidden", loading);
-        btnSpinner.classList.toggle("is-hidden", !loading);
+        if (btnText) btnText.classList.toggle("is-hidden", loading);
+        if (btnSpinner) btnSpinner.classList.toggle("is-hidden", !loading);
     }
 
     function clearErrors() {
@@ -151,19 +149,35 @@
                 } else {
                     message.textContent = payload.message || "Không thể tóm tắt.";
                 }
+                message.style.color = "var(--danger)";
                 return;
             }
 
             const data = payload.data;
-            resultTitle.textContent = data.title;
-            resultMeta.textContent = data.method + " | " + data.language + " | tỉ lệ " + Math.round(Number(data.ratio) * 100) + "% | " + data.created_at;
-            resultKeywords.innerHTML = data.keywords.map(function (kw) { return "<span>" + kw + "</span>"; }).join("");
-            summaryOutput.innerHTML = data.highlighted_summary;
-            detailLink.href = data.history_url;
-            detailLink.classList.remove("is-hidden");
+            if (resultTitle) resultTitle.textContent = data.title;
+            if (resultDesc) resultDesc.textContent = "Đã xử lý lúc " + data.created_at;
+            if (resultMeta) {
+                resultMeta.innerHTML = "<span class=\"badge textrank\">" + data.method + "</span>" +
+                    "<span class=\"badge source-badge\">" + data.language + "</span>" +
+                    "<span class=\"badge-ratio\">Tỉ lệ " + Math.round(Number(data.ratio) * 100) + "%</span>";
+            }
+            if (resultKeywords && data.keywords) {
+                resultKeywords.innerHTML = data.keywords.map(function (kw) {
+                    return "<span class=\"keyword-chip\"># " + kw + "</span>";
+                }).join("");
+            }
+            if (summaryEmpty) summaryEmpty.classList.add("is-hidden");
+            if (summaryOutput) {
+                summaryOutput.innerHTML = data.highlighted_summary;
+                summaryOutput.classList.remove("is-hidden");
+            }
+            if (detailLink) {
+                detailLink.href = data.history_url;
+                detailLink.classList.remove("is-hidden");
+            }
             if (copyBtn) copyBtn.classList.remove("is-hidden");
-            message.textContent = "Đã lưu bản tóm tắt vào hệ thống.";
-            message.style.color = "";
+            message.textContent = "✨ Đã tạo và lưu bản tóm tắt vào hệ thống.";
+            message.style.color = "var(--success)";
         } catch (error) {
             message.textContent = "Không thể kết nối tới máy chủ.";
             message.style.color = "var(--danger)";
@@ -172,24 +186,39 @@
         }
     }
 
-    // Init
+    // Init segmented buttons
     bindSegmented(sourceBtns, sourceInput, updateSourceFields);
     bindSegmented(methodBtns, methodInput, function (method) {
         if (methodHint) {
             methodHint.textContent = method === "gemini"
-                ? "Gemini nâng cao, hiểu ngữ nghĩa — cần khóa API Gemini."
-                : "TextRank hoạt động nhanh, không cần API — phù hợp văn bản tiếng Việt.";
+                ? "Gemini AI phân tích ngữ nghĩa sâu, hiểu câu đa tầng — cần cấu hình khóa API Gemini."
+                : "TextRank phân tích câu tự động, xử lý cực nhanh trên máy chủ nội bộ mà không cần API key ngoài.";
         }
     });
     updateSourceFields();
+
+    // File input change feedback
+    if (fileInput) {
+        fileInput.addEventListener("change", function () {
+            if (fileInput.files && fileInput.files[0]) {
+                const dropzoneStrong = fileInput.parentElement.querySelector("strong");
+                if (dropzoneStrong) {
+                    dropzoneStrong.textContent = "📄 " + fileInput.files[0].name;
+                }
+            }
+        });
+    }
 
     if (copyBtn) {
         copyBtn.addEventListener("click", function () {
             const text = (summaryOutput.textContent || "").trim();
             if (!text) return;
             navigator.clipboard.writeText(text).then(function () {
-                copyBtn.textContent = "✓ Đã sao chép";
-                setTimeout(function () { copyBtn.textContent = "📋 Sao chép"; }, 1600);
+                const label = copyBtn.querySelector("span");
+                if (label) label.textContent = "Đã sao chép!";
+                setTimeout(function () {
+                    if (label) label.textContent = "Sao chép";
+                }, 1600);
             });
         });
     }
@@ -214,3 +243,4 @@
         form.addEventListener("submit", submitSummary);
     }
 })();
+

@@ -164,6 +164,14 @@ MEDIA_ROOT = BACKEND_DIR / "media"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
+# ── Encryption (dedicated key for API key storage) ──
+API_ENCRYPTION_KEY = os.getenv("API_ENCRYPTION_KEY", "")
+if not API_ENCRYPTION_KEY:
+    # Derive a stable key from SECRET_KEY so existing encrypted values survive restarts
+    import hashlib
+
+    API_ENCRYPTION_KEY = hashlib.sha256(SECRET_KEY.encode()).hexdigest()
+
 # ── Security (hardened when DEBUG=False) ────────────
 SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000
 SECURE_SSL_REDIRECT = False if DEBUG else True

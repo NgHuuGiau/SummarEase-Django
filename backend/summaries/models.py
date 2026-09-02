@@ -83,6 +83,18 @@ class Document(models.Model):
 
 class Tag(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=120, unique=True, blank=True)
+    description = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        ordering = ["name"]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+
+            self.slug = slugify(self.name, allow_unicode=True)
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.name
@@ -104,7 +116,7 @@ class Summary(models.Model):
     )
     title = models.CharField(max_length=255)
     method = models.CharField(max_length=20, choices=METHOD_CHOICES, default=METHOD_TEXTRANK)
-    language = models.CharField(max_length=20, default="english")
+    language = models.CharField(max_length=20, default="auto")
     ratio = models.FloatField(default=0.2)
     summary_text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)

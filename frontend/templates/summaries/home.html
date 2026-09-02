@@ -1,221 +1,261 @@
 {% extends "summaries/base.html" %}
 
-{% block title %}SummarEase | Trang chủ{% endblock %}
+{% block title %}SummarEase - Tóm tắt văn bản thông minh với AI{% endblock %}
 
 {% block content %}
 <main class="page-shell">
-    <section class="hero hero-home">
-        <div class="hero-copy">
-            <p class="eyebrow">Không gian tóm tắt</p>
-            <h1>Biến văn bản dài thành bản tóm tắt ngắn, dễ đọc và dễ quản lý.</h1>
-            <p class="lede">SummarEase kết hợp xử lý nội dung, lịch sử tóm tắt và bảng quản trị trong một giao diện rõ ràng cho người dùng và quản trị viên.</p>
-            <div class="access-banner">
-                {% if request.user.is_authenticated %}
-                    {% if request.user.is_staff %}
-                        <span class="status-badge admin">Quản trị</span>
-                        <p>Hệ thống đã nhận diện tài khoản {{ request.user.username }} với quyền quản trị và truy cập đầy đủ.</p>
-                    {% else %}
-                        <span class="status-badge member">Người dùng</span>
-                        <p>Hệ thống đã nhận diện {{ request.user.username }} và mở sẵn không gian làm việc, lịch sử và lưu trữ cá nhân.</p>
-                    {% endif %}
-                {% else %}
-                    <span class="status-badge guest">Khách</span>
-                    <p>Bạn đang ở chế độ xem giao diện. Đăng nhập để lưu kết quả, theo dõi lịch sử và quản lý bản tóm tắt.</p>
-                {% endif %}
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="pulse-dot"></span>
+                <span>AI &amp; TextRank NLP Engine</span>
             </div>
-            <div class="hero-actions">
+            <h1 class="hero-title">
+                Biến tài liệu dài thành <span class="gradient-text">bản tóm tắt súc tích</span>, chuẩn xác.
+            </h1>
+            <p class="hero-subtitle">
+                Tự động trích xuất ý chính từ văn bản, tệp tài liệu hoặc bài báo mạng. Tối ưu cho Tiếng Việt và hơn 50 ngôn ngữ.
+            </p>
+
+            <div class="hero-meta-bar">
                 {% if request.user.is_authenticated %}
-                    <a class="button-primary" href="#workspace">Bắt đầu tóm tắt</a>
-                    <a class="button-secondary" href="{% url 'history' %}">Mở lịch sử</a>
+                    <div class="user-status-card">
+                        <span class="status-indicator"></span>
+                        <div class="status-text">
+                            <strong>{{ request.user.username }}</strong>
+                            <span>{% if request.user.is_staff %}Quyền Quản trị hệ thống{% else %}Không gian làm việc cá nhân đã sẵn sàng{% endif %}</span>
+                        </div>
+                    </div>
                 {% else %}
-                    <a class="button-primary" href="{% url 'register' %}">Tạo tài khoản</a>
-                    <a class="button-secondary" href="{% url 'login' %}">Đăng nhập</a>
+                    <div class="user-status-card guest">
+                        <span class="status-indicator guest"></span>
+                        <div class="status-text">
+                            <strong>Chế độ Khách</strong>
+                            <span><a href="{% url 'login' %}" class="inline-link">Đăng nhập</a> để lưu lịch sử và quản lý bản tóm tắt.</span>
+                        </div>
+                    </div>
                 {% endif %}
-            </div>
-            <div class="hero-ribbon">
-                <span>TextRank</span>
-                <span>Gemini</span>
-                <span>Văn bản / Tệp / URL</span>
+
+                <div class="feature-pills">
+                    <span class="pill">🧠 Thuật toán TextRank</span>
+                    <span class="pill">✨ Google Gemini AI</span>
+                    <span class="pill">📄 PDF • Word • EPUB • URL</span>
+                </div>
             </div>
         </div>
     </section>
 
-    <section class="access-strip">
-        <article class="access-card panel">
-            <p class="eyebrow">Nhận diện</p>
-            {% if request.user.is_authenticated %}
-                {% if request.user.is_staff %}
-                    <h3>Phiên quản trị</h3>
-                    <p>Đăng nhập thành công và có quyền truy cập khu quản trị hệ thống.</p>
-                {% else %}
-                    <h3>Phiên người dùng</h3>
-                    <p>Đã nhận diện tài khoản người dùng và liên kết lịch sử tóm tắt cá nhân.</p>
-                {% endif %}
-            {% else %}
-                <h3>Phiên khách</h3>
-                <p>Đang truy cập với quyền xem giao diện, chưa mở lưu trữ cá nhân.</p>
-            {% endif %}
-        </article>
-        <article class="access-card panel">
-            <p class="eyebrow">Truy cập</p>
-            {% if request.user.is_authenticated %}
-                    <h3>Đã mở không gian làm việc</h3>
-                <p>Có thể tạo bản tóm tắt mới, xem lịch sử và tiếp tục quy trình làm việc.</p>
-            {% else %}
-                <h3>Cần đăng nhập</h3>
-                <p>Đăng nhập để lưu lịch sử cá nhân, tóm tắt theo tài khoản và điều hướng đầy đủ.</p>
-            {% endif %}
-        </article>
-        <article class="access-card panel">
-            <p class="eyebrow">Giao diện</p>
-            <h3 data-theme-badge>Chế độ sáng</h3>
-            <p data-theme-copy>Hệ thống đang hiển thị theme sáng để đọc và thao tác rõ ràng.</p>
-        </article>
-    </section>
-
-    {% if request.user.is_authenticated %}
-        <section class="dashboard-strip">
-            <article class="dashboard-card dashboard-card-user">
-                <p class="eyebrow">Người dùng</p>
-                <h3>{{ request.user.username }}</h3>
-                <p>Hệ thống đang sẵn sàng tạo bản tóm tắt mới và cập nhật lịch sử cá nhân.</p>
-            </article>
-            <article class="dashboard-card dashboard-card-ratio">
-                <p class="eyebrow">Mặc định</p>
-                <h3>{% widthratio form.initial.ratio|default:0.2 1 100 %}%</h3>
-                <span class="stat-caption">Tỉ lệ khởi tạo cho mỗi phiên tóm tắt</span>
-                <p>Tỉ lệ tóm tắt hiện tại sẽ được dùng để khởi tạo cho mỗi phiên làm việc.</p>
-            </article>
-            <article class="dashboard-card dashboard-card-admin">
-                <p class="eyebrow">Quản trị</p>
-                {% if request.user.is_staff %}
-                    <h3>Có quyền quản trị</h3>
-                    <p>Bạn có thể vào khu admin để quản lý người dùng, tài liệu, bản tóm tắt và đánh giá.</p>
-                {% else %}
-                    <h3>Tài khoản người dùng</h3>
-                    <p>Sử dụng khu lịch sử để theo dõi các bản tóm tắt đã tạo.</p>
-                {% endif %}
-            </article>
-        </section>
-    {% endif %}
-
-    <section id="workspace" class="workspace">
+    <!-- Main Workspace -->
+    <section id="workspace" class="workspace-grid">
+        <!-- Compose / Input Panel -->
         <form id="summary-form" class="panel compose-panel" method="post" enctype="multipart/form-data" action="{% url 'create_summary' %}">
             {% csrf_token %}
-            <div class="panel-head">
-                <div>
-                    <p class="eyebrow">Không gian làm việc</p>
-                    <h2>Tạo bản tóm tắt mới</h2>
+            
+            <div class="panel-header">
+                <div class="panel-header-title">
+                    <span class="panel-icon">📝</span>
+                    <div>
+                        <h2>Nội dung đầu vào</h2>
+                        <p class="panel-desc">Chọn nguồn nội dung và cấu hình phương pháp tóm tắt</p>
+                    </div>
                 </div>
-                <span class="panel-chip">Xử lý trực tiếp</span>
             </div>
 
-            <div class="seg-control" role="tablist" aria-label="Chọn nguồn dữ liệu">
-                <button type="button" class="seg-btn is-active" data-source="text" role="tab" aria-selected="true">📝 Văn bản</button>
-                <button type="button" class="seg-btn" data-source="file" role="tab" aria-selected="false">📁 Tệp</button>
-                <button type="button" class="seg-btn" data-source="url" role="tab" aria-selected="false">🔗 URL</button>
+            <!-- Source Type Switcher -->
+            <div class="source-selector">
+                <label class="control-label">Nguồn dữ liệu</label>
+                <div class="segmented-control" role="tablist" aria-label="Chọn nguồn dữ liệu">
+                    <button type="button" class="seg-btn is-active" data-source="text" role="tab" aria-selected="true">
+                        <span class="seg-icon">✍️</span> Văn bản
+                    </button>
+                    <button type="button" class="seg-btn" data-source="file" role="tab" aria-selected="false">
+                        <span class="seg-icon">📁</span> Tệp tin
+                    </button>
+                    <button type="button" class="seg-btn" data-source="url" role="tab" aria-selected="false">
+                        <span class="seg-icon">🔗</span> Đường dẫn URL
+                    </button>
+                </div>
+                <input type="hidden" name="source_type" id="source_type" value="text">
             </div>
-            <input type="hidden" name="source_type" id="source_type" value="text">
 
-            <div class="field-grid">
-                <label>
-                    <span>Phương pháp</span>
-                    <div class="seg-control seg-control-compact" role="tablist" aria-label="Chọn phương pháp">
-                        <button type="button" class="seg-btn is-active" data-method="textrank" role="tab" aria-selected="true">🧠 TextRank</button>
-                        <button type="button" class="seg-btn" data-method="gemini" role="tab" aria-selected="false">✨ Gemini</button>
+            <!-- Options Grid -->
+            <div class="config-grid">
+                <!-- Method Selection -->
+                <div class="config-item">
+                    <label class="control-label">Phương pháp xử lý</label>
+                    <div class="segmented-control compact" role="tablist" aria-label="Chọn phương pháp">
+                        <button type="button" class="seg-btn is-active" data-method="textrank" role="tab" aria-selected="true">
+                            <span>🧠 TextRank</span>
+                        </button>
+                        <button type="button" class="seg-btn" data-method="gemini" role="tab" aria-selected="false">
+                            <span>✨ Gemini AI</span>
+                        </button>
                     </div>
                     <input type="hidden" name="method" id="method" value="textrank">
-                </label>
-                <label>
-                    <span>Tỉ lệ</span>
-                    <div class="ratio-control">
-                        <input type="range" id="ratio_slider" min="0" max="100" step="1" value="{% widthratio form.initial.ratio|default:0.2 1 100 %}">
-                        <div class="ratio-meta">
-                            <strong id="ratio_value">{% widthratio form.initial.ratio|default:0.2 1 100 %}%</strong>
-                            <span>Mức độ rút gọn nội dung</span>
+                </div>
+
+                <!-- Ratio Slider -->
+                <div class="config-item">
+                    <div class="control-label-row">
+                        <label class="control-label" for="ratio_slider">Mức độ rút gọn</label>
+                        <span class="ratio-badge" id="ratio_value">{% widthratio form.initial.ratio|default:0.2 1 100 %}%</span>
+                    </div>
+                    <div class="slider-wrapper">
+                        <input type="range" id="ratio_slider" min="5" max="80" step="5" value="{% widthratio form.initial.ratio|default:0.2 1 100 %}">
+                        <div class="slider-ticks">
+                            <span>Ngắn (10%)</span>
+                            <span>Trung bình (30%)</span>
+                            <span>Chi tiết (60%)</span>
                         </div>
                         <input type="hidden" name="ratio" id="ratio_input" value="{{ form.initial.ratio|default:0.2 }}">
                     </div>
-                </label>
-                <div class="method-hint">
-                    <span>Gợi ý</span>
-                    <p data-method-hint id="method-hint">TextRank hoạt động nhanh, không cần API — phù hợp văn bản tiếng Việt.</p>
                 </div>
             </div>
 
-            <label id="text-wrap" class="stack-field">
-                <span>Văn bản gốc</span>
-                <textarea name="text" rows="14" placeholder="Dán nội dung cần tóm tắt..."></textarea>
-                <span class="field-error" id="error-text"></span>
-            </label>
+            <!-- Method Hint -->
+            <div class="method-hint-card" id="method-hint-card">
+                <span class="hint-icon">💡</span>
+                <p id="method-hint">TextRank phân tích câu tự động, xử lý cực nhanh trên máy chủ nội bộ mà không cần API key ngoài.</p>
+            </div>
 
-            <label id="file-wrap" class="stack-field is-hidden">
-                <span>Chọn tệp</span>
-                <input type="file" name="upload" accept=".txt,.md,.markdown,.docx,.pdf,.epub">
-                <span class="field-error" id="error-upload"></span>
-            </label>
+            <!-- Input Fields -->
+            <div class="input-area">
+                <div id="text-wrap" class="field-container">
+                    <label for="text-input" class="control-label">Nội dung văn bản</label>
+                    <textarea id="text-input" name="text" rows="11" placeholder="Dán hoặc nhập đoạn văn bản bạn muốn tóm tắt vào đây (báo chí, báo cáo, bài nghiên cứu...)..."></textarea>
+                    <span class="field-error" id="error-text"></span>
+                </div>
 
-            <label id="url-wrap" class="stack-field is-hidden">
-                <span>Nhập URL</span>
-                <input type="url" name="source_url" placeholder="https://example.com/article">
-                <span class="field-error" id="error-source_url"></span>
-            </label>
+                <div id="file-wrap" class="field-container is-hidden">
+                    <label class="control-label">Tải lên tệp tài liệu</label>
+                    <div class="file-dropzone">
+                        <input type="file" id="file-input" name="upload" accept=".txt,.md,.markdown,.docx,.pdf,.epub">
+                        <div class="dropzone-content">
+                            <span class="dropzone-icon">📥</span>
+                            <strong>Chọn tệp hoặc kéo thả vào đây</strong>
+                            <p>Hỗ trợ định dạng .PDF, .DOCX, .TXT, .EPUB, .MD</p>
+                        </div>
+                    </div>
+                    <span class="field-error" id="error-upload"></span>
+                </div>
 
-            {% if request.user.is_authenticated %}
-                <button class="button-primary wide" type="submit" id="submit-btn">
-                    <span class="btn-text">Tạo bản tóm tắt</span>
-                    <span class="btn-spinner is-hidden">
-                        <span class="spinner"></span>
-                        Đang xử lý...
-                    </span>
-                </button>
-            {% else %}
-                <p class="helper-note">Cần đăng nhập để lưu bản tóm tắt vào lịch sử cá nhân.</p>
-                <a class="button-primary wide center-link" href="{% url 'login' %}">Đăng nhập để sử dụng</a>
-            {% endif %}
+                <div id="url-wrap" class="field-container is-hidden">
+                    <label for="url-input" class="control-label">Đường dẫn bài viết</label>
+                    <div class="url-input-wrap">
+                        <span class="url-icon">🌐</span>
+                        <input type="url" id="url-input" name="source_url" placeholder="https://vnexpress.net/bai-viet-mau-12345.html">
+                    </div>
+                    <span class="field-error" id="error-source_url"></span>
+                </div>
+            </div>
 
-            <p id="form-message" class="form-message"></p>
+            <!-- Action Button -->
+            <div class="form-footer">
+                {% if request.user.is_authenticated %}
+                    <button class="button-primary wide lg" type="submit" id="submit-btn">
+                        <span class="btn-text">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                            </svg>
+                            Tạo bản tóm tắt ngay
+                        </span>
+                        <span class="btn-spinner is-hidden">
+                            <span class="spinner"></span>
+                            Đang xử lý nội dung...
+                        </span>
+                    </button>
+                {% else %}
+                    <a class="button-primary wide lg" href="{% url 'login' %}">
+                        Đăng nhập để tóm tắt tài liệu
+                    </a>
+                    <p class="auth-hint">Chưa có tài khoản? <a href="{% url 'register' %}">Đăng ký miễn phí</a> trong 30 giây.</p>
+                {% endif %}
+                <p id="form-message" class="form-message"></p>
+            </div>
         </form>
 
+        <!-- Summary Result Panel -->
         <article class="panel result-panel">
-            <div class="panel-head">
-                <div class="result-top">
-                    <p class="eyebrow">Kết quả</p>
-                    <h2 id="result-title">Chưa có bản tóm tắt</h2>
+            <div class="panel-header">
+                <div class="panel-header-title">
+                    <span class="panel-icon">✨</span>
+                    <div>
+                        <h2 id="result-title">Kết quả tóm tắt</h2>
+                        <p class="panel-desc" id="result-desc">Bản tóm tắt tự động được sinh ra</p>
+                    </div>
                 </div>
-                <span class="panel-chip subtle">Xem trước</span>
+                <div class="result-toolbar">
+                    <button type="button" id="copy-btn" class="button-secondary slim is-hidden" data-copy-target="summary-output" title="Sao chép nội dung">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <span>Sao chép</span>
+                    </button>
+                    <a id="detail-link" class="button-secondary slim is-hidden" href="#">Chi tiết ↗</a>
+                </div>
             </div>
-            <div id="result-meta" class="result-meta"></div>
-            <div id="result-keywords" class="keyword-list"></div>
-            <div id="summary-output" class="summary-output">Bản tóm tắt sẽ hiện ở đây sau khi xử lý.</div>
-            <div class="result-actions">
-                <a id="detail-link" class="ghost-link is-hidden" href="#">Mở bản ghi đã lưu</a>
-                <button type="button" id="copy-btn" class="button-secondary slim is-hidden" data-copy-target="summary-output">📋 Sao chép</button>
+
+            <!-- Meta & Tags -->
+            <div id="result-meta" class="result-meta-tags"></div>
+            <div id="result-keywords" class="keyword-tags"></div>
+
+            <!-- Summary Output Box with Empty State -->
+            <div class="summary-body-wrapper">
+                <div id="summary-empty" class="summary-empty-state">
+                    <div class="empty-graphic">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <line x1="10" y1="9" x2="8" y2="9"></line>
+                        </svg>
+                    </div>
+                    <h3>Sẵn sàng xử lý nội dung</h3>
+                    <p>Nhập văn bản, chọn tệp hoặc dán URL ở khung bên trái và bấm <strong>Tạo bản tóm tắt</strong> để bắt đầu.</p>
+                </div>
+                <div id="summary-output" class="summary-output is-hidden"></div>
             </div>
         </article>
     </section>
 
+    <!-- Recent History Section (For Authenticated Users) -->
     {% if request.user.is_authenticated and user_history %}
-        <section class="panel history-section">
-            <div class="section-head">
-                <p class="eyebrow">Của bạn</p>
-                <h2>Bản tóm tắt gần đây</h2>
+        <section class="panel history-shelf">
+            <div class="shelf-header">
+                <div class="shelf-title">
+                    <span class="shelf-icon">📚</span>
+                    <div>
+                        <h2>Bản tóm tắt gần đây</h2>
+                        <p class="shelf-desc">Các phiên làm việc được lưu tự động trong tài khoản của bạn</p>
+                    </div>
+                </div>
+                <a href="{% url 'history' %}" class="button-secondary slim">Xem tất cả lịch sử →</a>
             </div>
-            <div class="card-grid">
+
+            <div class="history-grid">
                 {% for item in user_history %}
-                    <article class="history-card">
-                        <div class="card-top">
-                            <span class="badge">{{ item.get_method_display }}</span>
-                            <span class="muted">{{ item.created_at|date:"d/m/Y H:i" }}</span>
+                    <article class="history-mini-card">
+                        <div class="mini-card-head">
+                            <span class="badge {% if item.method == 'gemini' %}gemini{% else %}textrank{% endif %}">
+                                {{ item.get_method_display }}
+                            </span>
+                            <span class="mini-card-date">{{ item.created_at|date:"d/m H:i" }}</span>
                         </div>
-                        <h3>{{ item.title }}</h3>
-                        <p>{{ item.summary_text|truncatechars:160 }}</p>
-                        <a href="{% url 'history_detail' item.id %}">Xem chi tiết</a>
+                        <h3 class="mini-card-title">
+                            <a href="{% url 'history_detail' item.id %}">{{ item.title }}</a>
+                        </h3>
+                        <p class="mini-card-snippet">{{ item.summary_text|truncatechars:140 }}</p>
+                        <div class="mini-card-footer">
+                            <span class="mini-card-source">{{ item.document.get_source_type_display }}</span>
+                            <a href="{% url 'history_detail' item.id %}" class="mini-card-action">Mở xem →</a>
+                        </div>
                     </article>
                 {% endfor %}
             </div>
         </section>
     {% endif %}
-
 </main>
 {% endblock %}

@@ -24,31 +24,15 @@ from .models import (
     Summary,
     SummarySentence,
     Tag,
-    UserProfile,
-    UserSetting,
     _cleanup_uploaded_file,
 )
-from .nlp import detect_language, extract_text, gemini_summarize, textrank_summarize
+from .nlp import gemini_summarize, textrank_summarize
+from .nlp_utils import detect_language
+from .readers import extract_text
 from .signing import decrypt_value, encrypt_value
 
 PAGE_SIZE = 12
 MAX_FILE_SIZE = 10 * 1024 * 1024
-
-
-def _ensure_user_defaults(user) -> None:
-    if hasattr(user, "_defaults_ensured"):
-        return
-    profile, _ = UserProfile.objects.get_or_create(
-        user=user, defaults={"role": UserProfile.ROLE_USER}
-    )
-    setting, _ = UserSetting.objects.get_or_create(
-        user=user, defaults={"default_summary_ratio": 0.2, "language_preference": "auto"}
-    )
-    user.setting = setting
-    if user.is_superuser and profile.role != UserProfile.ROLE_ADMIN:
-        profile.role = UserProfile.ROLE_ADMIN
-        profile.save(update_fields=["role"])
-    user._defaults_ensured = True
 
 
 def _serialize_form_errors(form) -> dict[str, list[str]]:
@@ -67,7 +51,8 @@ def home(request: HttpRequest) -> HttpResponse:
     user_history: list[Summary] = []
     initial_ratio = 0.2
     if request.user.is_authenticated:
-        _ensure_user_defaults(request.user)
+        if hasattr(request.user, "setting"):
+            initial_ratio = request.user.setting.default_summary_ratio
         user_history = list(
             Summary.objects.filter(user=request.user)
             .select_related("document")
@@ -75,7 +60,6 @@ def home(request: HttpRequest) -> HttpResponse:
                 :6
             ]
         )
-        initial_ratio = request.user.setting.default_summary_ratio
     form = SummaryRequestForm(
         initial={"source_type": "text", "method": "textrank", "ratio": initial_ratio}
     )
@@ -102,7 +86,6 @@ class RegisterPageView(View):
             user = form.save()
             user.email = form.cleaned_data["email"]
             user.save(update_fields=["email"])
-            _ensure_user_defaults(user)
             login(request, user)
             return redirect("home")
         return render(request, self.template_name, {"form": form})
@@ -156,8 +139,7 @@ class HistoryDetailView(LoginRequiredMixin, View):
 
 @login_required
 def settings_view(request: HttpRequest) -> HttpResponse:
-    _ensure_user_defaults(request.user)
-    setting = request.user.setting
+    setting, _ = request.user.setting.__class__.objects.get_or_create(user=request.user)
 
     if request.method == "POST":
         form = SettingsForm(request.POST)
@@ -217,7 +199,6 @@ def create_summary(request: HttpRequest) -> JsonResponse:
         )
     cache.set(cache_key, now, limit)
 
-    _ensure_user_defaults(request.user)
     form = SummaryRequestForm(request.POST, request.FILES)
     if not form.is_valid():
         return JsonResponse({"ok": False, "errors": _serialize_form_errors(form)}, status=400)
@@ -294,23 +275,17 @@ def create_summary(request: HttpRequest) -> JsonResponse:
             )
             tag_names = list(dict.fromkeys(kw[:100] for kw in result["keywords"]))
             if tag_names:
-                existing_names = set(
-                    Tag.objects.filter(name__in=tag_names).values_list("name", flat=True)
-                )
-                new_tags = [Tag(name=n) for n in tag_names if n not in existing_names]
-                if new_tags:
-                    Tag.objects.bulk_create(new_tags)
-                all_tags = list(Tag.objects.filter(name__in=tag_names))
-                if all_tags:
-                    summary.tags.add(*all_tags)
+                all_tags = []
+                for name in tag_names:
+                    tag, _ = Tag.objects.get_or_create(name=name)
+                    all_tags.append(tag)
+                summary.tags.add(*all_tags)
             SummarySentence.objects.bulk_create(
                 [
                     SummarySentence(summary=summary, sentence_text=sentence, sentence_index=index)
                     for index, sentence in enumerate(result["sentences"], start=1)
                 ]
             )
-            request.user.setting.default_summary_ratio = ratio
-            request.user.setting.save(update_fields=["default_summary_ratio"])
 
         return JsonResponse(
             {

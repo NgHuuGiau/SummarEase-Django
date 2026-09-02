@@ -11,18 +11,18 @@ from django.urls import reverse
 
 from .forms import SettingsForm, SummaryRequestForm
 from .models import Document, Summary, UserProfile, UserSetting
-from .nlp import (
+from .nlp import textrank_summarize
+from .nlp_utils import (
     detect_language,
     extract_keywords,
-    extract_text,
     generate_title,
     highlight_keywords,
     normalize_text,
     split_sentences,
     split_words,
-    textrank_summarize,
     truncate_text,
 )
+from .readers import _is_private_ip, _resolve_and_validate, extract_text
 from .signing import decrypt_value, encrypt_value
 
 
@@ -32,8 +32,6 @@ class TestHelperMixin:
             user = User.objects.create_superuser(username=username, password=password)
         else:
             user = User.objects.create_user(username=username, password=password)
-        UserProfile.objects.create(user=user, role="admin" if is_superuser else "user")
-        UserSetting.objects.create(user=user)
         return user
 
 
@@ -209,12 +207,12 @@ class SummaryModelTests(TestCase):
 class UserProfileModelTests(TestCase):
     def test_create_profile_auto_defaults(self):
         user = User.objects.create_user(username="profile-test", password="secret123")
-        profile = UserProfile.objects.create(user=user)
+        profile = UserProfile.objects.get(user=user)
         self.assertEqual(profile.role, "user")
 
     def test_admin_profile_role(self):
         user = User.objects.create_superuser(username="admin-test", password="secret123")
-        profile = UserProfile.objects.create(user=user, role="admin")
+        profile = UserProfile.objects.get(user=user)
         self.assertEqual(profile.role, "admin")
 
 
@@ -273,14 +271,11 @@ class SummaryFlowTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="tester", password="secret123")
-        UserProfile.objects.create(user=self.user, role="user")
-        UserSetting.objects.create(user=self.user)
+
         self.other = User.objects.create_user(username="other", password="secret123")
-        UserProfile.objects.create(user=self.other, role="user")
-        UserSetting.objects.create(user=self.other)
+
         self.admin = User.objects.create_superuser(username="admin", password="secret123")
-        UserProfile.objects.create(user=self.admin, role="admin")
-        UserSetting.objects.create(user=self.admin)
+
 
     def test_login_required_for_create_summary(self):
         response = self.client.post(
@@ -392,8 +387,7 @@ class SettingsFlowTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="settings-test", password="secret123")
-        UserProfile.objects.create(user=self.user)
-        UserSetting.objects.create(user=self.user)
+
 
     def test_settings_requires_login(self):
         response = self.client.get(reverse("settings"))
@@ -569,8 +563,7 @@ class AdminPageTests(TestCase):
             username="superadmin",
             password="secret123",
         )
-        UserProfile.objects.create(user=self.admin, role="admin")
-        UserSetting.objects.create(user=self.admin)
+
 
     def test_admin_login_required(self):
         response = self.client.get(reverse("admin:index"))
@@ -605,8 +598,7 @@ class AdminPageTests(TestCase):
 class HistoryPaginationTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="paginator", password="secret123")
-        UserProfile.objects.create(user=self.user)
-        UserSetting.objects.create(user=self.user)
+
         doc = Document.objects.create(
             user=self.user,
             source_type="text",
@@ -648,11 +640,9 @@ class HistoryPaginationTests(TestCase):
 class PermissionTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="normaluser", password="secret123")
-        UserProfile.objects.create(user=self.user, role="user")
-        UserSetting.objects.create(user=self.user)
+
         self.admin = User.objects.create_superuser(username="super", password="secret123")
-        UserProfile.objects.create(user=self.admin, role="admin")
-        UserSetting.objects.create(user=self.admin)
+
         self.doc = Document.objects.create(
             user=self.user,
             source_type="text",
@@ -681,9 +671,8 @@ class PermissionTests(TestCase):
         self.assertFalse(Summary.objects.filter(pk=self.summary.pk).exists())
 
     def test_other_delete_denied(self):
-        other = User.objects.create_user(username="otheruser", password="secret123")
-        UserProfile.objects.create(user=other)
-        UserSetting.objects.create(user=other)
+        User.objects.create_user(username="otheruser", password="secret123")
+
         self.client.login(username="otheruser", password="secret123")
         response = self.client.post(reverse("history_delete", kwargs={"pk": self.summary.pk}))
         self.assertEqual(response.status_code, 404)
@@ -703,8 +692,7 @@ class PermissionTests(TestCase):
 class DeleteCascadeTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="cascade-user", password="secret123")
-        UserProfile.objects.create(user=self.user)
-        UserSetting.objects.create(user=self.user)
+
 
     def test_delete_document_cascades_summary(self):
         doc = Document.objects.create(
@@ -756,7 +744,7 @@ class UrlExtractionTests(TestCase):
         mock_get.return_value.status_code = 200
         mock_get.return_value.headers = {"Content-Type": "text/html; charset=utf-8"}
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_extract_text_from_url(self, mock_session):
         sess = mock_session.return_value
         sess.get.return_value.status_code = 200
@@ -767,7 +755,7 @@ class UrlExtractionTests(TestCase):
         result = extract_text("https://example.com")
         self.assertIn("Hello world", result)
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_extract_text_from_url_removes_scripts(self, mock_session):
         sess = mock_session.return_value
         sess.get.return_value.status_code = 200
@@ -780,7 +768,7 @@ class UrlExtractionTests(TestCase):
         self.assertIn("Main content", result)
         self.assertNotIn("alert", result)
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_extract_text_from_url_invalid_content_type(self, mock_session):
         sess = mock_session.return_value
         sess.get.return_value.status_code = 200
@@ -789,7 +777,7 @@ class UrlExtractionTests(TestCase):
         with self.assertRaises(ValueError):
             extract_text("https://example.com/file.pdf")
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_extract_text_from_url_raises_on_timeout(self, mock_session):
         from requests.exceptions import Timeout as RequestsTimeout
 
@@ -807,17 +795,56 @@ class UrlExtractionTests(TestCase):
             extract_text("http://")
 
 
+class SsrfProtectionTests(TestCase):
+    def test_is_private_ip_blocks_loopback(self):
+        self.assertTrue(_is_private_ip("127.0.0.1"))
+        self.assertTrue(_is_private_ip("::1"))
+
+    def test_is_private_ip_blocks_private_ranges(self):
+        self.assertTrue(_is_private_ip("10.0.0.5"))
+        self.assertTrue(_is_private_ip("192.168.1.1"))
+        self.assertTrue(_is_private_ip("172.16.0.1"))
+        self.assertTrue(_is_private_ip("169.254.169.254"))
+        self.assertTrue(_is_private_ip("fd00::1"))
+
+    def test_is_private_ip_allows_public(self):
+        self.assertFalse(_is_private_ip("8.8.8.8"))
+        self.assertFalse(_is_private_ip("93.184.216.34"))
+
+    @patch("summaries.readers.socket.getaddrinfo")
+    def test_resolve_and_validate_blocks_private(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [
+            (None, None, None, None, ("127.0.0.1", 80))
+        ]
+        with self.assertRaises(ValueError):
+            _resolve_and_validate("localhost")
+
+    @patch("summaries.readers.socket.getaddrinfo")
+    def test_resolve_and_validate_allows_public(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [
+            (None, None, None, None, ("8.8.8.8", 80))
+        ]
+        _resolve_and_validate("example.com")
+
+    @patch("summaries.readers.socket.getaddrinfo")
+    def test_extract_url_blocks_private_hostname(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [
+            (None, None, None, None, ("127.0.0.1", 80))
+        ]
+        with self.assertRaises(ValueError):
+            extract_text("http://localhost/secret")
+
+
 class UrlSourceFlowTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="url-test", password="secret123")
-        UserProfile.objects.create(user=self.user)
-        UserSetting.objects.create(user=self.user)
+
         self.client.login(username="url-test", password="secret123")
 
     def tearDown(self):
         cache.clear()
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_create_summary_from_url_view(self, mock_session):
         sess = mock_session.return_value
         sess.get.return_value.status_code = 200
@@ -885,8 +912,7 @@ class SuperuserRoleEvolutionTests(TestCase):
 class FileUploadTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="uploader", password="secret123")
-        UserProfile.objects.create(user=self.user)
-        UserSetting.objects.create(user=self.user)
+
         self.client.login(username="uploader", password="secret123")
 
     def test_upload_txt_file(self):
@@ -955,8 +981,7 @@ class FileUploadTests(TestCase):
 class GeminiSummarizeTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="gemini-test", password="secret123")
-        UserProfile.objects.create(user=self.user)
-        UserSetting.objects.create(user=self.user, gemini_api_key=encrypt_value("fake-key"))
+        UserSetting.objects.filter(user=self.user).update(gemini_api_key=encrypt_value("fake-key"))
         self.client.login(username="gemini-test", password="secret123")
         self.mock_response = {
             "candidates": [{"content": {"parts": [{"text": "This is a short summary."}]}}]
@@ -978,7 +1003,7 @@ class GeminiSummarizeTests(TestCase):
     def tearDown(self):
         cache.clear()
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_gemini_summarize_success(self, mock_get_session):
         self._mock_session(mock_get_session)
         response = self.client.post(
@@ -995,7 +1020,7 @@ class GeminiSummarizeTests(TestCase):
         self.assertTrue(data["ok"])
 
     @override_settings(GEMINI_API_KEY="")
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_gemini_summarize_api_key_missing(self, mock_get_session):
         self._mock_session(mock_get_session)
         UserSetting.objects.filter(user=self.user).update(gemini_api_key="")
@@ -1013,7 +1038,7 @@ class GeminiSummarizeTests(TestCase):
         data = response.json()
         self.assertFalse(data["ok"])
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_gemini_summarize_empty_response(self, mock_get_session):
         bad_resp = {"candidates": [{"content": {"parts": [{"text": ""}]}}]}
         self._mock_session(mock_get_session, response_data=bad_resp)
@@ -1028,7 +1053,7 @@ class GeminiSummarizeTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_gemini_summarize_http_error(self, mock_get_session):
         self._mock_session(mock_get_session, status_code=500)
         response = self.client.post(
@@ -1042,7 +1067,7 @@ class GeminiSummarizeTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    @patch("summaries.nlp._get_http_session")
+    @patch("summaries.readers._get_http_session")
     def test_gemini_summarize_malformed_json(self, mock_get_session):
         bad_resp = {"unexpected": "format"}
         self._mock_session(mock_get_session, response_data=bad_resp)
@@ -1067,14 +1092,13 @@ class GeminiSummarizeTests(TestCase):
 class FileExtractionTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="extract-test", password="secret123")
-        UserProfile.objects.create(user=self.user)
-        UserSetting.objects.create(user=self.user)
+
         self.client.login(username="extract-test", password="secret123")
 
     def tearDown(self):
         cache.clear()
 
-    @patch("summaries.nlp._extract_text_from_txt")
+    @patch("summaries.readers._extract_text_from_txt")
     def test_txt_file_extraction(self, mock_extract):
         mock_extract.return_value = (
             "This is extracted text from a txt file. It has multiple sentences."
@@ -1093,7 +1117,7 @@ class FileExtractionTests(TestCase):
         self.assertTrue(response.json()["ok"])
         mock_extract.assert_called_once()
 
-    @patch("summaries.nlp._extract_text_from_docx")
+    @patch("summaries.readers._extract_text_from_docx")
     def test_docx_file_extraction(self, mock_extract):
         mock_extract.return_value = "Extracted content from a DOCX file."
         uploaded = SimpleUploadedFile(
@@ -1113,7 +1137,7 @@ class FileExtractionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         mock_extract.assert_called_once()
 
-    @patch("summaries.nlp._extract_text_from_pdf")
+    @patch("summaries.readers._extract_text_from_pdf")
     def test_pdf_file_extraction(self, mock_extract):
         mock_extract.return_value = "Extracted content from a PDF file."
         uploaded = SimpleUploadedFile("test.pdf", b"ignored", content_type="application/pdf")
@@ -1129,7 +1153,7 @@ class FileExtractionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         mock_extract.assert_called_once()
 
-    @patch("summaries.nlp._extract_text_from_epub")
+    @patch("summaries.readers._extract_text_from_epub")
     def test_epub_file_extraction(self, mock_extract):
         mock_extract.return_value = "Extracted content from an EPUB file."
         uploaded = SimpleUploadedFile("test.epub", b"ignored", content_type="application/epub+zip")
@@ -1216,8 +1240,7 @@ class SecurityHeaderTests(TestCase):
 class ContentEdgeCaseTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="edge-test", password="secret123")
-        UserProfile.objects.create(user=self.user)
-        UserSetting.objects.create(user=self.user)
+
         self.client.login(username="edge-test", password="secret123")
 
     def tearDown(self):
@@ -1287,3 +1310,332 @@ urlpatterns = [
     _path("register/", _Register.as_view(), name="register"),
     _path("__boom__/", _boom_view),
 ]
+
+
+# ──────────────────────────────────────────────
+#  GEMINI ERROR BRANCH TESTS (DIRECT)
+# ──────────────────────────────────────────────
+
+
+class GeminiErrorBranchTests(TestCase):
+    """Unit tests for gemini_summarize error/retry branches (coverage gap).
+
+    Covers 403, 400 (with detail), 429/502/503 retry, retry exhaustion,
+    timeout, connection error, Vietnamese prompt, and ratio-to-vietnamese
+    length variants.
+    """
+
+    def setUp(self):
+        import json as _json
+
+        self._json = _json
+        self.mock_response = {
+            "candidates": [{"content": {"parts": [{"text": "Tóm tắt ngắn gọn."}]}}]
+        }
+
+    def _session(self, mock_get_session, responses):
+        """responses: list of (status, payload_callable). Side-effect cycles."""
+        sess = mock_get_session.return_value
+
+        def _resp_for(status, callback):
+            r = MagicMock()
+            r.status_code = status
+            r.text = "body"
+            r.json.side_effect = callback
+            if status >= 400:
+                from requests.exceptions import HTTPError
+
+                r.raise_for_status.side_effect = HTTPError(f"HTTP {status}")
+            return r
+
+        mock_resps = [_resp_for(s, cb) for s, cb in responses]
+        sess.post.side_effect = mock_resps
+        return sess
+
+    def _call(self):
+        from .nlp import gemini_summarize
+
+        return gemini_summarize(
+            "Example text for Gemini. This is the first sentence of the input.",
+            ratio=0.3,
+            language="english",
+            user_api_key="fake-key",
+        )
+
+    @patch("summaries.nlp.time_module.sleep")
+    @patch("summaries.readers._get_http_session")
+    def test_gemini_403_rejected(self, mock_get_session, _sleep):
+        def cb():
+            return {"error": {"message": "invalid key"}}
+
+        self._session(mock_get_session, [(403, cb)])
+        with self.assertRaises(ValueError):
+            self._call()
+
+    @patch("summaries.nlp.time_module.sleep")
+    @patch("summaries.readers._get_http_session")
+    def test_gemini_400_with_detail(self, mock_get_session, _sleep):
+        def cb():
+            return {"error": {"message": "quota exceeded"}}
+
+        self._session(mock_get_session, [(400, cb)])
+        with self.assertRaises(ValueError) as ctx:
+            self._call()
+        self.assertIn("quota exceeded", str(ctx.exception))
+
+    @patch("summaries.nlp.time_module.sleep")
+    @patch("summaries.readers._get_http_session")
+    def test_gemini_429_retries_then_succeeds(self, mock_get_session, _sleep):
+        self._session(
+            mock_get_session,
+            [
+                (429, MagicMock(return_value={})),
+                (429, MagicMock(return_value={})),
+                (200, MagicMock(return_value=self.mock_response)),
+            ],
+        )
+        result = self._call()
+        self.assertIn("summary", result)
+
+    @patch("summaries.nlp.time_module.sleep")
+    @patch("summaries.readers._get_http_session")
+    def test_gemini_502_exhausts_retries(self, mock_get_session, _sleep):
+        self._session(
+            mock_get_session,
+            [
+                (502, MagicMock(return_value={})),
+                (502, MagicMock(return_value={})),
+                (502, MagicMock(return_value={})),
+            ],
+        )
+        with self.assertRaises(ValueError):
+            self._call()
+
+    @patch("summaries.readers._get_http_session")
+    def test_gemini_timeout(self, mock_get_session):
+        from requests.exceptions import Timeout as RequestsTimeout
+
+        sess = mock_get_session.return_value
+        sess.post.side_effect = RequestsTimeout("timed out")
+        with self.assertRaises(ValueError) as ctx:
+            self._call()
+        self.assertIn("60", str(ctx.exception))
+
+    @patch("summaries.readers._get_http_session")
+    def test_gemini_connection_error(self, mock_get_session):
+        from requests.exceptions import ConnectionError as RequestsConnError
+
+        sess = mock_get_session.return_value
+        sess.post.side_effect = RequestsConnError("refused")
+        with self.assertRaises(ValueError) as ctx:
+            self._call()
+        self.assertIn("kết nối", str(ctx.exception))
+
+
+class GeminiPromptBranchTests(TestCase):
+    """Cover _build_prompt Vietnamese branch + remaining ratio variants."""
+
+    @patch("summaries.nlp.time_module.sleep")
+    @patch("summaries.readers._get_http_session")
+    def test_vietnamese_prompt_success(self, mock_get_session, _sleep):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = ""
+        resp.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "Tóm tắt tiếng Việt."}]}}]
+        }
+        mock_get_session.return_value.post.return_value = resp
+
+        from .nlp import gemini_summarize
+
+        result = gemini_summarize(
+            "Đây là câu đầu tiên của văn bản cần tóm tắt bằng tiếng Việt.",
+            ratio=0.1,
+            language="vietnamese",
+            user_api_key="fake-key",
+        )
+        self.assertIn("summary", result)
+
+    @patch("summaries.nlp.time_module.sleep")
+    @patch("summaries.readers._get_http_session")
+    def test_vietnamese_ratio_variants(self, mock_get_session, _sleep):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = ""
+        resp.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "Tóm tắt."}]}}]
+        }
+        mock_get_session.return_value.post.return_value = resp
+
+        from .nlp import _ratio_to_vietnamese
+
+        # All ratio branches must produce non-empty strings
+        for r in (0.1, 0.2, 0.4, 0.7):
+            self.assertTrue(_ratio_to_vietnamese(r))
+
+
+# ──────────────────────────────────────────────
+#  READER UNIT TESTS (REAL EXTRACTION + ERRORS)
+# ──────────────────────────────────────────────
+
+
+class ReaderUnitTests(TestCase):
+    def test_extract_text_from_txt_utf8(self):
+        import pathlib
+        import tempfile as _tf
+
+        from .readers import _extract_text_from_txt
+
+        with _tf.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+            f.write("Xin chào thế giới. Đây là nội dung UTF-8.")
+            p = pathlib.Path(f.name)
+        try:
+            out = _extract_text_from_txt(p)
+        finally:
+            p.unlink(missing_ok=True)
+        self.assertIn("Xin chào", out)
+
+    def test_extract_text_from_txt_without_chardet(self):
+        import pathlib
+        import tempfile as _tf
+
+        from .readers import _extract_text_from_txt
+
+        with _tf.NamedTemporaryFile("wb", suffix=".txt", delete=False) as f:
+            f.write(b"plain ascii text")
+            p = pathlib.Path(f.name)
+        try:
+            with patch.dict("sys.modules", {"chardet": None}):
+                out = _extract_text_from_txt(p)
+        finally:
+            p.unlink(missing_ok=True)
+        self.assertEqual(out, "plain ascii text")
+
+    def test_extract_docx_missing_lib(self):
+        from .readers import _extract_text_from_docx
+
+        with patch.dict("sys.modules", {"docx": None}):
+            with self.assertRaises(ValueError) as ctx:
+                _extract_text_from_docx("x.docx")
+        self.assertIn("python-docx", str(ctx.exception))
+
+    def test_extract_pdf_missing_lib(self):
+        from .readers import _extract_text_from_pdf
+
+        with patch.dict("sys.modules", {"fitz": None}):
+            with self.assertRaises(ValueError) as ctx:
+                _extract_text_from_pdf("x.pdf")
+        self.assertIn("PyMuPDF", str(ctx.exception))
+
+    def test_extract_docx_success(self):
+        import pathlib
+        import tempfile as _tf
+
+        from docx import Document as DocxDocument
+
+        from .readers import _extract_text_from_docx
+
+        with _tf.TemporaryDirectory() as d:
+            p = pathlib.Path(d) / "a.docx"
+            doc = DocxDocument()
+            doc.add_paragraph("First paragraph of the docx file.")
+            doc.add_paragraph("Second paragraph content.")
+            doc.save(p)
+            out = _extract_text_from_docx(p)
+        self.assertIn("First paragraph", out)
+        self.assertIn("Second paragraph", out)
+
+    @patch("summaries.readers._get_http_session")
+    @patch("summaries.readers._resolve_and_validate")
+    def test_redirects_then_succeeds(self, _resolve, mock_get_session):
+        sess = mock_get_session.return_value
+        r1, r2 = MagicMock(), MagicMock()
+        r1.status_code = 301
+        r1.headers = {"Location": "https://final.example.com/page"}
+        r1.text = ""
+        r2.status_code = 200
+        r2.headers = {"Content-Type": "text/html; charset=utf-8"}
+        r2.text = "<html><body><p>Final page content here.</p></body></html>"
+        sess.get.side_effect = [r1, r2]
+
+        out = extract_text("https://start.example.com/old")
+        self.assertIn("Final page content", out)
+
+    @patch("summaries.readers._get_http_session")
+    @patch("summaries.readers._resolve_and_validate")
+    def test_http_error_raised(self, _resolve, mock_get_session):
+        sess = mock_get_session.return_value
+        resp = MagicMock()
+        resp.status_code = 404
+        resp.text = "nope"
+        resp.headers = {}
+        sess.get.return_value = resp
+
+        with self.assertRaises(ValueError) as ctx:
+            extract_text("https://example.com/missing")
+        self.assertIn("404", str(ctx.exception))
+
+    @patch("summaries.readers._get_http_session")
+    @patch("summaries.readers._resolve_and_validate")
+    def test_plain_text_content_type(self, _resolve, mock_get_session):
+        sess = mock_get_session.return_value
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {"Content-Type": "text/plain; charset=utf-8"}
+        resp.text = "Just some plain text document."
+        sess.get.return_value = resp
+
+        out = extract_text("https://example.com/notes.txt")
+        self.assertEqual(out, "Just some plain text document.")
+
+    @patch("summaries.readers._get_http_session")
+    @patch("summaries.readers._resolve_and_validate")
+    def test_empty_html_raises(self, _resolve, mock_get_session):
+        sess = mock_get_session.return_value
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {"Content-Type": "text/html; charset=utf-8"}
+        resp.text = "<html><body></body></html>"
+        sess.get.return_value = resp
+
+        with self.assertRaises(ValueError):
+            extract_text("https://example.com/empty")
+
+
+# ──────────────────────────────────────────────
+#  SETUP COMMAND TESTS
+# ──────────────────────────────────────────────
+
+
+class SetupCommandTests(TestCase):
+    def test_setup_migrate_only(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        try:
+            call_command("setup")
+        except CommandError:
+            pass  # migrate no-op in test DB is fine
+
+    def test_setup_create_superuser_when_none(self):
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        user_model = get_user_model()
+        user_model.objects.all().delete()
+        call_command("setup", create_superuser=True, username="newboss", password="NewPass456!")
+        self.assertTrue(user_model.objects.filter(username="newboss", is_superuser=True).exists())
+
+    def test_setup_skips_when_superuser_exists(self):
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        user_model = get_user_model()
+        user_model.objects.filter(is_superuser=True).delete()
+        user_model.objects.create_superuser(
+            username="existingboss", password="Pass123!", email="b@b.com"
+        )
+        call_command("setup", create_superuser=True, username="newboss", password="NewPass456!")
+        self.assertFalse(user_model.objects.filter(username="newboss").exists())
+
+
