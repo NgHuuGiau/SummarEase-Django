@@ -19,6 +19,11 @@ backend/sql/*.sqlite3
 .ruff_cache/
 .coverage
 htmlcov/
+coverage.xml
+test-results-*.xml
+*.sarif
+pip-audit-results.json
+safety-results.json
 
 .idea/
 .vscode/
