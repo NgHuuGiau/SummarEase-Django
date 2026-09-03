@@ -43,11 +43,14 @@ def _is_private_ip(addr: str) -> bool:
 
 
 def _resolve_and_validate(host: str) -> None:
+    # ponytail: chống DNS-rebinding đầy đủ (nối tới IP đã xác thực) gặp khó vì
+    # urllib3 gắn chặt connect-host với SNI; thêm khi mục tiêu trở thành SSRF
+    # nội bộ đáng giá. Hiện tại mọi hop đều re-resolve + chặn private IP.
     try:
         infos = socket.getaddrinfo(host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
     except socket.gaierror as exc:
         raise ValueError(f"Không thể phân giải hostname: {host}") from exc
-    for _family, _, _, _, sockaddr in infos:
+    for _family, _type, _proto, _canonname, sockaddr in infos:
         if _is_private_ip(sockaddr[0]):
             raise ValueError(
                 f"URL trỏ tới địa chỉ nội bộ ({sockaddr[0]}). "

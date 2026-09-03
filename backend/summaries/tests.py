@@ -1639,3 +1639,244 @@ class SetupCommandTests(TestCase):
         self.assertFalse(user_model.objects.filter(username="newboss").exists())
 
 
+# ──────────────────────────────────────────────
+#  SIGNING FALLBACK BRANCHES
+# ──────────────────────────────────────────────
+
+
+class SigningFallbackTests(TestCase):
+    """Cover cryptography-not-installed fallback paths in signing.py."""
+
+    def test_encrypt_when_fernet_none_returns_plaintext(self):
+        import summaries.signing as signing
+
+        real = signing.Fernet
+        signing.Fernet = None
+        try:
+            self.assertEqual(encrypt_value("secret-value"), "secret-value")
+        finally:
+            signing.Fernet = real
+
+    def test_decrypt_when_fernet_none_returns_raw(self):
+        import summaries.signing as signing
+
+        real = signing.Fernet
+        signing.Fernet = None
+        try:
+            self.assertEqual(decrypt_value("raw-encrypted"), "raw-encrypted")
+        finally:
+            signing.Fernet = real
+
+    def test_encrypt_when_fernet_none_and_empty_returns_empty(self):
+        import summaries.signing as signing
+
+        real = signing.Fernet
+        signing.Fernet = None
+        try:
+            self.assertEqual(encrypt_value(""), "")
+        finally:
+            signing.Fernet = real
+
+    def test_module_import_fallback_sets_none_on_missing_cryptography(self):
+        import importlib
+
+        import summaries.signing as signing
+
+        real = signing.Fernet
+        original_import = __import__
+
+        def fake_import(name, *a, **k):
+            if name.startswith("cryptography"):
+                raise ImportError("blocked")
+            return original_import(name, *a, **k)
+
+        try:
+            signing.Fernet = None
+            with patch("builtins.__import__", side_effect=fake_import):
+                importlib.reload(signing)
+            self.assertIsNone(signing.Fernet)
+        finally:
+            signing.Fernet = real
+            importlib.reload(signing)
+
+
+# ──────────────────────────────────────────────
+#  MODEL STR + CLEANUP EDGE CASES
+# ──────────────────────────────────────────────
+
+
+class ModelStrAndCleanupTests(TestCase):
+    def test_cleanup_uploaded_file_empty(self):
+        from .models import _cleanup_uploaded_file
+
+        _cleanup_uploaded_file("")
+        _cleanup_uploaded_file(None)
+
+    def test_cleanup_uploaded_file_removes_existing(self):
+        import pathlib
+        import tempfile as _tf
+
+        from .models import _cleanup_uploaded_file
+
+        with _tf.TemporaryDirectory() as d:
+            target = pathlib.Path(d) / "x.txt"
+            target.write_text("hi", encoding="utf-8")
+            with override_settings(MEDIA_ROOT=d):
+                _cleanup_uploaded_file("x.txt")
+            self.assertFalse(target.exists())
+
+    def test_cleanup_uploaded_file_missing_is_noop(self):
+        from .models import _cleanup_uploaded_file
+
+        with override_settings(MEDIA_ROOT="C:\\nonexistent\\nope"):
+            _cleanup_uploaded_file("missing.txt")
+
+    def test_user_setting_str(self):
+        user = User.objects.create_user(username="str-user", password="secret123")
+        setting, _ = UserSetting.objects.get_or_create(
+            user=user, defaults={"default_summary_ratio": 0.2}
+        )
+        self.assertIn("str-user", str(setting))
+
+    def test_document_str(self):
+        user = User.objects.create_user(username="doc-str-user", password="secret123")
+        doc = Document.objects.create(
+            user=user, source_type="text", title="My Doc Title", content="x"
+        )
+        self.assertEqual(str(doc), "My Doc Title")
+
+    def test_cleanup_uploaded_file_ignores_oserror(self):
+        from .models import _cleanup_uploaded_file
+
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "pathlib.Path.unlink", side_effect=OSError("denied")
+        ):
+            _cleanup_uploaded_file("locked.txt")
+
+
+# ──────────────────────────────────────────────
+#  READER COVERAGE (REMAINING BRANCHES)
+# ──────────────────────────────────────────────
+
+
+class ReaderCoverageTests(TestCase):
+    @patch("summaries.readers.socket.getaddrinfo")
+    def test_resolve_and_validate_gaierror(self, mock_addr):
+        import socket as _socket
+
+        mock_addr.side_effect = _socket.gaierror("no such host")
+        with self.assertRaises(ValueError) as ctx:
+            _resolve_and_validate("definitely-not-a-host.invalid")
+        self.assertIn("phân giải", str(ctx.exception))
+
+    @patch("summaries.readers.socket.getaddrinfo")
+    def test_resolve_and_validate_blocks_private_ip(self, mock_addr):
+        mock_addr.return_value = [
+            (2, 1, 6, "", ("10.0.0.5", 80)),
+        ]
+        with self.assertRaises(ValueError) as ctx:
+            _resolve_and_validate("example.com")
+        self.assertIn("nội bộ", str(ctx.exception))
+
+    def test_is_private_ip_invalid_address_returns_false(self):
+        self.assertFalse(_is_private_ip("not-an-ip-address"))
+
+    def test_get_http_session_thread_safe(self):
+        from .readers import _get_http_session
+
+        session = _get_http_session()
+        self.assertIs(session, _get_http_session())
+        self.assertIn("User-Agent", session.headers)
+        _local = getattr(_get_http_session, "__self__", None)
+
+    def test_extract_text_from_url_requests_missing(self):
+        from .readers import extract_text_from_url
+
+        with patch.dict("sys.modules", {"requests": None}):
+            with self.assertRaises(ValueError) as ctx:
+                extract_text_from_url("https://example.com")
+        self.assertIn("requests", str(ctx.exception))
+
+    def test_extract_text_from_url_bs4_missing(self):
+        from .readers import extract_text_from_url
+
+        with patch.dict("sys.modules", {"bs4": None}):
+            with self.assertRaises(ValueError) as ctx:
+                extract_text_from_url("https://example.com")
+        self.assertIn("beautifulsoup4", str(ctx.exception))
+
+    @patch("summaries.readers._get_http_session")
+    @patch("summaries.readers._resolve_and_validate")
+    def test_extract_text_from_url_connection_error(self, _resolve, mock_session):
+        from requests.exceptions import ConnectionError as ConnErr
+
+        mock_session.return_value.get.side_effect = ConnErr("refused")
+        with self.assertRaises(ValueError):
+            extract_text("https://example.com")
+
+    @patch("summaries.readers._get_http_session")
+    @patch("summaries.readers._resolve_and_validate")
+    def test_extract_text_from_url_redirect_with_empty_location(self, _resolve, mock_session):
+        """Redirect response with an empty Location stops following and raises."""
+        sess = mock_session.return_value
+        r = MagicMock()
+        r.status_code = 302
+        r.headers = {"Location": ""}
+        r.text = ""
+        sess.get.return_value = r
+        with self.assertRaises(ValueError):
+            extract_text("https://example.com")
+
+    def test_extract_text_pdf_success(self):
+        import pathlib
+        import tempfile as _tf
+
+        from .readers import _extract_text_from_pdf
+
+        with _tf.TemporaryDirectory() as d:
+            p = pathlib.Path(d) / "a.pdf"
+            try:
+                import fitz
+
+                doc = fitz.open()
+                page = doc.new_page()
+                page.insert_text((72, 72), "Hello PDF content")
+                doc.save(str(p))
+                doc.close()
+                out = _extract_text_from_pdf(p)
+                self.assertIn("Hello PDF", out)
+            except ImportError:
+                self.skipTest("PyMuPDF not installed")
+
+    def test_extract_text_from_epub_bs4_missing(self):
+        from .readers import _extract_text_from_epub
+
+        with patch.dict("sys.modules", {"bs4": None}):
+            with self.assertRaises(ValueError) as ctx:
+                _extract_text_from_epub("x.epub")
+        self.assertIn("beautifulsoup4", str(ctx.exception))
+
+    def test_extract_text_from_epub_ebooklib_missing(self):
+        from .readers import _extract_text_from_epub
+
+        with patch.dict("sys.modules", {"ebooklib": None}):
+            with self.assertRaises(ValueError) as ctx:
+                _extract_text_from_epub("x.epub")
+        self.assertIn("ebooklib", str(ctx.exception))
+
+    def test_extract_text_unsupported_extension(self):
+        import pathlib
+        import tempfile as _tf
+
+        with _tf.TemporaryDirectory() as d:
+            p = pathlib.Path(d) / "foo.exe"
+            p.write_bytes(b"data")
+            with self.assertRaises(ValueError) as ctx:
+                extract_text(str(p))
+        self.assertIn("không được hỗ trợ", str(ctx.exception))
+
+    def test_extract_text_missing_file(self):
+        with self.assertRaises(FileNotFoundError):
+            extract_text("/tmp/definitely-missing-file.txt")
+
+
