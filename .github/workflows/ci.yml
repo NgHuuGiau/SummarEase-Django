@@ -127,6 +127,7 @@ jobs:
             --cov-config=pyproject.toml --cov=backend \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
+            --cov-fail-under=90 \
             --tb=short \
             --junitxml=test-results-${{ matrix.python-version }}.xml
 

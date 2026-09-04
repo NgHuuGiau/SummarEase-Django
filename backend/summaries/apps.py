@@ -6,4 +6,5 @@ class SummariesConfig(AppConfig):
     name = "summaries"
 
     def ready(self):
+        import summaries.checks  # noqa: F401
         import summaries.signals  # noqa: F401

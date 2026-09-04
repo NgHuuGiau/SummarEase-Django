@@ -166,6 +166,7 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 # ── Encryption (dedicated key for API key storage) ──
 API_ENCRYPTION_KEY = os.getenv("API_ENCRYPTION_KEY", "")
+API_ENCRYPTION_KEY_EXPLICIT = bool(API_ENCRYPTION_KEY)
 if not API_ENCRYPTION_KEY:
     # Derive a stable key from SECRET_KEY so existing encrypted values survive restarts
     import hashlib
