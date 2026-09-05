@@ -2129,6 +2129,82 @@ class BackupDbTests(TestCase):
                 except FileNotFoundError:
                     pass
 
+    def test_backup_restore_roundtrip(self):
+        """Backup JSON chứa đúng dữ liệu test (verify dumpdata structure)."""
+        import json
+        import pathlib
+        import tempfile as _tf
+
+        from django.core.management import call_command
+
+        from .models import Document, Summary, Tag, UserSetting
+
+        # Tạo dữ liệu test
+        user = User.objects.create_user(username="backup-user", password="secret123")
+        tag = Tag.objects.create(name="backup-tag")
+        doc = Document.objects.create(
+            user=user,
+            source_type="text",
+            title="Backup Doc",
+            content="Nội dung test backup restore",
+        )
+        summary = Summary.objects.create(
+            document=doc,
+            user=user,
+            title="Backup Summary",
+            method="textrank",
+            ratio=0.3,
+            summary_text="Tóm tắt test",
+        )
+        summary.tags.add(tag)
+        UserSetting.objects.filter(user=user).update(gemini_api_key="test-key")
+
+        with _tf.TemporaryDirectory() as d:
+            dest = pathlib.Path(d) / "bk"
+            call_command("backup_db", "--dest", str(dest))
+            db_json = list(dest.rglob("db.json"))[0]
+
+            # Verify JSON structure
+            data = json.loads(db_json.read_text(encoding="utf-8"))
+            models = {item["model"] for item in data}
+            self.assertIn("summaries.document", models)
+            self.assertIn("summaries.summary", models)
+            self.assertIn("summaries.tag", models)
+            self.assertIn("summaries.usersetting", models)
+
+            # Verify our test data is in the dump
+            doc_dump = next(
+                item
+                for item in data
+                if item["model"] == "summaries.document"
+                and item["fields"]["title"] == "Backup Doc"
+            )
+            self.assertEqual(doc_dump["fields"]["content"], "Nội dung test backup restore")
+
+            summary_dump = next(
+                item
+                for item in data
+                if item["model"] == "summaries.summary"
+                and item["fields"]["title"] == "Backup Summary"
+            )
+            self.assertEqual(summary_dump["fields"]["summary_text"], "Tóm tắt test")
+
+            tag_dump = next(
+                item
+                for item in data
+                if item["model"] == "summaries.tag"
+                and item["fields"]["name"] == "backup-tag"
+            )
+            self.assertEqual(tag_dump["fields"]["name"], "backup-tag")
+
+            setting_dump = next(
+                item
+                for item in data
+                if item["model"] == "summaries.usersetting"
+                and item["fields"]["gemini_api_key"] == "test-key"
+            )
+            self.assertEqual(setting_dump["fields"]["gemini_api_key"], "test-key")
+
 
 class HealthDegradedTests(TestCase):
     def test_health_degraded_on_db_error(self):
@@ -2170,5 +2246,92 @@ class HealthDegradedTests(TestCase):
         user.setting.save()
         with override_settings(GEMINI_API_KEY=""):
             self.assertTrue(home_gemini_available(user))
+
+
+class RateLimitMiddlewareTests(TestCase):
+    def test_rate_limit_allows_first_request(self):
+        response = self.client.post(
+            reverse("create_summary"),
+            {"source_type": "text", "text": "Test content", "method": "textrank", "ratio": 0.3},
+            content_type="application/x-www-form-urlencoded",
+        )
+        self.assertNotEqual(response.status_code, 429)
+
+    def test_rate_limit_blocks_rapid_requests(self):
+        # First request OK
+        self.client.post(
+            reverse("create_summary"),
+            {"source_type": "text", "text": "Test content", "method": "textrank", "ratio": 0.3},
+            content_type="application/x-www-form-urlencoded",
+        )
+        # Second request within window -> 429
+        response = self.client.post(
+            reverse("create_summary"),
+            {"source_type": "text", "text": "Test content 2", "method": "textrank", "ratio": 0.3},
+            content_type="application/x-www-form-urlencoded",
+        )
+        self.assertEqual(response.status_code, 429)
+        self.assertIn("retry_after", response.json())
+
+    def test_rate_limit_different_ips_independent(self):
+        # Use different X-Forwarded-For headers to simulate different IPs
+        self.client.post(
+            reverse("create_summary"),
+            {"source_type": "text", "text": "Test content", "method": "textrank", "ratio": 0.3},
+            content_type="application/x-www-form-urlencoded",
+            HTTP_X_FORWARDED_FOR="1.2.3.4",
+        )
+        response = self.client.post(
+            reverse("create_summary"),
+            {"source_type": "text", "text": "Test content 2", "method": "textrank", "ratio": 0.3},
+            content_type="application/x-www-form-urlencoded",
+            HTTP_X_FORWARDED_FOR="5.6.7.8",
+        )
+        self.assertNotEqual(response.status_code, 429)
+
+    def test_rate_limit_exempt_paths(self):
+        # Health endpoint should not be rate limited
+        for _ in range(5):
+            response = self.client.get(reverse("health"))
+            self.assertNotEqual(response.status_code, 429)
+
+
+class MetricsEndpointTests(TestCase):
+    def test_metrics_endpoint_returns_prometheus_format(self):
+        response = self.client.get("/metrics/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/plain", response["Content-Type"])
+        content = response.content.decode()
+        self.assertIn("http_requests_total", content)
+        self.assertIn("http_request_duration_seconds", content)
+
+    def test_metrics_increments_on_request(self):
+        self.client.get("/health/")
+        response = self.client.get("/metrics/")
+        content = response.content.decode()
+        self.assertIn('http_requests_total{endpoint="/health/",method="GET",status="200"}', content)
+
+
+class APIDocsTests(TestCase):
+    def test_schema_endpoint(self):
+        import json
+        response = self.client.get("/api/schema/", HTTP_ACCEPT="application/json")
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertIn("openapi", data)
+        self.assertIn("info", data)
+        self.assertEqual(data["info"]["title"], "SummarEase API")
+
+    def test_swagger_ui_endpoint(self):
+        response = self.client.get("/api/docs/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response["Content-Type"])
+        self.assertIn("swagger-ui", response.content.decode())
+
+    def test_redoc_endpoint(self):
+        response = self.client.get("/api/redoc/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response["Content-Type"])
+        self.assertIn("<redoc", response.content.decode())
 
 
