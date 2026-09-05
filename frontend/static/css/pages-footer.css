@@ -1,0 +1,246 @@
+/* ==========================================================================
+   Auth Pages & Settings Forms
+   ========================================================================== */
+
+.auth-shell {
+    padding: 40px 0 80px;
+}
+
+.auth-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.05fr;
+    gap: 24px;
+    align-items: stretch;
+}
+
+.auth-story {
+    padding: 36px 32px;
+    background: linear-gradient(145deg, #182234 0%, #0d1522 100%);
+    color: #f3f4f6;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-story.accent {
+    background: linear-gradient(145deg, #2b130e 0%, #150906 100%);
+}
+
+.auth-story-badge {
+    display: inline-flex;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 20px;
+    width: fit-content;
+}
+
+.auth-story h1 {
+    font-size: clamp(1.8rem, 2.5vw, 2.4rem);
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 12px;
+}
+
+.auth-story .lede {
+    font-size: 0.95rem;
+    color: rgba(243, 244, 246, 0.75);
+    line-height: 1.6;
+    margin-bottom: 28px;
+}
+
+.auth-points {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: auto;
+}
+
+.auth-point {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.point-icon {
+    font-size: 1.2rem;
+}
+
+.auth-point strong {
+    display: block;
+    font-size: 0.90rem;
+    margin-bottom: 2px;
+}
+
+.auth-point span {
+    font-size: 0.80rem;
+    color: rgba(243, 244, 246, 0.65);
+    line-height: 1.4;
+}
+
+.auth-panel {
+    padding: 36px 32px;
+    display: flex;
+    flex-direction: column;
+}
+
+.auth-panel-header {
+    margin-bottom: 24px;
+}
+
+.auth-panel-header h2 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin-bottom: 4px;
+}
+
+.auth-panel-header p {
+    font-size: 0.88rem;
+    color: var(--muted);
+}
+
+.auth-form,
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-errors {
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    background: var(--danger-soft);
+    border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.error-text {
+    color: var(--danger);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.field-help {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+
+.auth-switch-note {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 0.88rem;
+    color: var(--muted);
+}
+
+.auth-switch-note a {
+    color: var(--brand);
+    font-weight: 700;
+}
+
+.info-callout {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    background: var(--accent-soft);
+    border: 1px solid var(--line);
+    margin-top: 6px;
+}
+
+.callout-icon {
+    font-size: 1.2rem;
+}
+
+.callout-text strong {
+    display: block;
+    font-size: 0.90rem;
+    margin-bottom: 4px;
+}
+
+.callout-text p {
+    font-size: 0.84rem;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 4px;
+}
+
+.external-link {
+    color: var(--brand);
+    font-weight: 700;
+    text-decoration: underline;
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+
+.site-footer {
+    margin-top: auto;
+    padding: 32px 0 24px;
+    border-top: 1px solid var(--line);
+}
+
+.footer-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.footer-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-logo strong {
+    font-weight: 800;
+    font-size: 1.05rem;
+}
+
+.footer-brand span {
+    font-size: 0.80rem;
+    color: var(--muted);
+}
+
+.footer-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.footer-divider {
+    opacity: 0.4;
+}
+
+/* Utilities */
+.is-hidden {
+    display: none !important;
+}
+
+.inline-form {
+    display: inline;
+}
+

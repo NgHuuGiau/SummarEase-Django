@@ -88,9 +88,15 @@
                         <button type="button" class="seg-btn is-active" data-method="textrank" role="tab" aria-selected="true">
                             <span>🧠 TextRank</span>
                         </button>
-                        <button type="button" class="seg-btn" data-method="gemini" role="tab" aria-selected="false">
-                            <span>✨ Gemini AI</span>
-                        </button>
+                        {% if gemini_available %}
+                            <button type="button" class="seg-btn" data-method="gemini" role="tab" aria-selected="false">
+                                <span>✨ Gemini AI</span>
+                            </button>
+                        {% else %}
+                            <button type="button" class="seg-btn is-disabled" data-method="gemini" role="tab" aria-selected="false" title="Cần cấu hình Gemini API key trong Cài đặt">
+                                <span>✨ Gemini AI</span>
+                            </button>
+                        {% endif %}
                     </div>
                     <input type="hidden" name="method" id="method" value="textrank">
                 </div>

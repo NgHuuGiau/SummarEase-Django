@@ -42,6 +42,38 @@ def _serialize_form_errors(form) -> dict[str, list[str]]:
     }
 
 
+def health(request: HttpRequest) -> HttpResponse:
+    """Health check: xác nhận DB + media writable còn hoạt động."""
+    from django.db import connection
+
+    checks = {"status": "ok"}
+    try:
+        from django.db import transaction
+
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+        checks["database"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        checks["status"] = "degraded"
+        checks["database"] = f"error: {exc}"
+
+    media = Path(settings.MEDIA_ROOT)
+    try:
+        media.mkdir(parents=True, exist_ok=True)
+        probe = media / ".healthcheck"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        checks["media"] = "ok"
+    except OSError as exc:
+        checks["status"] = "degraded"
+        checks["media"] = f"error: {exc}"
+
+    status = 200 if checks["status"] == "ok" else 503
+    return JsonResponse(checks, status=status)
+
+
 def home(request: HttpRequest) -> HttpResponse:
     recent_public = list(
         Summary.objects.select_related("document", "user")
@@ -70,8 +102,15 @@ def home(request: HttpRequest) -> HttpResponse:
             "form": form,
             "recent_public": recent_public,
             "user_history": user_history,
+            "gemini_available": home_gemini_available(request.user),
         },
     )
+
+
+def home_gemini_available(user) -> bool:
+    if settings.GEMINI_API_KEY:
+        return True
+    return bool(getattr(user, "setting", None) and user.setting.gemini_api_key)
 
 
 class RegisterPageView(View):
@@ -94,6 +133,43 @@ class RegisterPageView(View):
 class LoginPageView(LoginView):
     template_name = "summaries/login.html"
     authentication_form = LoginForm
+    # ponytail: giới hạn đơn giản theo username, đổi sang theo IP+redis nếu cần scale
+    max_failed_attempts = 5
+    lockout_seconds = 15 * 60
+
+    def _lock_key(self, username: str) -> str:
+        return f"login-fail:{username.lower()}"
+
+    def _is_locked(self, username: str) -> bool:
+        return cache.get(self._lock_key(username), 0) >= self.max_failed_attempts
+
+    def post(self, request, *args, **kwargs):
+        username = self.request.POST.get("username", "")
+        if username and self._is_locked(username):
+            form = self.get_form()
+            form.add_error(
+                None,
+                ValidationError(
+                    "Quá nhiều lần đăng nhập sai. Vui lòng thử lại sau 15 phút.",
+                    code="locked",
+                ),
+            )
+            return self.form_invalid(form)
+        return super().post(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        username = form.cleaned_data.get("username", "")
+        if username and not self._is_locked(username):
+            key = self._lock_key(username)
+            attempts = cache.get(key, 0) + 1
+            cache.set(key, attempts, timeout=self.lockout_seconds)
+        return super().form_invalid(form)
+
+    def form_valid(self, form):
+        username = form.cleaned_data.get("username", "")
+        if username:
+            cache.delete(self._lock_key(username))
+        return super().form_valid(form)
 
 
 class HistoryListView(LoginRequiredMixin, View):

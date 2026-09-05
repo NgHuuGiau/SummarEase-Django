@@ -23,7 +23,12 @@
             document.documentElement.dataset.theme = storedTheme || systemTheme;
         }());
     </script>
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260902-2">
+    <link rel="stylesheet" href="{% static 'css/tokens-base.css' %}?v=20260905-1">
+    <link rel="stylesheet" href="{% static 'css/layout-buttons.css' %}?v=20260905-1">
+    <link rel="stylesheet" href="{% static 'css/form-area.css' %}?v=20260905-1">
+    <link rel="stylesheet" href="{% static 'css/history.css' %}?v=20260905-1">
+    <link rel="stylesheet" href="{% static 'css/pages-footer.css' %}?v=20260905-1">
+    <link rel="stylesheet" href="{% static 'css/responsive.css' %}?v=20260905-1">
 </head>
 <body data-auth-state="{% if request.user.is_authenticated %}{% if request.user.is_staff %}admin{% else %}member{% endif %}{% else %}guest{% endif %}">
     <div class="site-backdrop">

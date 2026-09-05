@@ -97,17 +97,21 @@ SummarEase-Django/
 │   │   └── _setup.py        #     Chung cho WSGI/ASGI
 │   ├── summaries/           #   Django app chính
 │   │   ├── models.py        #     Document, Summary, Tag, UserProfile, UserSetting
-│   │   ├── views.py         #     View logic
-│   │   ├── nlp.py           #     Xử lý NLP, TextRank, Gemini
+│   │   ├── views.py         #     View logic (health, home, login lockout, create_summary...)
+│   │   ├── nlp.py           #     Xử lý NLP, TextRank (lru_cache), Gemini retry
 │   │   ├── forms.py         #     Django forms
 │   │   ├── admin.py         #     Django Admin config
-│   │   ├── tests.py         #     112 tests
-│   │   ├── urls.py          #     URL routing
+│   │   ├── checks.py        #     System check API_ENCRYPTION_KEY prod (W001)
+│   │   ├── readers.py       #     Đọc PDF/DOCX/EPUB/TXT + SSRF hop validation
 │   │   ├── signing.py       #     Mã hoá API key
+│   │   ├── urls.py          #     URL routing (login lockout, password reset, health, security.txt)
+│   │   ├── tests.py         #     Tests (coverage 98%+)
+│   │   ├── logging_fmt.py   #     JSON formatter cho structured logging (gộp trong config)
 │   │   ├── stopwords.txt    #     Stopwords tiếng Việt
 │   │   ├── management/
 │   │   │   └── commands/
-│   │   │       └── setup.py #     Management command: migrate + superuser
+│   │   │       ├── setup.py     #   migrate + superuser
+│   │   │       └── backup_db.py #   backup dumpdata (+ media)
 │   │   └── migrations/      #     DB migrations
 │   ├── api-tests/           #   Bruno API test collection
 │   ├── media/               #   File upload (gitignored)
@@ -120,24 +124,21 @@ SummarEase-Django/
 │   ├── .env                 #   Biến môi trường (local)
 │   ├── .env.example         #   Mẫu biến môi trường
 │   └── conftest.py          #   Pytest config
-├── docker/                  # Docker config
-│   ├── docker-compose.yml   #   Docker Compose
-│   ├── Dockerfile-python    #   Python container
-│   ├── Dockerfile-mysql     #   MySQL container
-│   └── gunicorn.conf.py     #   Gunicorn config (production)
+├── Dockerfile               # Production image (python:3.12-slim, non-root summarizease, HEALTHCHECK)
+├── docker-compose.yml       # Compose: build, migrate+setup, gunicorn, restart unless-stopped
 ├── docs/                    # Tài liệu
 │   ├── architecture.md      #   Kiến trúc hệ thống
 │   ├── help.md              #   Hướng dẫn chi tiết
 │   ├── CONTRIBUTING.md      #   Hướng dẫn đóng góp
 │   └── SECURITY.md          #   Chính sách bảo mật
 ├── frontend/                # Giao diện người dùng
-│   ├── static/css/          #   Stylesheets (app.css, admin.css)
+│   ├── static/css/          #   Stylesheets (tokens-base, layout-buttons, form-area, history, pages-footer, responsive, admin.css)
 │   ├── static/js/app.js     #   JavaScript
 │   └── templates/           #   HTML templates
 │       ├── 404.html         #     Lỗi 404
 │       ├── 500.html         #     Lỗi 500
 │       ├── admin/           #     Admin custom
-│       └── summaries/       #     App templates
+│       └── summaries/       #     App templates (home, login, register, history_*, settings, password_reset_*)
 ├── scripts/                 # Scripts dev
 │   ├── run-dev.bat          #   Script chạy dev (Windows)
 │   ├── run-dev.ps1          #   Script chạy dev HTTPS (Daphne, port 8000)
@@ -278,14 +279,20 @@ python -m pytest backend/summaries/tests.py -k Error    # trang lỗi 404/500
 
 ---
 
-## 🐳 Chạy với Docker (MySQL)
+## 🐳 Chạy với Docker
 
 ```powershell
-cd docker
+# Chuẩn bị: backend/.env đã có SECRET_KEY, ALLOWED_HOSTS, DB_ENGINE (sqlite mặc định)
 docker compose up --build
+# Mở http://localhost:8000/health/ để kiểm (trả {"status":"ok","database":"ok","media":"ok"})
+docker compose logs -f web
+docker compose down
 ```
 
-> **Lưu ý:** Cần có file `backend/.env` với nội dung hợp lệ trước khi chạy Docker. Xem `docker/gunicorn.conf.py` cho production config.
+Dockerfile: `python:3.12-slim`, user `summarizease` (non-root), HEALTHCHECK gọi `GET /health/`, COLLECTSTATIC lúc build.  
+Compose: `restart: unless-stopped`, volume `media_data` + `sqlite_data`, lệnh `migrate && setup && gunicorn --bind 0.0.0.0:8000 --workers 3`.
+
+> Biến môi trường lấy từ `backend/.env`. Đổi `DJANGO_SECRET_KEY`, `API_ENCRYPTION_KEY` trong production. Xem `.env.example`.
 
 ---
 
