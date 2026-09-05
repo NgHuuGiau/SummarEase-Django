@@ -311,7 +311,7 @@ def create_summary(request: HttpRequest) -> JsonResponse:
                     destination.write(chunk)
             original_text = extract_text(temp_path)
             stored_file_name = str(temp_path.relative_to(settings.MEDIA_ROOT))
-        else:
+        else:  # pragma: no cover - unreachable: clean() chặn file-không-upload & choice cố định
             return JsonResponse(
                 {"ok": False, "message": "Không có nội dung để tóm tắt."},
                 status=400,
