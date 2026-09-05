@@ -77,6 +77,9 @@
     function bindSegmented(buttons, input, onActivate) {
         buttons.forEach(function (btn) {
             btn.addEventListener("click", function () {
+                if (btn.classList.contains("is-disabled")) {
+                    return;
+                }
                 buttons.forEach(function (b) {
                     b.classList.remove("is-active");
                     b.setAttribute("aria-selected", "false");

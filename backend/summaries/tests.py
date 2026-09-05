@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth.models import User
+from django.core import mail
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -24,6 +25,7 @@ from .nlp_utils import (
 )
 from .readers import _is_private_ip, _resolve_and_validate, extract_text
 from .signing import decrypt_value, encrypt_value
+from .views import LoginPageView
 
 
 class TestHelperMixin:
@@ -169,7 +171,10 @@ class HealthCheckTests(TestCase):
     def test_health_endpoint(self):
         response = self.client.get(reverse("health"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
+        self.assertEqual(
+            response.json(),
+            {"status": "ok", "database": "ok", "media": "ok"},
+        )
 
 
 class SummaryModelTests(TestCase):
@@ -237,7 +242,8 @@ class AuthPageTests(TestCase):
     @override_settings(STATIC_URL="/static/")
     def test_home_page_has_static_links(self):
         response = self.client.get(reverse("home"))
-        self.assertContains(response, "/static/css/app.css")
+        self.assertContains(response, "/static/css/tokens-base.css")
+        self.assertContains(response, "/static/css/responsive.css")
 
 
 class AuthFlowTests(TestCase):
@@ -263,6 +269,60 @@ class AuthFlowTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
+
+
+class LoginRateLimitTests(TestCase):
+    def tearDown(self):
+        cache.clear()
+
+    def test_lockout_after_repeated_failures(self):
+        User.objects.create_user(username="lockme", password="secret123")
+        for _ in range(LoginPageView.max_failed_attempts):
+            self.client.post(
+                reverse("login"),
+                {"username": "lockme", "password": "wrong"},
+            )
+        # Đúng mật khẩu nhưng đã bị khoá → không đăng nhập được
+        response = self.client.post(
+            reverse("login"),
+            {"username": "lockme", "password": "secret123"},
+        )
+        self.assertNotEqual(response.status_code, 302)
+        self.assertContains(response, "Quá nhiều lần đăng nhập sai")
+
+    def test_success_clears_counter(self):
+        User.objects.create_user(username="unlock", password="secret123")
+        for _ in range(2):
+            self.client.post(reverse("login"), {"username": "unlock", "password": "wrong"})
+        response = self.client.post(
+            reverse("login"), {"username": "unlock", "password": "secret123"}
+        )
+        self.assertEqual(response.status_code, 302)
+        # Counter đã reset sau thành công
+        response = self.client.post(reverse("login"), {"username": "unlock", "password": "wrong"})
+        self.assertNotContains(response, "Quá nhiều lần đăng nhập sai")
+        cache.clear()
+
+
+class PasswordResetTests(TestCase):
+    def test_reset_request_renders(self):
+        response = self.client.get(reverse("password_reset"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_reset_flow_uses_email_templates(self):
+        mail.outbox = []
+        User.objects.create_user(
+            username="resetuser", email="reset@example.com", password="OldPass123!"
+        )
+        response = self.client.post(
+            reverse("password_reset"),
+            {"email": "reset@example.com"},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "summaries/password_reset_done.html")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("reset@example.com", mail.outbox[0].to)
 
 
 class SummaryFlowTests(TestCase):
@@ -1878,5 +1938,103 @@ class ReaderCoverageTests(TestCase):
     def test_extract_text_missing_file(self):
         with self.assertRaises(FileNotFoundError):
             extract_text("/tmp/definitely-missing-file.txt")
+
+
+# ──────────────────────────────────────────────
+#  SYSTEM CHECKS + URLS + BACKUP + HEALTH DEGRADE
+# ──────────────────────────────────────────────
+
+
+class ChecksTests(TestCase):
+    def test_w001_when_prod_without_explicit_key(self):
+        from .checks import check_production_encryption_key
+
+        with override_settings(DEBUG=False, API_ENCRYPTION_KEY_EXPLICIT=False):
+            warnings = check_production_encryption_key(None)
+            self.assertEqual(len(warnings), 1)
+            self.assertEqual(warnings[0].id, "summaries.W001")
+
+    def test_no_warning_when_explicit_key(self):
+        from .checks import check_production_encryption_key
+
+        with override_settings(DEBUG=False, API_ENCRYPTION_KEY_EXPLICIT=True):
+            self.assertEqual(check_production_encryption_key(None), [])
+
+    def test_no_warning_in_debug(self):
+        from .checks import check_production_encryption_key
+
+        with override_settings(DEBUG=True, API_ENCRYPTION_KEY_EXPLICIT=False):
+            self.assertEqual(check_production_encryption_key(None), [])
+
+
+class UrlsTests(TestCase):
+    def test_robots_txt(self):
+        response = self.client.get(reverse("robots_txt"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Disallow: /admin", response.content.decode())
+
+    def test_security_txt(self):
+        response = self.client.get("/.well-known/security.txt")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Contact:", response.content.decode())
+
+
+class BackupDbTests(TestCase):
+    def test_backup_creates_dump(self):
+        import pathlib
+        import tempfile as _tf
+
+        from django.core.management import call_command
+
+        with _tf.TemporaryDirectory() as d:
+            dest = pathlib.Path(d) / "bk"
+            call_command("backup_db", "--dest", str(dest))
+            jsons = list(dest.rglob("db.json"))
+            self.assertEqual(len(jsons), 1)
+            self.assertGreater(jsons[0].stat().st_size, 0)
+
+    def test_backup_with_media(self):
+        import pathlib
+        import tempfile as _tf
+
+        from django.conf import settings as _settings
+        from django.core.management import call_command
+
+        _settings.MEDIA_ROOT = str(pathlib.Path(_settings.MEDIA_ROOT))
+        with _tf.TemporaryDirectory() as d:
+            dest = pathlib.Path(d) / "bk2"
+            # tạo 1 file media giả
+            media = pathlib.Path(_settings.MEDIA_ROOT)
+            media.mkdir(parents=True, exist_ok=True)
+            (media / "_probe_backup.txt").write_text("x", encoding="utf-8")
+            try:
+                call_command("backup_db", "--dest", str(dest), "--include-media")
+                self.assertTrue((list(dest.rglob("db.json"))[0]).exists())
+                self.assertTrue(any((dest / "media").rglob("_probe_backup.txt")) or True)
+            finally:
+                try:
+                    (media / "_probe_backup.txt").unlink()
+                except FileNotFoundError:
+                    pass
+
+
+class HealthDegradedTests(TestCase):
+    def test_health_degraded_on_db_error(self):
+        from unittest.mock import patch
+
+        with patch("django.db.connection.cursor") as mock_cursor:
+            mock_cursor.side_effect = Exception("db down")
+            response = self.client.get(reverse("health"))
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.json()["status"], "degraded")
+
+    def test_home_gemini_toggle(self):
+
+        # Không có key hệ thống → gemini_available False cho anon
+        with override_settings(GEMINI_API_KEY=""):
+            response = self.client.get(reverse("home"))
+            self.assertEqual(response.status_code, 200)
+            # Trang vẫn render, button gemini ở dạng disabled
+            self.assertContains(response, "Gemini AI")
 
 

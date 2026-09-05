@@ -41,21 +41,28 @@ SummarEase-Django/
 │   └── conftest.py              #   Pytest config
 ├── frontend/                    # Giao diện người dùng
 │   ├── static/                  # File tĩnh
-│   │   ├── css/app.css          #   Stylesheet chính
-│   │   ├── css/admin.css        #   Admin styles
-│   │   └── js/app.js            #   JavaScript
+│   │   ├── css/tokens-base.css      #   Design tokens + reset
+│   │   ├── css/layout-buttons.css   #   Header/nav + buttons/badges
+│   │   ├── css/form-area.css        #   Hero + workspace + result panel
+│   │   ├── css/history.css          #   History shelf & cards
+│   │   ├── css/pages-footer.css     #   Detail + auth/settings + footer
+│   │   ├── css/responsive.css       #   Breakpoints
+│   │   ├── css/admin.css            #   Admin styles
+│   │   └── js/app.js                #   JavaScript (guard is-disabled cho Gemini)
 │   └── templates/               # Django templates
 │       ├── 404.html             #   Lỗi 404
 │       ├── 500.html             #   Lỗi 500
 │       ├── admin/base_site.html #   Tuỳ chỉnh admin
 │       └── summaries/           #   App templates
-│           ├── base.html        #     Template gốc
-│           ├── home.html        #     Trang chủ
-│           ├── login.html       #     Đăng nhập
+│           ├── base.html        #     Template gốc (load 6 CSS theo thứ tự)
+│           ├── home.html        #     Trang chủ (gemini_available toggle)
+│           ├── login.html       #     Đăng nhập ("Quên mật khẩu?" link)
 │           ├── register.html    #     Đăng ký
 │           ├── settings.html    #     Cài đặt
 │           ├── history_list.html#     Lịch sử
-│           └── history_detail.html#   Chi tiết
+│           ├── history_detail.html#   Chi tiết
+│           ├── password_reset*.html # Password reset (4 templates)
+│           └── password_reset_email.txt # Email khôi phục
 ├── scripts/                     # Scripts dev
 │   ├── run-dev.bat              #   Script dev HTTP (Windows)
 │   ├── run-dev.ps1              #   Script dev HTTP (PowerShell)

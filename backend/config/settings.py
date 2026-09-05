@@ -190,6 +190,19 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
 
+# ── Email ─────────────────────────────────────────────
+# Mặc định in ra console cho dev; production: EMAIL_BACKEND=smtp + host/port/user/pass
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@summarease.local")
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
+    EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
+    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") == "1"
+
 # ── Cache & Session ──────────────────────────────────
 redis_url = os.getenv("REDIS_URL", "")
 if redis_url:
@@ -217,6 +230,10 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
 
 # ── Logging ──────────────────────────────────────────
+# Bật JSON structured logs cho production: LOG_FORMAT=json, LOG_FILE=/path/to/app.log
+LOG_FORMAT = os.getenv("LOG_FORMAT", "json" if not DEBUG else "text")
+LOG_FILE = os.getenv("LOG_FILE", "")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -225,11 +242,14 @@ LOGGING = {
             "format": "{levelname} {asctime} {module} {message}",
             "style": "{",
         },
+        "json": {
+            "()": "config.logging_fmt.JsonFormatter",
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "formatter": "json" if LOG_FORMAT == "json" else "verbose",
         },
     },
     "root": {
@@ -249,6 +269,19 @@ LOGGING = {
         },
     },
 }
+
+if LOG_FILE:
+    LOGGING["handlers"]["file"] = {
+        "class": "logging.handlers.RotatingFileHandler",
+        "filename": LOG_FILE,
+        "maxBytes": 5 * 1024 * 1024,
+        "backupCount": 5,
+        "encoding": "utf-8",
+        "formatter": "json",
+    }
+    LOGGING["root"]["handlers"] = ["console", "file"]
+    for _name, _cfg in LOGGING["loggers"].items():
+        _cfg["handlers"] = ["console", "file"]
 
 if DEBUG:
     SILENCED_SYSTEM_CHECKS = [

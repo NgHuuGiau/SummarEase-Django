@@ -70,11 +70,15 @@
                     {% endif %}
                 </div>
 
-                <button type="submit" class="button-primary wide lg">Đăng nhập ngay</button>
+                <div class="form-extra-row">
+                    <button type="submit" class="button-primary wide lg">Đăng nhập ngay</button>
+                </div>
             </form>
 
             <div class="auth-switch-note">
                 Chưa có tài khoản? <a href="{% url 'register' %}">Đăng ký tài khoản mới</a>
+                <span class="footer-divider">•</span>
+                <a href="{% url 'password_reset' %}">Quên mật khẩu?</a>
             </div>
         </section>
     </section>

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time as time_module
+from functools import lru_cache
 from typing import Any
 
 from django.conf import settings
@@ -58,23 +59,33 @@ def _ratio_to_vietnamese(ratio: float) -> str:
 
 def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english") -> dict[str, Any]:
     try:
-        from sumy.parsers.plaintext import PlaintextParser
-        from sumy.summarizers.text_rank import TextRankSummarizer
+        from sumy.parsers.plaintext import PlaintextParser  # noqa: F401
+        from sumy.summarizers.text_rank import TextRankSummarizer  # noqa: F401
     except ImportError as exc:
         raise ValueError(
             "Thiếu thư viện 'sumy' để dùng phương pháp tóm tắt TextRank. "
             "Hãy chạy 'pip install -r requirements.txt'."
         ) from exc
 
-    from .nlp_utils import RegexTokenizer
-
-    tokenizer = RegexTokenizer()
     from .nlp_utils import normalize_text
 
     normalized = normalize_text(text)
     if not normalized:
         raise ValueError("Nội dung văn bản đang rỗng.")
 
+    # ponytail: cache theo (chuẩn hoá, tỉ lệ, ngôn ngữ); maxsize giới hạn bộ nhớ,
+    # đổi sang Redis cache nếu tải trọng tăng.
+    return _textrank_cached(normalized, ratio, language)
+
+
+@lru_cache(maxsize=64)
+def _textrank_cached(normalized: str, ratio: float, language: str) -> dict[str, Any]:
+    from sumy.parsers.plaintext import PlaintextParser
+    from sumy.summarizers.text_rank import TextRankSummarizer
+
+    from .nlp_utils import RegexTokenizer
+
+    tokenizer = RegexTokenizer()
     parser = PlaintextParser.from_string(normalized, tokenizer)
     summarizer = TextRankSummarizer()
     summarizer.stop_words = load_stop_words()
