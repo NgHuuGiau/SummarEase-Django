@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "drf_spectacular",
     "summaries",
 ]
 
@@ -50,6 +51,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "config.csp.CSPMiddleware",
+    "summaries.middleware.RateLimitMiddleware",
+    "summaries.metrics.PrometheusMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -294,3 +297,21 @@ if DEBUG:
     ]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ── DRF ────────────────────────────────────────────────
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# ── DRF Spectacular (API docs) ─────────────────────────
+SPECTACULAR_SETTINGS = {
+    "TITLE": "SummarEase API",
+    "DESCRIPTION": "API for text summarization (TextRank + Gemini)",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "displayOperationId": True,
+    },
+    "COMPONENT_SPLIT_REQUEST": True,
+}
