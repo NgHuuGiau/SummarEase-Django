@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .forms import SettingsForm, SummaryRequestForm
-from .models import Document, Summary, UserProfile, UserSetting
+from .models import Document, Summary, Tag, UserProfile, UserSetting
 from .nlp import textrank_summarize
 from .nlp_utils import (
     detect_language,
@@ -147,6 +147,26 @@ class NlpTruncateTests(TestCase):
         result = truncate_text(text, max_chars=20)
         self.assertLessEqual(len(result), 20)
 
+    def test_truncate_breaks_on_overflow(self):
+        text = "This is one sentence. Another sentence that is really quite long."
+        result = truncate_text(text, max_chars=20)
+        self.assertLessEqual(len(result), 20)
+
+    def test_load_stop_words_missing_file_returns_empty(self):
+        import pathlib
+
+        from .nlp_utils import load_stop_words
+
+        load_stop_words.cache_clear()
+        try:
+            with patch(
+                "summaries.nlp_utils.STOP_WORDS_PATH",
+                pathlib.Path("no_such_dir/stopwords.txt"),
+            ):
+                self.assertEqual(load_stop_words(), frozenset())
+        finally:
+            load_stop_words.cache_clear()
+
 
 # ──────────────────────────────────────────────
 #  MODEL TESTS
@@ -165,6 +185,10 @@ class DocumentModelTests(TestCase):
             content="Hello world",
         )
         self.assertEqual(str(doc), "Test doc")
+
+    def test_tag_str_returns_name(self):
+        tag = Tag.objects.create(name="Chatbot")
+        self.assertEqual(str(tag), "Chatbot")
 
 
 class HealthCheckTests(TestCase):
@@ -258,6 +282,18 @@ class AuthFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(User.objects.filter(username="newuser").exists())
+
+    def test_register_invalid_rerenders(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "badpass",
+                "password1": "StrongPass123!",
+                "password2": "DifferentPass456!",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "register")
 
     def test_login_and_logout(self):
         User.objects.create_user(username="logintest", password="secret123")
@@ -583,6 +619,24 @@ class NlpEdgeCaseTests(TestCase):
         self.assertIn("summary", result)
         self.assertIn("keywords", result)
         self.assertIn("title", result)
+
+    def test_textrank_summarize_missing_sumy(self):
+        missing = {
+            "sumy": None,
+            "sumy.parsers": None,
+            "sumy.parsers.plaintext": None,
+            "sumy.summarizers": None,
+            "sumy.summarizers.text_rank": None,
+        }
+        with patch.dict("sys.modules", missing):
+            with self.assertRaises(ValueError) as ctx:
+                textrank_summarize("Some text here", ratio=0.5)
+        self.assertIn("sumy", str(ctx.exception))
+
+    def test_textrank_summarize_empty_text(self):
+        with self.assertRaises(ValueError) as ctx:
+            textrank_summarize("   \n\t  ")
+        self.assertIn("rỗng", str(ctx.exception))
 
 
 # ──────────────────────────────────────────────
@@ -1030,6 +1084,20 @@ class FileUploadTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_upload_empty_content_extraction(self):
+        uploaded = SimpleUploadedFile("empty.txt", b"   ", content_type="text/plain")
+        response = self.client.post(
+            reverse("create_summary"),
+            {
+                "source_type": "file",
+                "method": "textrank",
+                "upload": uploaded,
+                "ratio": 0.3,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Không thể trích xuất", response.json()["message"])
 
 
 # ──────────────────────────────────────────────
@@ -1491,6 +1559,26 @@ class GeminiErrorBranchTests(TestCase):
             self._call()
         self.assertIn("kết nối", str(ctx.exception))
 
+    def test_gemini_requests_import_missing(self):
+        from .nlp import gemini_summarize
+
+        with patch.dict("sys.modules", {"requests": None}):
+            with self.assertRaises(ValueError) as ctx:
+                gemini_summarize("Some text here", user_api_key="k")
+        self.assertIn("requests", str(ctx.exception))
+
+    @patch("summaries.nlp.time_module.sleep")
+    @patch("summaries.readers._get_http_session")
+    def test_gemini_400_json_decode_fallback(self, mock_get_session, _sleep):
+        def bad_json():
+            import json as _json
+
+            raise _json.JSONDecodeError("boom", "doc", 0)
+
+        self._session(mock_get_session, [(400, bad_json)])
+        with self.assertRaises(ValueError):
+            self._call()
+
 
 class GeminiPromptBranchTests(TestCase):
     """Cover _build_prompt Vietnamese branch + remaining ratio variants."""
@@ -1634,6 +1722,15 @@ class ReaderUnitTests(TestCase):
         with self.assertRaises(ValueError) as ctx:
             extract_text("https://example.com/missing")
         self.assertIn("404", str(ctx.exception))
+
+    @patch("summaries.readers._get_http_session")
+    @patch("summaries.readers._resolve_and_validate")
+    def test_response_none_raises(self, _resolve, mock_get_session):
+        mock_get_session.return_value.get.return_value = None
+
+        with self.assertRaises(ValueError) as ctx:
+            extract_text("https://example.com/empty")
+        self.assertIn("Không thể tải URL", str(ctx.exception))
 
     @patch("summaries.readers._get_http_session")
     @patch("summaries.readers._resolve_and_validate")
@@ -1924,6 +2021,21 @@ class ReaderCoverageTests(TestCase):
                 _extract_text_from_epub("x.epub")
         self.assertIn("ebooklib", str(ctx.exception))
 
+    def test_extract_text_from_epub_success(self):
+        import pathlib
+
+        from .readers import _extract_text_from_epub
+
+        book = MagicMock()
+        item = MagicMock()
+        item.get_content.return_value = (
+            b"<html><body><p>Epub chapter content here.</p></body></html>"
+        )
+        book.get_items.return_value = [item]
+        with patch("ebooklib.epub.read_epub", return_value=book):
+            out = _extract_text_from_epub(pathlib.Path("book.epub"))
+        self.assertIn("Epub chapter content", out)
+
     def test_extract_text_unsupported_extension(self):
         import pathlib
         import tempfile as _tf
@@ -2028,6 +2140,12 @@ class HealthDegradedTests(TestCase):
             self.assertEqual(response.status_code, 503)
             self.assertEqual(response.json()["status"], "degraded")
 
+    def test_health_degraded_on_media_error(self):
+        with patch("pathlib.Path.unlink", side_effect=OSError("locked")):
+            response = self.client.get(reverse("health"))
+            self.assertEqual(response.status_code, 503)
+            self.assertIn("error", response.json()["media"])
+
     def test_home_gemini_toggle(self):
 
         # Không có key hệ thống → gemini_available False cho anon
@@ -2036,5 +2154,21 @@ class HealthDegradedTests(TestCase):
             self.assertEqual(response.status_code, 200)
             # Trang vẫn render, button gemini ở dạng disabled
             self.assertContains(response, "Gemini AI")
+
+    def test_home_gemini_available_with_system_key(self):
+        from .views import home_gemini_available
+
+        with override_settings(GEMINI_API_KEY="test-key"):
+            self.assertTrue(home_gemini_available(None))
+
+    def test_home_gemini_available_with_user_key(self):
+        from .views import home_gemini_available
+
+        user = User.objects.create_user(username="gemini-user", password="secret123")
+        # post_save signal đã auto-create UserSetting
+        user.setting.gemini_api_key = "user-key"
+        user.setting.save()
+        with override_settings(GEMINI_API_KEY=""):
+            self.assertTrue(home_gemini_available(user))
 
 

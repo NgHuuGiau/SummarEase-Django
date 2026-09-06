@@ -198,7 +198,7 @@ def gemini_summarize(
                 f"Gemini API lỗi HTTP {response.status_code}: {response.text[:200]}"
             ) from None
         break
-    else:
+    else:  # pragma: no cover - unreachable: raise_for_status luôn raise cho 4xx/5xx
         raise last_error or ValueError("Gemini API không phản hồi sau nhiều lần thử.")
 
     try:

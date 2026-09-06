@@ -179,6 +179,23 @@ jobs:
           DJANGO_ALLOWED_HOSTS: '*'
         run: python manage.py collectstatic --dry-run --noinput --clear
 
+      - name: Smoke test — backup_db command
+        run: python manage.py backup_db --dest /tmp/test_backup
+
+      - name: Smoke test — health endpoint
+        run: |
+          python -c "
+import django, os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+django.setup()
+from django.test import Client
+c = Client()
+resp = c.get('/health/')
+assert resp.status_code == 200, f'Health failed: {resp.status_code}'
+assert resp.json()['status'] in ('healthy', 'degraded')
+print('Health OK:', resp.json())
+"
+
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
