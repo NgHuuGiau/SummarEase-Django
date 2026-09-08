@@ -10,6 +10,11 @@
     <meta name="theme-color" content="#d9532f" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0b0f19" media="(prefers-color-scheme: dark)">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2224%22 fill=%22%23d9532f%22/><text x=%2250%22 y=%2270%22 font-size=%2260%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22Arial%22 font-weight=%22bold%22>S</text></svg>">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SummarEase">
+    <link rel="apple-touch-icon" href="{% static 'icons/icon-192.png' %}">
     <link rel="dns-prefetch" href="//generativelanguage.googleapis.com">
     <link rel="preconnect" href="https://generativelanguage.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -129,6 +134,30 @@
     {% endcache %}
 
     <script src="{% static 'js/app.js' %}?v=20260902-2" defer></script>
+    <script nonce="{{ request.csp_nonce }}">
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('{% static "sw.js" %}')
+                    .then(function (reg) {
+                        console.log('SW registered:', reg.scope);
+                        reg.addEventListener('updatefound', function () {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', function () {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New version available, show update prompt
+                                    if (confirm('Có phiên bản mới. Tải lại trang?')) {
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(function (err) {
+                        console.log('SW registration failed:', err);
+                    });
+            });
+        }
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

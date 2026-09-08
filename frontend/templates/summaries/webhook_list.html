@@ -1,0 +1,161 @@
+{% extends "summaries/base.html" %}
+
+{% block title %}Quản lý Webhook - SummarEase{% endblock %}
+
+{% block content %}
+<main class="page-shell narrow">
+    <section class="panel settings-panel">
+        <div class="panel-header">
+            <div class="panel-header-title">
+                <span class="panel-icon">🔗</span>
+                <div>
+                    <h2>Quản lý Webhook</h2>
+                    <p class="panel-desc">Cấu hình endpoint nhận thông báo khi bản tóm tắt hoàn tất hoặc thất bại.</p>
+                </div>
+            </div>
+        </div>
+
+        {% if messages %}
+            <div class="flash-wrap">
+                {% for message in messages %}
+                    <div class="flash {{ message.tags }}">
+                        <span class="flash-icon">{% if "error" in message.tags %}⚠️{% else %}✨{% endif %}</span>
+                        <span class="flash-text">{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Add Webhook Form -->
+        <form method="post" class="webhook-form">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="url" class="control-label">URL Endpoint</label>
+                <input type="url" id="url" name="url" class="form-input" placeholder="https://your-app.com/webhook/summary" required>
+                <span class="field-help">Endpoint phải nhận POST request với JSON body</span>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label">Sự kiện nhận thông báo</label>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="events" value="summary.completed" checked>
+                        <span>✅ summary.completed - Tóm tắt thành công</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="events" value="summary.failed">
+                        <span>❌ summary.failed - Tóm tắt thất bại</span>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="button-primary wide">Tạo webhook</button>
+        </form>
+
+        <!-- Webhook List -->
+        {% if webhooks %}
+            <div class="webhook-list">
+                <h3 class="section-title">Webhook đã cấu hình</h3>
+                <div class="webhook-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>URL</th>
+                                <th>Sự kiện</th>
+                                <th>Trạng thái</th>
+                                <th>Lần cuối</th>
+                                <th>Thất bại</th>
+                                <th>Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for wh in webhooks %}
+                            <tr>
+                                <td class="webhook-url">{{ wh.url }}</td>
+                                <td>
+                                    {% for evt in wh.events %}
+                                        <span class="badge {% if evt == 'summary.completed' %}success{% else %}danger{% endif %}">{{ evt }}</span>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {% if wh.is_active %}
+                                        <span class="badge success">Hoạt động</span>
+                                    {% else %}
+                                        <span class="badge danger">Đã tắt</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if wh.last_triggered %}
+                                        {{ wh.last_triggered|date:"d/m/Y H:i" }}
+                                    {% else %}
+                                        <span class="muted">Chưa từng</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if wh.failure_count > 0 %}
+                                        <span class="badge danger">{{ wh.failure_count }}</span>
+                                    {% else %}
+                                        <span class="muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button type="button" class="button-secondary slim webhook-test" data-pk="{{ wh.pk }}">Test</button>
+                                        <form method="post" action="{% url 'webhook_delete' wh.pk %}" class="inline-form" onsubmit="return confirm('Xóa webhook này?')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="button-danger slim">Xóa</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="empty-state-card">
+                <div class="empty-icon">🔗</div>
+                <h3>Chưa có webhook nào</h3>
+                <p>Tạo webhook đầu tiên để nhận thông báo tự động.</p>
+            </div>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ request.csp_nonce }}">
+document.querySelectorAll(".webhook-test").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+        const pk = btn.dataset.pk;
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Đang gửi...";
+
+        fetch("/webhooks/" + pk + "/test/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                alert("✅ " + data.message);
+            } else {
+                alert("❌ " + data.message);
+            }
+        })
+        .catch(function () {
+            alert("❌ Không thể kết nối tới máy chủ.");
+        })
+        .finally(function () {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        });
+    });
+});
+</script>
+{% endblock %}

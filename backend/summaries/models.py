@@ -4,6 +4,17 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
 
+# Conditional import for PostgreSQL full-text search
+HAS_POSTGRES_SEARCH = getattr(settings, "ENABLE_FULLTEXT_SEARCH", True)
+if HAS_POSTGRES_SEARCH:
+    try:
+        from django.contrib.postgres.search import SearchVectorField
+    except ImportError:
+        SearchVectorField = None
+        HAS_POSTGRES_SEARCH = False
+else:
+    SearchVectorField = None
+
 
 def _cleanup_uploaded_file(file_path: str) -> None:
     if not file_path:
@@ -122,14 +133,40 @@ class Summary(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name="summaries")
 
+    # Full-text search vector (PostgreSQL uses SearchVectorField, SQLite uses TextField)
+    if HAS_POSTGRES_SEARCH and SearchVectorField:
+        search_vector = SearchVectorField(null=True, editable=False)
+    else:
+        # SQLite fallback: simple text field for compatibility
+        search_vector = models.TextField(null=True, blank=True, editable=False)
+
     class Meta:
         ordering = ["-created_at", "-id"]
         indexes = [
             models.Index(fields=["user", "-created_at"]),
         ]
+        if HAS_POSTGRES_SEARCH and SearchVectorField:
+            indexes.append(models.Index(fields=["search_vector"]))
 
     def __str__(self) -> str:
         return self.title
+
+    @classmethod
+    def search(cls, user, query: str, language: str = "vietnamese"):
+        """Full-text search summaries for a user (PostgreSQL only)."""
+        if not HAS_POSTGRES_SEARCH:
+            # SQLite fallback: simple icontains search
+            return cls.objects.filter(user=user).filter(
+                models.Q(title__icontains=query) |
+                models.Q(summary_text__icontains=query)
+            ).order_by("-created_at")
+
+        from django.contrib.postgres.search import SearchQuery, SearchRank
+
+        search_query = SearchQuery(query, config=language)
+        return cls.objects.filter(user=user).annotate(
+            rank=SearchRank("search_vector", search_query)
+        ).filter(rank__gte=0.1).order_by("-rank", "-created_at")
 
 
 class SummarySentence(models.Model):

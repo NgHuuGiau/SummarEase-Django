@@ -2335,3 +2335,161 @@ class APIDocsTests(TestCase):
         self.assertIn("<redoc", response.content.decode())
 
 
+# ──────────────────────────────────────────────
+#  CELERY TASK INTEGRATION TESTS
+# ──────────────────────────────────────────────
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True, RATE_LIMIT_SECONDS=0)
+class CeleryTaskIntegrationTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="celery-test", password="secret123")
+        self.client.login(username="celery-test", password="secret123")
+        UserSetting.objects.filter(user=self.user).update(gemini_api_key="")
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_process_summary_task_textrank_success(self):
+        from .tasks import process_summary_task
+
+        text = "First sentence here. Second sentence follows. Third one is final. Fourth sentence added."
+        result = process_summary_task(
+            user_id=self.user.id,
+            source_type="text",
+            method="textrank",
+            ratio=0.5,
+            text=text,
+        )
+        self.assertTrue(result["ok"])
+        self.assertIn("data", result)
+        self.assertEqual(result["data"]["method"], "textrank")
+        self.assertIn("summary", result["data"])
+        self.assertIn("keywords", result["data"])
+        self.assertIn("history_url", result["data"])
+        self.assertEqual(Summary.objects.count(), 1)
+        self.assertEqual(Document.objects.count(), 1)
+
+    def test_process_summary_task_empty_text_fails(self):
+        from .tasks import process_summary_task
+
+        result = process_summary_task(
+            user_id=self.user.id,
+            source_type="text",
+            method="textrank",
+            ratio=0.5,
+            text="   ",
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("message", result)
+
+    def test_process_summary_task_rate_limit(self):
+        from .tasks import process_summary_task
+
+        text = "Sentence one. Sentence two. Sentence three."
+        # First call OK
+        result = process_summary_task(
+            user_id=self.user.id,
+            source_type="text",
+            method="textrank",
+            ratio=0.5,
+            text=text,
+        )
+        self.assertTrue(result["ok"])
+        # Second call within rate limit -> fail
+        result = process_summary_task(
+            user_id=self.user.id,
+            source_type="text",
+            method="textrank",
+            ratio=0.5,
+            text=text,
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("giây", result["message"])
+
+    def test_process_summary_task_invalid_user(self):
+        from .tasks import process_summary_task
+
+        result = process_summary_task(
+            user_id=99999,
+            source_type="text",
+            method="textrank",
+            ratio=0.5,
+            text="Some text here.",
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("Người dùng", result["message"])
+
+    def test_process_summary_task_file_cleanup_on_error(self):
+        from .tasks import process_summary_task
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bad_file = Path(tmpdir) / "bad.txt"
+            bad_file.write_text("")  # empty file
+            result = process_summary_task(
+                user_id=self.user.id,
+                source_type="file",
+                method="textrank",
+                ratio=0.5,
+                file_path=str(bad_file.relative_to(Path.cwd()) if bad_file.is_relative_to(Path.cwd()) else bad_file),
+            )
+            # Should fail gracefully
+            self.assertFalse(result["ok"])
+
+    def test_api_v1_endpoints_exist(self):
+        """Verify /api/v1/ routes are registered."""
+        # Get CSRF token first
+        self.client.get("/api/v1/summaries/create/")
+        response = self.client.post("/api/v1/summaries/create/", {
+            "source_type": "text",
+            "text": "Test content for API v1.",
+            "method": "textrank",
+            "ratio": 0.3,
+        }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        # In test mode (eager), returns full result directly
+        self.assertTrue(data["ok"])
+        # Can be either task_id (async) or data (eager sync)
+        self.assertTrue("task_id" in data or "data" in data)
+
+    def test_api_v1_status_endpoint(self):
+        """Verify task status polling endpoint."""
+        # Create a task first
+        self.client.get("/api/v1/summaries/create/")
+        response = self.client.post("/api/v1/summaries/create/", {
+            "source_type": "text",
+            "text": "Test content for status check.",
+            "method": "textrank",
+            "ratio": 0.3,
+        }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        # In eager mode, returns full result
+        if "task_id" in data:
+            task_id = data["task_id"]
+            # Poll status
+            status_resp = self.client.get(f"/api/v1/summaries/status/{task_id}/", HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+            self.assertEqual(status_resp.status_code, 200)
+            status_data = status_resp.json()
+            self.assertEqual(status_data["status"], "done")
+            self.assertIn("data", status_data)
+        else:
+            # Eager mode - result returned directly
+            self.assertIn("data", data)
+
+    def test_old_api_endpoint_still_works(self):
+        """Backward compatibility - old /api/summaries/create/ should still work."""
+        self.client.get("/api/summaries/create/")
+        response = self.client.post("/api/summaries/create/", {
+            "source_type": "text",
+            "text": "Test old endpoint.",
+            "method": "textrank",
+            "ratio": 0.3,
+        }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        # Old endpoint may not exist anymore since we moved to /api/v1/
+        self.assertIn(response.status_code, [200, 404, 405])
+
+

@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <title>{{ summary.title }}</title>
+    <style>
+        @page { margin: 2cm; }
+        body { font-family: "DejaVu Sans", sans-serif; line-height: 1.6; color: #1f2937; }
+        h1 { color: #d9532f; border-bottom: 2px solid #d9532f; padding-bottom: 0.5rem; }
+        h2 { color: #374151; margin-top: 1.5rem; }
+        .meta-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .meta-table th, .meta-table td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: left; }
+        .meta-table th { background: #f3f4f6; width: 30%; }
+        .keywords { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+        .keyword-tag { background: #fef3c7; color: #92400e; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; }
+        .sentences { counter-reset: sentence; }
+        .sentence { margin: 0.5rem 0; }
+        .sentence::before { counter-increment: sentence; content: counter(sentence) ". "; font-weight: bold; color: #d9532f; }
+    </style>
+</head>
+<body>
+    <h1>{{ summary.title }}</h1>
+
+    <table class="meta-table">
+        <tr><th>Phương pháp</th><td>{{ summary.get_method_display }}</td></tr>
+        <tr><th>Ngôn ngữ</th><td>{{ summary.language }}</td></tr>
+        <tr><th>Tỉ lệ</th><td>{{ summary.ratio|mul:100 }}%</td></tr>
+        <tr><th>Nguồn</th><td>{{ summary.document.get_source_type_display }}</td></tr>
+        <tr><th>Ngày tạo</th><td>{{ summary.created_at|date:"d/m/Y H:i" }}</td></tr>
+    </table>
+
+    <h2>Nội dung tóm tắt</h2>
+    <p>{{ summary.summary_text|linebreaks }}</p>
+
+    {% if tags %}
+    <h2>Từ khóa</h2>
+    <div class="keywords">
+        {% for tag in tags %}
+        <span class="keyword-tag">{{ tag.name }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if sentences %}
+    <h2>Các câu tóm tắt</h2>
+    <div class="sentences">
+        {% for s in sentences %}
+        <p class="sentence">{{ s.sentence_text }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+</body>
+</html>

@@ -2,6 +2,8 @@ import os
 import secrets
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 ROOT_DIR = Path(__file__).resolve().parents[2]
 BACKEND_DIR = ROOT_DIR / "backend"
 FRONTEND_DIR = ROOT_DIR / "frontend"
@@ -170,11 +172,21 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 # ── Encryption (dedicated key for API key storage) ──
 API_ENCRYPTION_KEY = os.getenv("API_ENCRYPTION_KEY", "")
 API_ENCRYPTION_KEY_EXPLICIT = bool(API_ENCRYPTION_KEY)
-if not API_ENCRYPTION_KEY:
-    # Derive a stable key from SECRET_KEY so existing encrypted values survive restarts
-    import hashlib
 
-    API_ENCRYPTION_KEY = hashlib.sha256(SECRET_KEY.encode()).hexdigest()
+# Legacy key derived from SECRET_KEY (for backward compat with existing encrypted values)
+_LEGACY_API_KEY = ""
+if not API_ENCRYPTION_KEY:
+    if DEBUG:
+        # Dev: derive from SECRET_KEY for convenience
+        import hashlib
+        _LEGACY_API_KEY = hashlib.sha256(SECRET_KEY.encode()).hexdigest()[:32]
+        API_ENCRYPTION_KEY = _LEGACY_API_KEY
+    else:
+        # Production: require explicit key, fail fast
+        raise ImproperlyConfigured(
+            "API_ENCRYPTION_KEY must be set in production (DEBUG=False). "
+            "Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+        )
 
 # ── Security (hardened when DEBUG=False) ────────────
 SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000
@@ -223,6 +235,35 @@ else:
         }
     }
 SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+
+# ── Search (disable for SQLite tests) ──────────────────
+ENABLE_FULLTEXT_SEARCH = os.getenv("ENABLE_FULLTEXT_SEARCH", "true").lower() == "true"
+if os.getenv("DJANGO_TEST") == "1":
+    ENABLE_FULLTEXT_SEARCH = False
+
+# ── Celery ─────────────────────────────────────────────
+# Test mode: use eager (synchronous) execution
+if os.getenv("DJANGO_TEST") == "1":
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"
+elif redis_url:
+    CELERY_BROKER_URL = redis_url
+    CELERY_RESULT_BACKEND = redis_url
+else:
+    CELERY_BROKER_URL = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
 
 # ── Rate limiting ──────────────────────────────────
 RATE_LIMIT_SECONDS = 5

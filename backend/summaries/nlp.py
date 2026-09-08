@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time as time_module
@@ -57,6 +58,12 @@ def _ratio_to_vietnamese(ratio: float) -> str:
     return f"rút gọn còn khoảng {ratio:.0%}, giữ hầu hết thông tin"
 
 
+def _cache_key(text: str, ratio: float, language: str) -> str:
+    """Generate fixed-size cache key from text content."""
+    h = hashlib.sha256(f"{text}:{ratio}:{language}".encode()).hexdigest()
+    return h[:32]
+
+
 def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english") -> dict[str, Any]:
     try:
         from sumy.parsers.plaintext import PlaintextParser  # noqa: F401
@@ -73,13 +80,12 @@ def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english")
     if not normalized:
         raise ValueError("Nội dung văn bản đang rỗng.")
 
-    # ponytail: cache theo (chuẩn hoá, tỉ lệ, ngôn ngữ); maxsize giới hạn bộ nhớ,
-    # đổi sang Redis cache nếu tải trọng tăng.
-    return _textrank_cached(normalized, ratio, language)
+    # Cache by hash of content to avoid memory bloat from large text keys
+    return _textrank_cached(_cache_key(normalized, ratio, language), normalized, ratio, language)
 
 
-@lru_cache(maxsize=64)
-def _textrank_cached(normalized: str, ratio: float, language: str) -> dict[str, Any]:
+@lru_cache(maxsize=128)
+def _textrank_cached(cache_key: str, normalized: str, ratio: float, language: str) -> dict[str, Any]:
     from sumy.parsers.plaintext import PlaintextParser
     from sumy.summarizers.text_rank import TextRankSummarizer
 

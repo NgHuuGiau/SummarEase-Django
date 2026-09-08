@@ -23,6 +23,17 @@
             {% endif %}
         </div>
 
+        <!-- Search Form -->
+        <form method="get" class="search-form" action="{% url 'history' %}">
+            <div class="search-input-wrap">
+                <span class="search-icon">🔍</span>
+                <input type="search" name="q" value="{{ search_query }}" placeholder="Tìm kiếm trong tiêu đề, nội dung, từ khóa..." class="search-input" autocomplete="off">
+                {% if search_query %}
+                    <a href="{% url 'history' %}" class="search-clear" title="Xóa tìm kiếm">✕</a>
+                {% endif %}
+            </div>
+        </form>
+
         <div class="history-stack-list">
             {% for item in page_obj %}
                 <article class="history-list-item">
@@ -70,13 +81,13 @@
         {% if page_obj.has_other_pages %}
             <div class="pagination-wrapper">
                 {% if page_obj.has_previous %}
-                    <a href="?page=1" class="button-secondary slim">&laquo; Đầu</a>
-                    <a href="?page={{ page_obj.previous_page_number }}" class="button-secondary slim">‹ Trước</a>
+                    <a href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}" class="button-secondary slim">&laquo; Đầu</a>
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}" class="button-secondary slim">‹ Trước</a>
                 {% endif %}
                 <span class="page-indicator">Trang {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}" class="button-secondary slim">Sau ›</a>
-                    <a href="?page={{ page_obj.paginator.num_pages }}" class="button-secondary slim">Cuối &raquo;</a>
+                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}" class="button-secondary slim">Sau ›</a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}" class="button-secondary slim">Cuối &raquo;</a>
                 {% endif %}
             </div>
         {% endif %}

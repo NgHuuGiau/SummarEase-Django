@@ -59,6 +59,8 @@ def _resolve_and_validate(host: str) -> None:
 
 
 # ── Thread-safe HTTP session ────────────────────────
+import atexit
+
 _local = threading.local()
 
 
@@ -79,6 +81,17 @@ def _get_http_session() -> requests.Session:
         )
         _local.session = session
     return session
+
+
+def _close_http_session() -> None:
+    """Close thread-local HTTP session on exit."""
+    session = getattr(_local, "session", None)
+    if session:
+        session.close()
+        _local.session = None
+
+
+atexit.register(_close_http_session)
 
 
 # ── File readers ────────────────────────────────────

@@ -23,6 +23,8 @@
     const submitBtn = document.querySelector("#submit-btn");
     const btnText = submitBtn && submitBtn.querySelector(".btn-text");
     const btnSpinner = submitBtn && submitBtn.querySelector(".btn-spinner");
+    const progressBar = document.querySelector("#progress-bar");
+    const progressText = document.querySelector("#progress-text");
     const root = document.documentElement;
     const themeToggle = document.querySelector("[data-theme-toggle]");
     const themeLabel = document.querySelector("[data-theme-label]");
@@ -30,6 +32,8 @@
     const ratioSlider = document.querySelector("#ratio_slider");
     const ratioInput = document.querySelector("#ratio_input");
     const ratioValue = document.querySelector("#ratio_value");
+
+    let pollInterval = null;
 
     const errorMap = {
         text: document.querySelector("#error-text"),
@@ -110,6 +114,67 @@
         submitBtn.disabled = loading;
         if (btnText) btnText.classList.toggle("is-hidden", loading);
         if (btnSpinner) btnSpinner.classList.toggle("is-hidden", !loading);
+        const wrapper = document.querySelector("#progress-wrapper");
+        if (wrapper) wrapper.classList.toggle("is-hidden", !loading);
+    }
+
+    function updateProgress(percent, text) {
+        const bar = document.querySelector("#progress-bar .progress-fill");
+        const pText = document.querySelector("#progress-text");
+        if (bar) bar.style.width = percent + "%";
+        if (pText) pText.textContent = text;
+    }
+
+    function startPolling(taskId) {
+        if (pollInterval) clearInterval(pollInterval);
+        let progress = 0;
+        pollInterval = setInterval(async function () {
+            try {
+                const response = await fetch("/api/v1/summaries/status/" + taskId + "/", {
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                });
+                const payload = await response.json();
+                if (payload.status === "done") {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    handleResult(payload.data);
+                } else {
+                    progress = Math.min(progress + 10, 90);
+                    updateProgress(progress, "Đang xử lý... " + progress + "%");
+                }
+            } catch (e) {
+                // ignore, will retry
+            }
+        }, 1000);
+    }
+
+    function handleResult(data) {
+        if (resultTitle) resultTitle.textContent = data.title;
+        if (resultDesc) resultDesc.textContent = "Đã xử lý lúc " + data.created_at;
+        if (resultMeta) {
+            resultMeta.innerHTML = "<span class=\"badge textrank\">" + data.method + "</span>" +
+                "<span class=\"badge source-badge\">" + data.language + "</span>" +
+                "<span class=\"badge-ratio\">Tỉ lệ " + Math.round(Number(data.ratio) * 100) + "%</span>";
+        }
+        if (resultKeywords && data.keywords) {
+            resultKeywords.innerHTML = data.keywords.map(function (kw) {
+                return "<span class=\"keyword-chip\"># " + kw + "</span>";
+            }).join("");
+        }
+        if (summaryEmpty) summaryEmpty.classList.add("is-hidden");
+        if (summaryOutput) {
+            summaryOutput.innerHTML = data.highlighted_summary;
+            summaryOutput.classList.remove("is-hidden");
+        }
+        if (detailLink) {
+            detailLink.href = data.history_url;
+            detailLink.classList.remove("is-hidden");
+        }
+        if (copyBtn) copyBtn.classList.remove("is-hidden");
+        updateProgress(100, "Hoàn tất!");
+        setTimeout(function () { setLoading(false); }, 500);
+        message.textContent = "✨ Đã tạo và lưu bản tóm tắt vào hệ thống.";
+        message.style.color = "var(--success)";
     }
 
     function clearErrors() {
@@ -133,6 +198,7 @@
         event.preventDefault();
         clearErrors();
         setLoading(true);
+        updateProgress(0, "Đang gửi yêu cầu...");
 
         try {
             const formData = new FormData(form);
@@ -153,38 +219,18 @@
                     message.textContent = payload.message || "Không thể tóm tắt.";
                 }
                 message.style.color = "var(--danger)";
+                setLoading(false);
                 return;
             }
 
-            const data = payload.data;
-            if (resultTitle) resultTitle.textContent = data.title;
-            if (resultDesc) resultDesc.textContent = "Đã xử lý lúc " + data.created_at;
-            if (resultMeta) {
-                resultMeta.innerHTML = "<span class=\"badge textrank\">" + data.method + "</span>" +
-                    "<span class=\"badge source-badge\">" + data.language + "</span>" +
-                    "<span class=\"badge-ratio\">Tỉ lệ " + Math.round(Number(data.ratio) * 100) + "%</span>";
+            if (payload.task_id) {
+                startPolling(payload.task_id);
+            } else if (payload.data) {
+                handleResult(payload.data);
             }
-            if (resultKeywords && data.keywords) {
-                resultKeywords.innerHTML = data.keywords.map(function (kw) {
-                    return "<span class=\"keyword-chip\"># " + kw + "</span>";
-                }).join("");
-            }
-            if (summaryEmpty) summaryEmpty.classList.add("is-hidden");
-            if (summaryOutput) {
-                summaryOutput.innerHTML = data.highlighted_summary;
-                summaryOutput.classList.remove("is-hidden");
-            }
-            if (detailLink) {
-                detailLink.href = data.history_url;
-                detailLink.classList.remove("is-hidden");
-            }
-            if (copyBtn) copyBtn.classList.remove("is-hidden");
-            message.textContent = "✨ Đã tạo và lưu bản tóm tắt vào hệ thống.";
-            message.style.color = "var(--success)";
         } catch (error) {
             message.textContent = "Không thể kết nối tới máy chủ.";
             message.style.color = "var(--danger)";
-        } finally {
             setLoading(false);
         }
     }

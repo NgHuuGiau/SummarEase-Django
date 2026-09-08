@@ -1,6 +1,10 @@
+import os
 import time
 from pathlib import Path
 from uuid import uuid4
+
+from celery.result import AsyncResult
+from django.utils import timezone
 
 from django.conf import settings
 from django.contrib import messages
@@ -18,6 +22,11 @@ from django.urls import reverse
 from django.views import View
 from django.views.decorators.http import require_POST
 
+from .batch import create_batch_from_urls, create_batch_from_zip
+from .exports import export_summary
+from .sharing import generate_share_token, get_share_url, get_shared_summary
+from .webhooks import WebhookRegistration, trigger_webhooks
+
 from .forms import LoginForm, RegisterForm, SettingsForm, SummaryRequestForm
 from .models import (
     Document,
@@ -26,10 +35,8 @@ from .models import (
     Tag,
     _cleanup_uploaded_file,
 )
-from .nlp import gemini_summarize, textrank_summarize
-from .nlp_utils import detect_language
-from .readers import extract_text
 from .signing import decrypt_value, encrypt_value
+from .tasks import process_summary_task
 
 PAGE_SIZE = 12
 MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -188,13 +195,19 @@ class HistoryListView(LoginRequiredMixin, View):
         )
         if not request.user.is_staff:
             base = base.filter(user=request.user)
+
+        # Search query
+        search_query = request.GET.get("q", "").strip()
+        if search_query:
+            base = Summary.search(request.user, search_query)
+
         paginator = Paginator(base, PAGE_SIZE)
         page_number = request.GET.get("page", 1)
         page_obj = paginator.get_page(page_number)
         return render(
             request,
             self.template_name,
-            {"page_obj": page_obj, "is_admin_view": request.user.is_staff},
+            {"page_obj": page_obj, "is_admin_view": request.user.is_staff, "search_query": search_query},
         )
 
 
@@ -263,126 +276,212 @@ def delete_summary(request: HttpRequest, pk: int) -> HttpResponse:
 @login_required
 @require_POST
 def create_summary(request: HttpRequest) -> JsonResponse:
-    limit = getattr(settings, "RATE_LIMIT_SECONDS", 5)
-    cache_key = f"rate_limit:{request.user.id}"
-    last_call = cache.get(cache_key, 0.0)
-    now = time.time()
-    if now - last_call < limit:
-        wait = int(limit - (now - last_call))
-        return JsonResponse(
-            {"ok": False, "message": f"Vui lòng đợi {wait} giây trước khi gửi yêu cầu tiếp theo."},
-            status=429,
-        )
-    cache.set(cache_key, now, limit)
-
     form = SummaryRequestForm(request.POST, request.FILES)
     if not form.is_valid():
         return JsonResponse({"ok": False, "errors": _serialize_form_errors(form)}, status=400)
+
+    from .services import SummaryService
+    service = SummaryService(request.user)
 
     source_type = form.cleaned_data["source_type"]
     method = form.cleaned_data["method"]
     ratio = form.cleaned_data["ratio"]
 
-    source_name = ""
-    original_text = ""
-    stored_file_name = ""
-    uploaded_file = form.cleaned_data.get("upload")
+    kwargs = {}
+    if source_type == "text":
+        kwargs["text"] = form.cleaned_data["text"].strip()
+    elif source_type == "url":
+        kwargs["source_url"] = form.cleaned_data["source_url"]
+    elif source_type == "file":
+        kwargs["uploaded_file"] = form.cleaned_data.get("upload")
 
-    if uploaded_file and uploaded_file.size > MAX_FILE_SIZE:
+    result = service.create_summary(source_type, method, ratio, **kwargs)
+    status = result.pop("status", 200)
+    return JsonResponse(result, status=status)
+
+
+@login_required
+def check_task_status(request: HttpRequest, task_id: str) -> JsonResponse:
+    result = AsyncResult(task_id)
+    if result.ready():
+        return JsonResponse({"status": "done", "data": result.result})
+    return JsonResponse({"status": "pending"})
+
+
+@login_required
+def export_summary_view(request: HttpRequest, pk: int, format: str) -> HttpResponse:
+    """Export summary as PDF, DOCX, or Markdown."""
+    return export_summary(request, pk, format)
+
+
+@login_required
+@require_POST
+def batch_summarize_zip(request: HttpRequest) -> JsonResponse:
+    """Process multiple files from a ZIP archive."""
+    form = SummaryRequestForm(request.POST, request.FILES)
+    if not form.is_valid():
+        return JsonResponse({"ok": False, "errors": _serialize_form_errors(form)}, status=400)
+
+    method = form.cleaned_data["method"]
+    ratio = form.cleaned_data["ratio"]
+    uploaded_file = request.FILES.get("zip_file")
+
+    if not uploaded_file:
         return JsonResponse(
-            {"ok": False, "message": "Dung lượng tệp vượt quá 10MB. Vui lòng chọn tệp nhỏ hơn."},
-            status=400,
+            {"ok": False, "errors": {"zip_file": ["Chọn file ZIP để tải lên."]}}, status=400
         )
 
-    try:
-        if source_type == "text":
-            original_text = form.cleaned_data["text"].strip()
-            source_name = "Văn bản nhập tay"
-        elif source_type == "url":
-            source_name = form.cleaned_data["source_url"]
-            original_text = extract_text(source_name)
-        elif source_type == "file" and uploaded_file:
-            source_name = uploaded_file.name
-            temp_dir = Path(settings.MEDIA_ROOT) / "uploads"
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            temp_path = temp_dir / f"{uuid4().hex}_{uploaded_file.name}"
-            with temp_path.open("wb+") as destination:
-                for chunk in uploaded_file.chunks():
-                    destination.write(chunk)
-            original_text = extract_text(temp_path)
-            stored_file_name = str(temp_path.relative_to(settings.MEDIA_ROOT))
-        else:  # pragma: no cover - unreachable: clean() chặn file-không-upload & choice cố định
+    if method == "gemini":
+        user_api_key = ""
+        if hasattr(request.user, "setting") and request.user.setting.gemini_api_key:
+            from .signing import decrypt_value
+            user_api_key = decrypt_value(request.user.setting.gemini_api_key)
+        if not user_api_key and not getattr(settings, "GEMINI_API_KEY", ""):
             return JsonResponse(
-                {"ok": False, "message": "Không có nội dung để tóm tắt."},
+                {"ok": False, "message": "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."},
                 status=400,
             )
+    else:
+        user_api_key = ""
 
-        if not original_text.strip():
-            raise ValueError("Không thể trích xuất nội dung từ nguồn đã chọn.")
+    result = create_batch_from_zip(request.user, uploaded_file, method, ratio, user_api_key)
+    status = 200 if result.get("ok") else 400
+    return JsonResponse(result, status=status)
 
-        language = detect_language(original_text)
-        if method == "gemini":
-            user_key = decrypt_value(request.user.setting.gemini_api_key)
-            result = gemini_summarize(
-                original_text, ratio=ratio, language=language, user_api_key=user_key
+
+@login_required
+@require_POST
+def batch_summarize_urls(request: HttpRequest) -> JsonResponse:
+    """Process multiple URLs at once."""
+    import json
+
+    try:
+        data = json.loads(request.body)
+        urls = data.get("urls", [])
+        method = data.get("method", "textrank")
+        ratio = float(data.get("ratio", 0.2))
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        return JsonResponse({"ok": False, "message": "Dữ liệu không hợp lệ: " + str(exc)}, status=400)
+
+    if not urls:
+        return JsonResponse({"ok": False, "message": "Danh sách URL trống."}, status=400)
+
+    if method == "gemini":
+        user_api_key = ""
+        if hasattr(request.user, "setting") and request.user.setting.gemini_api_key:
+            from .signing import decrypt_value
+            user_api_key = decrypt_value(request.user.setting.gemini_api_key)
+        if not user_api_key and not getattr(settings, "GEMINI_API_KEY", ""):
+            return JsonResponse(
+                {"ok": False, "message": "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."},
+                status=400,
             )
+    else:
+        user_api_key = ""
+
+    result = create_batch_from_urls(request.user, urls, method, ratio, user_api_key)
+    status = 200 if result.get("ok") else 400
+    return JsonResponse(result, status=status)
+
+
+@login_required
+@require_POST
+def create_share_link(request: HttpRequest, pk: int) -> JsonResponse:
+    """Create a shareable link for a summary."""
+    summary = get_object_or_404(
+        Summary.objects.select_related("document"),
+        pk=pk,
+        user=request.user,
+    )
+    expiry_days = int(request.POST.get("expiry_days", 7))
+    token = generate_share_token(summary, expiry_days)
+    share_url = get_share_url(summary, request, expiry_days)
+    return JsonResponse({
+        "ok": True,
+        "share_url": share_url,
+        "token": token,
+        "expires_in_days": expiry_days,
+    })
+
+
+def shared_summary_view(request: HttpRequest, token: str) -> HttpResponse:
+    """Public view for shared summary (no login required)."""
+    summary = get_shared_summary(request, token)
+    return render(
+        request,
+        "summaries/shared_detail.html",
+        {"item": summary, "is_shared": True},
+    )
+
+
+@login_required
+def webhook_list(request: HttpRequest) -> HttpResponse:
+    """List and manage webhook registrations."""
+    webhooks = WebhookRegistration.objects.filter(user=request.user).order_by("-created_at")
+
+    if request.method == "POST":
+        url = request.POST.get("url", "").strip()
+        events = request.POST.getlist("events")
+        if not url:
+            messages.error(request, "URL không được để trống.")
+        elif not events:
+            messages.error(request, "Chọn ít nhất một sự kiện.")
         else:
-            result = textrank_summarize(original_text, ratio=ratio, language=language)
-
-        title = result["title"][:255]
-
-        with transaction.atomic():
-            document = Document.objects.create(
+            import secrets
+            secret = secrets.token_urlsafe(32)
+            WebhookRegistration.objects.create(
                 user=request.user,
-                source_type=source_type,
-                title=title,
-                source_name=source_name[:255],
-                uploaded_file=stored_file_name,
-                content=original_text,
+                url=url,
+                secret=secret,
+                events=events,
             )
-            summary = Summary.objects.create(
-                document=document,
-                user=request.user,
-                title=title,
-                method=method,
-                language=result["language"],
-                ratio=ratio,
-                summary_text=result["summary"],
-            )
-            tag_names = list(dict.fromkeys(kw[:100] for kw in result["keywords"]))
-            if tag_names:
-                all_tags = []
-                for name in tag_names:
-                    tag, _ = Tag.objects.get_or_create(name=name)
-                    all_tags.append(tag)
-                summary.tags.add(*all_tags)
-            SummarySentence.objects.bulk_create(
-                [
-                    SummarySentence(summary=summary, sentence_text=sentence, sentence_index=index)
-                    for index, sentence in enumerate(result["sentences"], start=1)
-                ]
-            )
+            messages.success(request, "Đã tạo webhook mới.")
+            return redirect("webhook_list")
 
-        return JsonResponse(
-            {
-                "ok": True,
-                "data": {
-                    "id": summary.id,
-                    "title": summary.title,
-                    "language": summary.language,
-                    "method": summary.method,
-                    "ratio": summary.ratio,
-                    "summary": result["summary"],
-                    "highlighted_summary": result["highlighted_summary"],
-                    "keywords": result["keywords"],
-                    "source_type": source_type,
-                    "source_name": source_name,
-                    "created_at": summary.created_at.strftime("%d/%m/%Y %H:%M"),
-                    "history_url": reverse("history_detail", kwargs={"pk": summary.id}),
-                },
-            }
-        )
-    except (OSError, ValueError, ValidationError) as exc:
-        if stored_file_name:
-            _cleanup_uploaded_file(stored_file_name)
-        return JsonResponse({"ok": False, "message": str(exc)}, status=400)
+    return render(request, "summaries/webhook_list.html", {"webhooks": webhooks})
+
+
+@login_required
+@require_POST
+def webhook_delete(request: HttpRequest, pk: int) -> HttpResponse:
+    """Delete a webhook registration."""
+    webhook = get_object_or_404(WebhookRegistration, pk=pk, user=request.user)
+    webhook.delete()
+    messages.success(request, "Đã xóa webhook.")
+    return redirect("webhook_list")
+
+
+@login_required
+@require_POST
+def webhook_test(request: HttpRequest, pk: int) -> JsonResponse:
+    """Send a test webhook."""
+    from .webhooks import WebhookPayload, _build_webhook_payload, _deliver_webhook
+
+    webhook = get_object_or_404(WebhookRegistration, pk=pk, user=request.user)
+
+    # Create a dummy summary for test
+    test_summary = Summary(
+        id=0,
+        title="Test Webhook",
+        method="textrank",
+        language="vietnamese",
+        ratio=0.3,
+        summary_text="Đây là bản tóm tắt test để kiểm tra webhook.",
+        created_at=timezone.now(),
+    )
+    test_summary.document = type('obj', (object,), {
+        'source_type': 'text',
+        'source_name': 'Test',
+    })()
+    test_summary.tags = type('obj', (object,), {
+        'values_list': lambda *a, **k: iter([]),
+    })()
+    test_summary.user = request.user
+
+    payload = _build_webhook_payload(test_summary, "summary.completed")
+    success = _deliver_webhook(webhook, payload)
+
+    return JsonResponse({
+        "ok": success,
+        "message": "Test webhook sent successfully" if success else "Failed to send test webhook",
+    })

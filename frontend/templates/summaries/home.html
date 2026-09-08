@@ -49,7 +49,7 @@
     <!-- Main Workspace -->
     <section id="workspace" class="workspace-grid">
         <!-- Compose / Input Panel -->
-        <form id="summary-form" class="panel compose-panel" method="post" enctype="multipart/form-data" action="{% url 'create_summary' %}">
+        <form id="summary-form" class="panel compose-panel" method="post" enctype="multipart/form-data" action="/api/v1/summaries/create/">
             {% csrf_token %}
             
             <div class="panel-header">
@@ -171,6 +171,10 @@
                             Đang xử lý nội dung...
                         </span>
                     </button>
+                    <div class="progress-wrapper is-hidden" id="progress-wrapper">
+                        <div class="progress-bar" id="progress-bar"><div class="progress-fill"></div></div>
+                        <span class="progress-text" id="progress-text">Đang khởi tạo...</span>
+                    </div>
                 {% else %}
                     <a class="button-primary wide lg" href="{% url 'login' %}">
                         Đăng nhập để tóm tắt tài liệu

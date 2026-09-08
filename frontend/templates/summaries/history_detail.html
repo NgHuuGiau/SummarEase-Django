@@ -77,6 +77,43 @@
                         <button type="button" class="button-secondary slim" id="copy-detail-btn" data-copy-target="detail-summary-text">
                             📋 Sao chép
                         </button>
+                        <div class="export-dropdown">
+                            <button type="button" class="button-secondary slim export-trigger" aria-label="Xuất file" aria-expanded="false">
+                                📥 Xuất
+                            </button>
+                            <div class="export-menu" role="menu">
+                                <a href="{% url 'history_export' item.id 'md' %}" class="export-item" role="menuitem">📝 Markdown (.md)</a>
+                                <a href="{% url 'history_export' item.id 'docx' %}" class="export-item" role="menuitem">📄 Word (.docx)</a>
+                                <a href="{% url 'history_export' item.id 'pdf' %}" class="export-item" role="menuitem">📕 PDF (.pdf)</a>
+                            </div>
+                        </div>
+                        {% if not is_shared %}
+                        <button type="button" class="button-secondary slim share-btn" id="share-btn" data-summary-id="{{ item.id }}">
+                            🔗 Chia sẻ
+                        </button>
+                        <div class="share-modal is-hidden" id="share-modal">
+                            <div class="modal-backdrop"></div>
+                            <div class="modal-content">
+                                <h4>Chia sẻ bản tóm tắt</h4>
+                                <p>Tạo liên kết công khai để chia sẻ với người khác (không cần đăng nhập).</p>
+                                <div class="form-group">
+                                    <label for="expiry-days">Hết hạn sau (ngày)</label>
+                                    <input type="number" id="expiry-days" value="7" min="1" max="365" class="form-input">
+                                </div>
+                                <div class="modal-actions">
+                                    <button type="button" class="button-secondary slim" id="cancel-share">Hủy</button>
+                                    <button type="button" class="button-primary" id="confirm-share">Tạo liên kết</button>
+                                </div>
+                                <div class="share-result is-hidden" id="share-result">
+                                    <label>Liên kết chia sẻ:</label>
+                                    <div class="share-url-wrap">
+                                        <input type="text" id="share-url-input" readonly class="form-input">
+                                        <button type="button" class="button-secondary slim copy-share-url" aria-label="Sao chép liên kết">📋</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="comparative-content-box summary-box" id="detail-summary-text">
@@ -109,5 +146,129 @@ if (copyBtn) {
         });
     });
 }
+
+item.addEventListener("keydown", function (e) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                items[(index + 1) % items.length].focus();
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                items[(index - 1 + items.length) % items.length].focus();
+            } else if (e.key === "Escape") {
+                trigger.setAttribute("aria-expanded", "false");
+                trigger.focus();
+            }
+        });
+    });
+});
+
+// Share modal
+const shareBtn = document.getElementById("share-btn");
+const shareModal = document.getElementById("share-modal");
+const cancelShare = document.getElementById("cancel-share");
+const confirmShare = document.getElementById("confirm-share");
+const shareResult = document.getElementById("share-result");
+const shareUrlInput = document.getElementById("share-url-input");
+const copyShareUrl = document.querySelector(".copy-share-url");
+const expiryDaysInput = document.getElementById("expiry-days");
+
+if (shareBtn && shareModal) {
+    shareBtn.addEventListener("click", function () {
+        shareModal.classList.remove("is-hidden");
+        shareResult.classList.add("is-hidden");
+        expiryDaysInput.value = "7";
+    });
+
+    function closeShareModal() {
+        shareModal.classList.add("is-hidden");
+    }
+
+    cancelShare.addEventListener("click", closeShareModal);
+    shareModal.querySelector(".modal-backdrop").addEventListener("click", closeShareModal);
+
+    confirmShare.addEventListener("click", async function () {
+        const summaryId = shareBtn.dataset.summaryId;
+        const expiryDays = parseInt(expiryDaysInput.value) || 7;
+        confirmShare.disabled = true;
+        confirmShare.textContent = "Đang tạo...";
+
+        try {
+            const response = await fetch(`/history/${summaryId}/share/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                body: new URLSearchParams({ expiry_days: expiryDays }),
+            });
+            const data = await response.json();
+            if (data.ok) {
+                shareUrlInput.value = data.share_url;
+                shareResult.classList.remove("is-hidden");
+            } else {
+                alert("Lỗi: " + (data.message || "Không thể tạo liên kết"));
+            }
+        } catch (e) {
+            alert("Không thể kết nối tới máy chủ.");
+        } finally {
+            confirmShare.disabled = false;
+            confirmShare.textContent = "Tạo liên kết";
+        }
+    });
+
+    copyShareUrl.addEventListener("click", function () {
+        const url = shareUrlInput.value;
+        if (!url) return;
+        navigator.clipboard.writeText(url).then(function () {
+            copyShareUrl.textContent = "✓";
+            setTimeout(function () { copyShareUrl.textContent = "📋"; }, 1600);
+        });
+    });
+}
+
+// Export dropdown keyboard support
+document.querySelectorAll(".export-dropdown").forEach(function (dropdown) {
+    const trigger = dropdown.querySelector(".export-trigger");
+    const menu = dropdown.querySelector(".export-menu");
+    if (!trigger || !menu) return;
+
+    trigger.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const expanded = trigger.getAttribute("aria-expanded") === "true";
+        trigger.setAttribute("aria-expanded", !expanded);
+    });
+
+    // Close on outside click
+    document.addEventListener("click", function () {
+        trigger.setAttribute("aria-expanded", "false");
+    });
+
+    // Keyboard navigation
+    const items = menu.querySelectorAll(".export-item");
+    trigger.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            trigger.click();
+        } else if (e.key === "Escape") {
+            trigger.setAttribute("aria-expanded", "false");
+            trigger.focus();
+        }
+    });
+
+    items.forEach(function (item, index) {
+        item.addEventListener("keydown", function (e) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                items[(index + 1) % items.length].focus();
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                items[(index - 1 + items.length) % items.length].focus();
+            } else if (e.key === "Escape") {
+                trigger.setAttribute("aria-expanded", "false");
+                trigger.focus();
+            }
+        });
+    });
+});
 </script>
 {% endblock %}

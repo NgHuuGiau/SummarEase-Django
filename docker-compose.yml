@@ -1,4 +1,17 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   web:
     build: .
     ports:
@@ -8,6 +21,7 @@ services:
     environment:
       - DJANGO_DEBUG=False
       - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - media_data:/app/backend/media
       - sqlite_data:/app/backend/sql
@@ -16,7 +30,27 @@ services:
              python manage.py setup &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  celery:
+    build: .
+    env_file:
+      - backend/.env
+    environment:
+      - DJANGO_DEBUG=False
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - media_data:/app/backend/media
+      - sqlite_data:/app/backend/sql
+    command: celery -A config worker -l INFO --concurrency=2
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
 
 volumes:
   media_data:
   sqlite_data:
+  redis_data:
