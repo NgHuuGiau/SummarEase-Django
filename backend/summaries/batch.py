@@ -4,22 +4,17 @@ from __future__ import annotations
 
 import logging
 import zipfile
-from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
-from celery import group
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.db import transaction
 
-from .models import Document, Summary, SummarySentence, Tag, _cleanup_uploaded_file
+from .models import Document, Summary, SummarySentence, Tag
 from .nlp import gemini_summarize, textrank_summarize
 from .nlp_utils import detect_language
 from .readers import extract_text
-from .signing import decrypt_value, encrypt_value
-from .tasks import process_summary_task
 
 logger = logging.getLogger(__name__)
 
