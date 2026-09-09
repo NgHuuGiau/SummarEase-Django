@@ -1,8 +1,8 @@
 import os
+import time
+
 import pytest
 import requests
-import time
-from playwright.sync_api import Playwright, APIRequestContext
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 

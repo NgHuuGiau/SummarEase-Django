@@ -35,19 +35,19 @@ def generate_share_token(summary: Summary, expiry_days: int = DEFAULT_EXPIRY_DAY
         "exp": int((timezone.now() + timedelta(days=expiry_days)).timestamp()),
         "iat": int(timezone.now().timestamp()),
     }
-    
+
     # Create token: base64(payload) + "." + base64(signature)
     payload_bytes = base64.urlsafe_b64encode(
         str(payload).encode()
     ).rstrip(b"=")
-    
+
     signature = hmac.new(
         SHARE_SECRET_KEY.encode(),
         payload_bytes,
         hashlib.sha256
     ).digest()
     signature_b64 = base64.urlsafe_b64encode(signature).rstrip(b"=")
-    
+
     return f"{payload_bytes.decode()}.{signature_b64.decode()}"
 
 
@@ -65,7 +65,7 @@ def verify_share_token(token: str) -> dict | None:
         hashlib.sha256
     ).digest()
     expected_sig_b64 = base64.urlsafe_b64encode(expected_sig).rstrip(b"=")
-    
+
     if not hmac.compare_digest(signature_b64, expected_sig_b64):
         return None
 

@@ -9,7 +9,6 @@ from pathlib import Path
 from celery import shared_task
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.db import transaction
 
 from .models import Document, Summary, SummarySentence, Tag, _cleanup_uploaded_file
@@ -22,10 +21,6 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
-
-
-def _get_rate_limit():
-    return getattr(settings, "RATE_LIMIT_SECONDS", 5)
 
 
 def _schedule_file_cleanup(file_path: str) -> None:
@@ -52,16 +47,6 @@ def process_summary_task(
         "process_summary_task started: user=%d, source=%s, method=%s, ratio=%.2f",
         user_id, source_type, method, ratio
     )
-
-    # Rate limit check
-    rate_limit = _get_rate_limit()
-    cache_key = f"rate_limit:{user_id}"
-    last_call = cache.get(cache_key, 0.0)
-    now = time.time()
-    if now - last_call < rate_limit:
-        wait = int(rate_limit - (now - last_call))
-        return {"ok": False, "message": f"Vui lòng đợi {wait} giây trước khi gửi yêu cầu tiếp theo."}
-    cache.set(cache_key, now, rate_limit)
 
     try:
         user = User.objects.get(pk=user_id)

@@ -170,7 +170,7 @@ def _deliver_webhook(webhook: WebhookRegistration, payload: WebhookPayload) -> b
 def trigger_webhooks(user, summary: Summary, event: str) -> None:
     """Trigger all active webhooks for a user for the given event."""
     from django.db import connection
-    
+
     # SQLite doesn't support __contains on JSONField, use raw SQL for cross-db compatibility
     if connection.vendor == 'sqlite':
         webhooks = WebhookRegistration.objects.filter(user=user, is_active=True)
@@ -179,7 +179,7 @@ def trigger_webhooks(user, summary: Summary, event: str) -> None:
         webhooks = WebhookRegistration.objects.filter(
             user=user, is_active=True, events__contains=[event]
         )
-    
+
     if not webhooks:
         return
 

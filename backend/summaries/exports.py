@@ -8,11 +8,17 @@ from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 
-try:
-    from weasyprint import HTML
-    HAS_WEASYPRINT = True
-except ImportError:
-    HAS_WEASYPRINT = False
+HAS_WEASYPRINT = False
+
+def _check_weasyprint():
+    global HAS_WEASYPRINT
+    if not HAS_WEASYPRINT:
+        try:
+            from weasyprint import HTML
+            HAS_WEASYPRINT = True
+        except (ImportError, OSError):
+            HAS_WEASYPRINT = False
+    return HAS_WEASYPRINT
 
 try:
     from docx import Document as DocxDocument
@@ -100,8 +106,10 @@ def export_docx(summary) -> HttpResponse:
 
 def export_pdf(summary) -> HttpResponse:
     """Export summary as PDF file using WeasyPrint."""
-    if not HAS_WEASYPRINT:
-        return HttpResponse("Thiếu thư viện weasyprint", status=500)
+    if not _check_weasyprint():
+        return HttpResponse("Thiếu thư viện weasyprint hoặc GTK runtime", status=500)
+
+    from weasyprint import HTML
 
     html_content = render_to_string("summaries/export_pdf.html", {
         "summary": summary,
@@ -120,8 +128,9 @@ def export_pdf(summary) -> HttpResponse:
 
 def export_summary(request, pk: int, format: str):
     """Main export view - routes to appropriate format."""
-    from .models import Summary
     from django.shortcuts import get_object_or_404
+
+    from .models import Summary
 
     summary = get_object_or_404(
         Summary.objects.select_related("document").prefetch_related("tags", "sentences"),

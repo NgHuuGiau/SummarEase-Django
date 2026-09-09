@@ -19,8 +19,8 @@ from .views import (
     home,
     settings_view,
     shared_summary_view,
-    webhook_list,
     webhook_delete,
+    webhook_list,
     webhook_test,
 )
 

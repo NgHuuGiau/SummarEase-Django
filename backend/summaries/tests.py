@@ -1025,6 +1025,8 @@ class SuperuserRoleEvolutionTests(TestCase):
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp(), RATE_LIMIT_SECONDS=0)
 class FileUploadTests(TestCase):
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.user = User.objects.create_user(username="uploader", password="secret123")
 
         self.client.login(username="uploader", password="secret123")
@@ -2386,24 +2388,25 @@ class CeleryTaskIntegrationTests(TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("message", result)
 
-    def test_process_summary_task_rate_limit(self):
-        from .tasks import process_summary_task
+    def test_service_rate_limit(self):
+        """Test rate limiting at service level (called by task in eager mode)."""
         from django.conf import settings
+
+        from .services import SummaryService
         settings.RATE_LIMIT_SECONDS = 5  # Re-enable rate limiting for this test
 
+        service = SummaryService(self.user)
         text = "Sentence one. Sentence two. Sentence three."
         # First call OK
-        result = process_summary_task(
-            user_id=self.user.id,
+        result = service.create_summary(
             source_type="text",
             method="textrank",
             ratio=0.5,
             text=text,
         )
-        self.assertTrue(result["ok"])
+        self.assertTrue(result.get("ok", result.get("data", {}).get("ok", False)))
         # Second call within rate limit -> fail
-        result = process_summary_task(
-            user_id=self.user.id,
+        result = service.create_summary(
             source_type="text",
             method="textrank",
             ratio=0.5,
@@ -2426,9 +2429,10 @@ class CeleryTaskIntegrationTests(TestCase):
         self.assertIn("Người dùng", result["message"])
 
     def test_process_summary_task_file_cleanup_on_error(self):
-        from .tasks import process_summary_task
         import tempfile
         from pathlib import Path
+
+        from .tasks import process_summary_task
 
         with tempfile.TemporaryDirectory() as tmpdir:
             bad_file = Path(tmpdir) / "bad.txt"

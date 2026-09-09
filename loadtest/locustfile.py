@@ -8,12 +8,11 @@ Or headless:
     locust -f loadtest/locustfile.py --host=http://localhost:8000 --headless -u 10 -r 2 -t 60s --html=report.html
 """
 
-import os
 import json
+import os
 import random
-import string
-from locust import HttpUser, task, between, events
 
+from locust import HttpUser, between, events, task
 
 BASE_URL = os.getenv("LOCUST_HOST", "http://localhost:8000")
 
@@ -269,7 +268,7 @@ def on_test_start(environment, **kwargs):
 
 @events.test_stop.add_listener
 def on_test_stop(environment, **kwargs):
-    print(f"\nLoad test completed")
+    print("\nLoad test completed")
     stats = environment.stats
     print(f"Total Requests: {stats.total.num_requests}")
     print(f"Failures: {stats.total.num_failures}")

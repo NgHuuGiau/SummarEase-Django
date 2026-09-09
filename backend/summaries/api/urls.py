@@ -1,7 +1,6 @@
 """API v1 URL routes."""
 
 from django.urls import path
-
 from summaries.views import check_task_status, create_summary
 
 app_name = "v1"

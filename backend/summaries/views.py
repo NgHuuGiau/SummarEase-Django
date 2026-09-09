@@ -1,8 +1,6 @@
 from pathlib import Path
 
 from celery.result import AsyncResult
-from django.utils import timezone
-
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
@@ -14,16 +12,16 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_POST
 
 from .batch import create_batch_from_urls, create_batch_from_zip
 from .exports import export_summary
-from .sharing import generate_share_token, get_share_url, get_shared_summary
-from .webhooks import WebhookRegistration
-
 from .forms import LoginForm, RegisterForm, SettingsForm, SummaryRequestForm
 from .models import Summary
+from .sharing import generate_share_token, get_share_url, get_shared_summary
+from .webhooks import WebhookRegistration
 
 PAGE_SIZE = 12
 MAX_FILE_SIZE = 10 * 1024 * 1024
