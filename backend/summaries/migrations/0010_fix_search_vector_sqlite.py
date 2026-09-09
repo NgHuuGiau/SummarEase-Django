@@ -1,5 +1,4 @@
 # Generated manually for SQLite compatibility
-from django.conf import settings
 from django.db import migrations, models
 
 

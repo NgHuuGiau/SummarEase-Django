@@ -10,7 +10,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from .models import _cleanup_uploaded_file
-from .signing import decrypt_value, encrypt_value
+from .signing import decrypt_value
 from .tasks import process_summary_task
 
 MAX_FILE_SIZE = 10 * 1024 * 1024

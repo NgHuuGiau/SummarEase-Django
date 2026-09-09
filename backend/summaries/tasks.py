@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from uuid import uuid4
 
 from celery import shared_task
 from django.conf import settings
@@ -17,14 +16,16 @@ from .models import Document, Summary, SummarySentence, Tag, _cleanup_uploaded_f
 from .nlp import gemini_summarize, textrank_summarize
 from .nlp_utils import detect_language
 from .readers import extract_text
-from .signing import decrypt_value, encrypt_value
 
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
-RATE_LIMIT_SECONDS = getattr(settings, "RATE_LIMIT_SECONDS", 5)
+
+
+def _get_rate_limit():
+    return getattr(settings, "RATE_LIMIT_SECONDS", 5)
 
 
 def _schedule_file_cleanup(file_path: str) -> None:
@@ -53,13 +54,14 @@ def process_summary_task(
     )
 
     # Rate limit check
+    rate_limit = _get_rate_limit()
     cache_key = f"rate_limit:{user_id}"
     last_call = cache.get(cache_key, 0.0)
     now = time.time()
-    if now - last_call < RATE_LIMIT_SECONDS:
-        wait = int(RATE_LIMIT_SECONDS - (now - last_call))
+    if now - last_call < rate_limit:
+        wait = int(rate_limit - (now - last_call))
         return {"ok": False, "message": f"Vui lòng đợi {wait} giây trước khi gửi yêu cầu tiếp theo."}
-    cache.set(cache_key, now, RATE_LIMIT_SECONDS)
+    cache.set(cache_key, now, rate_limit)
 
     try:
         user = User.objects.get(pk=user_id)

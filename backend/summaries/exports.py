@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import io
-from datetime import datetime
-from pathlib import Path
 
 from django.conf import settings
-from django.http import FileResponse, HttpResponse
+from django.http import HttpResponse
 from django.template.loader import render_to_string
 
 try:

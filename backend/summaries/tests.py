@@ -1944,7 +1944,7 @@ class ReaderCoverageTests(TestCase):
         session = _get_http_session()
         self.assertIs(session, _get_http_session())
         self.assertIn("User-Agent", session.headers)
-        _local = getattr(_get_http_session, "__self__", None)
+        _ = getattr(_get_http_session, "__self__", None)
 
     def test_extract_text_from_url_requests_missing(self):
         from .readers import extract_text_from_url
@@ -2340,12 +2340,15 @@ class APIDocsTests(TestCase):
 # ──────────────────────────────────────────────
 
 
-@override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True, RATE_LIMIT_SECONDS=0)
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
 class CeleryTaskIntegrationTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="celery-test", password="secret123")
         self.client.login(username="celery-test", password="secret123")
         UserSetting.objects.filter(user=self.user).update(gemini_api_key="")
+        # Disable rate limiting for API tests
+        from django.conf import settings
+        settings.RATE_LIMIT_SECONDS = 0
 
     def tearDown(self):
         cache.clear()
@@ -2385,6 +2388,8 @@ class CeleryTaskIntegrationTests(TestCase):
 
     def test_process_summary_task_rate_limit(self):
         from .tasks import process_summary_task
+        from django.conf import settings
+        settings.RATE_LIMIT_SECONDS = 5  # Re-enable rate limiting for this test
 
         text = "Sentence one. Sentence two. Sentence three."
         # First call OK

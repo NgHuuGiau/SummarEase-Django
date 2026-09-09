@@ -1,7 +1,4 @@
-import os
-import time
 from pathlib import Path
-from uuid import uuid4
 
 from celery.result import AsyncResult
 from django.utils import timezone
@@ -15,28 +12,18 @@ from django.contrib.auth.views import LoginView
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db import transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.views import View
 from django.views.decorators.http import require_POST
 
 from .batch import create_batch_from_urls, create_batch_from_zip
 from .exports import export_summary
 from .sharing import generate_share_token, get_share_url, get_shared_summary
-from .webhooks import WebhookRegistration, trigger_webhooks
+from .webhooks import WebhookRegistration
 
 from .forms import LoginForm, RegisterForm, SettingsForm, SummaryRequestForm
-from .models import (
-    Document,
-    Summary,
-    SummarySentence,
-    Tag,
-    _cleanup_uploaded_file,
-)
-from .signing import decrypt_value, encrypt_value
-from .tasks import process_summary_task
+from .models import Summary
 
 PAGE_SIZE = 12
 MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -235,6 +222,7 @@ def settings_view(request: HttpRequest) -> HttpResponse:
         if form.is_valid():
             setting.default_summary_ratio = form.cleaned_data["default_summary_ratio"]
             api_key = form.cleaned_data.get("gemini_api_key", "").strip()
+            from .signing import encrypt_value
             setting.gemini_api_key = encrypt_value(api_key) if api_key else ""
             setting.save(update_fields=["default_summary_ratio", "gemini_api_key"])
             messages.success(request, "Đã lưu cài đặt.")
@@ -243,9 +231,7 @@ def settings_view(request: HttpRequest) -> HttpResponse:
         form = SettingsForm(
             initial={
                 "default_summary_ratio": setting.default_summary_ratio,
-                "gemini_api_key": decrypt_value(setting.gemini_api_key)
-                if setting.gemini_api_key
-                else "",
+                "gemini_api_key": "",
             }
         )
 
@@ -455,7 +441,7 @@ def webhook_delete(request: HttpRequest, pk: int) -> HttpResponse:
 @require_POST
 def webhook_test(request: HttpRequest, pk: int) -> JsonResponse:
     """Send a test webhook."""
-    from .webhooks import WebhookPayload, _build_webhook_payload, _deliver_webhook
+    from .webhooks import _build_webhook_payload, _deliver_webhook
 
     webhook = get_object_or_404(WebhookRegistration, pk=pk, user=request.user)
 

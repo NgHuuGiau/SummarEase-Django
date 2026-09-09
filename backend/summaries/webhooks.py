@@ -9,10 +9,8 @@ import logging
 import time
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlparse
 
 import requests
-from django.conf import settings
 from django.core.cache import cache
 from django.db import models
 from django.db.models.signals import post_save
