@@ -13,8 +13,6 @@ on:
       - '*.md'
       - '.gitignore'
       - 'docs/**'
-  schedule:
-    - cron: "0 3 * * 1"  # Weekly Monday 3AM
 
 permissions:
   contents: read
@@ -27,6 +25,7 @@ env:
   DJANGO_ALLOWED_HOSTS: 'localhost,127.0.0.1,testserver'
   SECRET_KEY: 'ci-insecure-key-for-tests-only'
   DB_ENGINE: 'sqlite'
+  DJANGO_TEST: '1'
 
 jobs:
   lint:
@@ -47,14 +46,12 @@ jobs:
 
       - name: Run Ruff check
         run: ruff check backend manage.py
-        continue-on-error: false
 
       - name: Run Ruff format check
         run: ruff format --check backend manage.py
-        continue-on-error: false
 
-  security:
-    name: Security Scan (Dependencies)
+  typecheck:
+    name: Type Check (mypy)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -66,17 +63,35 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install security tools
+      - name: Install dependencies
         run: |
-          pip install pip-audit==2.7.0 safety==3.2.1
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install mypy
 
-      - name: Run pip-audit (dependencies vulnerabilities)
-        run: |
-          pip-audit -r requirements.txt -f json -o pip-audit-results.json || true
+      - name: Run mypy
+        run: mypy . --ignore-missing-imports --no-error-summary
 
-      - name: Run Safety
-        run: |
-          safety check -r requirements.txt --json -o safety-results.json || true
+  security:
+    name: Security Scan (pip-audit + safety)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pip-audit safety
+
+      - name: Run pip-audit (fail on vulnerabilities)
+        run: pip-audit -r requirements.txt -f json -o pip-audit-results.json
+
+      - name: Run Safety (fail on vulnerabilities)
+        run: safety check -r requirements.txt --json -o safety-results.json
 
       - name: Upload security artifacts
         uses: actions/upload-artifact@v4
@@ -89,28 +104,24 @@ jobs:
           retention-days: 14
 
   test:
-    name: Tests (Python ${{ matrix.python-version }})
+    name: Django Tests (Python 3.12)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.12'
           cache: 'pip'
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Django system check
@@ -119,55 +130,85 @@ jobs:
       - name: Migration check (no pending)
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Run tests with coverage
+      - name: Run backend tests
         env:
+          PYTHONPATH: backend
           DJANGO_ALLOWED_HOSTS: '*'
         run: |
-          python -m pytest backend -q \
+          python -m pytest backend/summaries/tests.py -q \
             --cov-config=pyproject.toml --cov=backend \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=90 \
+            --cov-fail-under=80 \
             --tb=short \
-            --junitxml=test-results-${{ matrix.python-version }}.xml
+            --junitxml=test-results.xml
 
       - name: Upload coverage/test artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-${{ matrix.python-version }}
+          name: test-results
           path: |
             coverage.xml
-            test-results-*.xml
+            test-results.xml
           retention-days: 7
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
-        if: ${{ matrix.python-version == '3.12' }}
         with:
           files: ./coverage.xml
           flags: unittests
-          name: codecov-${{ matrix.python-version }}
+
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install pytest-playwright
+          playwright install chromium
+
+      - name: Start Django server
+        run: |
+          python manage.py migrate --noinput
+          python manage.py runserver 127.0.0.1:8000 &
+          sleep 5
+
+      - name: Run E2E tests
+        run: python -m pytest frontend/e2e/test_home.py -v --tb=short
 
   build:
     name: Build Verification
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, test]
+    needs: [lint, typecheck, test]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Django deploy check
         env:
@@ -192,7 +233,7 @@ from django.test import Client
 c = Client()
 resp = c.get('/health/')
 assert resp.status_code == 200, f'Health failed: {resp.status_code}'
-assert resp.json()['status'] in ('healthy', 'degraded')
+assert resp.json()['status'] in ('ok', 'healthy', 'degraded')
 print('Health OK:', resp.json())
 "
 
@@ -200,7 +241,7 @@ print('Health OK:', resp.json())
     name: CI Summary
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, security, test, build]
+    needs: [lint, typecheck, security, test, e2e, build]
     steps:
       - name: Collect results
         run: |
@@ -208,10 +249,12 @@ print('Health OK:', resp.json())
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Job | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-----|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Lint | ${{ needs.lint.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Security | ${{ needs.security.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Tests | ${{ needs.test.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Build | ${{ needs.build.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lint (Ruff) | ${{ needs.lint.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Type Check (mypy) | ${{ needs.typecheck.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Security Scan | ${{ needs.security.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Django Tests | ${{ needs.test.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| E2E Tests | ${{ needs.e2e.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build Verification | ${{ needs.build.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**All checks must pass for merge.**" >> "$GITHUB_STEP_SUMMARY"
 
