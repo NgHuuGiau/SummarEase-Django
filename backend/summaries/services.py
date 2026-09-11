@@ -111,15 +111,15 @@ class SummaryService:
         }
 
     def create_summary(self, source_type: str, method: str, ratio: float, **kwargs):
-        """Create summary (async in production, sync in test)."""
+        """Create summary (async in production, sync in test/debug)."""
         validation = self.validate_and_prepare(source_type, method, ratio, **kwargs)
         if not validation["ok"]:
             return validation
 
         task_args = validation["task_args"]
 
-        # Test mode: run synchronously
-        if os.getenv("DJANGO_TEST") == "1":
+        # Test/debug mode: run synchronously
+        if os.getenv("DJANGO_TEST") == "1" or getattr(settings, "DEBUG", False):
             result = process_summary_task.apply(args=(), kwargs=task_args)
             task_result = result.result
             status = 200 if task_result.get("ok") else 400

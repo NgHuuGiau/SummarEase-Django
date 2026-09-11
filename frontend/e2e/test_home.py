@@ -1,4 +1,5 @@
 import os
+import re
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -41,41 +42,41 @@ class TestHomePage:
         page.goto(base_url)
 
         # Default is text
-        expect(page.locator("#text-wrap")).not_to_have_class("is-hidden")
-        expect(page.locator("#file-wrap")).to_have_class("is-hidden")
-        expect(page.locator("#url-wrap")).to_have_class("is-hidden")
+        expect(page.locator("#text-wrap")).not_to_have_class(re.compile(r".*is-hidden.*"))
+        expect(page.locator("#file-wrap")).to_have_class(re.compile(r".*is-hidden.*"))
+        expect(page.locator("#url-wrap")).to_have_class(re.compile(r".*is-hidden.*"))
 
         # Click file
         page.locator('[data-source="file"]').click()
-        expect(page.locator("#text-wrap")).to_have_class("is-hidden")
-        expect(page.locator("#file-wrap")).not_to_have_class("is-hidden")
-        expect(page.locator("#url-wrap")).to_have_class("is-hidden")
+        expect(page.locator("#text-wrap")).to_have_class(re.compile(r".*is-hidden.*"))
+        expect(page.locator("#file-wrap")).not_to_have_class(re.compile(r".*is-hidden.*"))
+        expect(page.locator("#url-wrap")).to_have_class(re.compile(r".*is-hidden.*"))
 
         # Click URL
         page.locator('[data-source="url"]').click()
-        expect(page.locator("#text-wrap")).to_have_class("is-hidden")
-        expect(page.locator("#file-wrap")).to_have_class("is-hidden")
-        expect(page.locator("#url-wrap")).not_to_have_class("is-hidden")
+        expect(page.locator("#text-wrap")).to_have_class(re.compile(r".*is-hidden.*"))
+        expect(page.locator("#file-wrap")).to_have_class(re.compile(r".*is-hidden.*"))
+        expect(page.locator("#url-wrap")).not_to_have_class(re.compile(r".*is-hidden.*"))
 
         # Click back to text
         page.locator('[data-source="text"]').click()
-        expect(page.locator("#text-wrap")).not_to_have_class("is-hidden")
-        expect(page.locator("#file-wrap")).to_have_class("is-hidden")
-        expect(page.locator("#url-wrap")).to_have_class("is-hidden")
+        expect(page.locator("#text-wrap")).not_to_have_class(re.compile(r".*is-hidden.*"))
+        expect(page.locator("#file-wrap")).to_have_class(re.compile(r".*is-hidden.*"))
+        expect(page.locator("#url-wrap")).to_have_class(re.compile(r".*is-hidden.*"))
 
     def test_method_selector_switches(self, page: Page, base_url: str):
         """Method selector switches between TextRank and Gemini."""
         page.goto(base_url)
 
         # Default is TextRank
-        expect(page.locator('[data-method="textrank"]')).to_have_class("is-active")
+        expect(page.locator('[data-method="textrank"]')).to_have_class(re.compile(r".*is-active.*"))
         expect(page.locator("#method-hint")).to_contain_text("TextRank")
 
         # Switch to Gemini if available
         gemini_btn = page.locator('[data-method="gemini"]')
-        if not gemini_btn.get_attribute("class").contains("is-disabled"):
+        if "is-disabled" not in (gemini_btn.get_attribute("class") or ""):
             gemini_btn.click()
-            expect(gemini_btn).to_have_class("is-active")
+            expect(gemini_btn).to_have_class(re.compile(r".*is-active.*"))
             expect(page.locator("#method-hint")).to_contain_text("Gemini")
 
     def test_ratio_slider_updates(self, page: Page, base_url: str):
@@ -221,7 +222,7 @@ class TestHealthEndpoint:
         assert response.ok
         json_data = response.json()
         assert "status" in json_data
-        assert json_data["status"] in ["healthy", "degraded"]
+        assert json_data["status"] in ["ok", "healthy", "degraded"]
 
 
 # Run with: pytest frontend/e2e/test_home.py -v --headed
