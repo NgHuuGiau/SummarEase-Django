@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import ipaddress
 import logging
 import socket
@@ -51,7 +52,8 @@ def _resolve_and_validate(host: str) -> None:
     except socket.gaierror as exc:
         raise ValueError(f"Không thể phân giải hostname: {host}") from exc
     for _family, _type, _proto, _canonname, sockaddr in infos:
-        if _is_private_ip(sockaddr[0]):
+        addr = str(sockaddr[0])
+        if _is_private_ip(addr):
             raise ValueError(
                 f"URL trỏ tới địa chỉ nội bộ ({sockaddr[0]}). "
                 "Không cho phép truy cập mạng nội bộ."
@@ -59,7 +61,6 @@ def _resolve_and_validate(host: str) -> None:
 
 
 # ── Thread-safe HTTP session ────────────────────────
-import atexit
 
 _local = threading.local()
 

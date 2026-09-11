@@ -2358,7 +2358,10 @@ class CeleryTaskIntegrationTests(TestCase):
     def test_process_summary_task_textrank_success(self):
         from .tasks import process_summary_task
 
-        text = "First sentence here. Second sentence follows. Third one is final. Fourth sentence added."
+        text = (
+            "First sentence here. Second sentence follows. "
+            "Third one is final. Fourth sentence added."
+        )
         result = process_summary_task(
             user_id=self.user.id,
             source_type="text",
@@ -2442,7 +2445,11 @@ class CeleryTaskIntegrationTests(TestCase):
                 source_type="file",
                 method="textrank",
                 ratio=0.5,
-                file_path=str(bad_file.relative_to(Path.cwd()) if bad_file.is_relative_to(Path.cwd()) else bad_file),
+                file_path=str(
+                    bad_file.relative_to(Path.cwd())
+                    if bad_file.is_relative_to(Path.cwd())
+                    else bad_file
+                ),
             )
             # Should fail gracefully
             self.assertFalse(result["ok"])
@@ -2480,7 +2487,10 @@ class CeleryTaskIntegrationTests(TestCase):
         if "task_id" in data:
             task_id = data["task_id"]
             # Poll status
-            status_resp = self.client.get(f"/api/v1/summaries/status/{task_id}/", HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+            status_resp = self.client.get(
+                f"/api/v1/summaries/status/{task_id}/",
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
             self.assertEqual(status_resp.status_code, 200)
             status_data = status_resp.json()
             self.assertEqual(status_data["status"], "done")

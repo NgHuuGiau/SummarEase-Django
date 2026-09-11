@@ -43,7 +43,8 @@ class SummaryService:
         now = time.time()
         if now - last_call < RATE_LIMIT_SECONDS:
             wait = int(RATE_LIMIT_SECONDS - (now - last_call))
-            return {"ok": False, "message": f"Vui lòng đợi {wait} giây trước khi gửi yêu cầu tiếp theo.", "status": 429}
+            msg = f"Vui lòng đợi {wait} giây trước khi gửi yêu cầu tiếp theo."
+            return {"ok": False, "message": msg, "status": 429}
         cache.set(cache_key, now, RATE_LIMIT_SECONDS)
 
         file_path = ""
@@ -60,18 +61,21 @@ class SummaryService:
             if not uploaded_file:
                 errors["upload"] = ["Chọn tệp để tóm tắt."]
             elif uploaded_file.size > MAX_FILE_SIZE:
-                return {"ok": False, "message": "Dung lượng tệp vượt quá 10MB. Vui lòng chọn tệp nhỏ hơn.", "status": 400}
+                msg = "Dung lượng tệp vượt quá 10MB. Vui lòng chọn tệp nhỏ hơn."
+                return {"ok": False, "message": msg, "status": 400}
             else:
                 file_ext = Path(uploaded_file.name).suffix.lower()
                 if file_ext not in ALLOWED_EXTS:
-                    return {"ok": False, "message": f"Định dạng tệp không được hỗ trợ: {file_ext}", "status": 400}
+                    msg = f"Định dạng tệp không được hỗ trợ: {file_ext}"
+                    return {"ok": False, "message": msg, "status": 400}
                 # Check content
                 first_chunk = b""
                 for chunk in uploaded_file.chunks():
                     first_chunk = chunk
                     break
                 if not first_chunk.strip():
-                    return {"ok": False, "message": "Không thể trích xuất nội dung từ nguồn đã chọn.", "status": 400}
+                    msg = "Không thể trích xuất nội dung từ nguồn đã chọn."
+                    return {"ok": False, "message": msg, "status": 400}
                 uploaded_file.seek(0)
                 temp_dir = Path(settings.MEDIA_ROOT) / "uploads"
                 temp_dir.mkdir(parents=True, exist_ok=True)
@@ -93,7 +97,11 @@ class SummaryService:
             if hasattr(self.user, "setting") and self.user.setting.gemini_api_key:
                 user_key = decrypt_value(self.user.setting.gemini_api_key)
             if not system_key and not user_key:
-                return {"ok": False, "message": "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env.", "status": 400}
+                msg = (
+                    "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong "
+                    "settings cá nhân hoặc file .env."
+                )
+                return {"ok": False, "message": msg, "status": 400}
             user_api_key = user_key
 
         return {

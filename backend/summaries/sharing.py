@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import time
 from datetime import timedelta
+from typing import cast
 
 from django.conf import settings
 from django.http import Http404
@@ -20,12 +21,12 @@ from .models import Summary
 DEFAULT_EXPIRY_DAYS = 7
 
 # Separate signing key for share links (can be same as API_ENCRYPTION_KEY or different)
-SHARE_SECRET_KEY = getattr(settings, "SHARE_SECRET_KEY", None)
-if not SHARE_SECRET_KEY:
-    SHARE_SECRET_KEY = getattr(settings, "API_ENCRYPTION_KEY", "")
-    if not SHARE_SECRET_KEY:
-        import secrets
-        SHARE_SECRET_KEY = secrets.token_urlsafe(32)
+SHARE_SECRET_KEY = cast(
+    str,
+    getattr(settings, "SHARE_SECRET_KEY", None)
+    or getattr(settings, "API_ENCRYPTION_KEY", "")
+    or __import__("secrets").token_urlsafe(32),
+)
 
 
 def generate_share_token(summary: Summary, expiry_days: int = DEFAULT_EXPIRY_DAYS) -> str:
@@ -64,7 +65,7 @@ def verify_share_token(token: str) -> dict | None:
         payload_b64.encode(),
         hashlib.sha256
     ).digest()
-    expected_sig_b64 = base64.urlsafe_b64encode(expected_sig).rstrip(b"=")
+    expected_sig_b64 = base64.urlsafe_b64encode(expected_sig).rstrip(b"=").decode()
 
     if not hmac.compare_digest(signature_b64, expected_sig_b64):
         return None
@@ -74,7 +75,8 @@ def verify_share_token(token: str) -> dict | None:
         # Add padding if needed
         padding = 4 - (len(payload_b64) % 4)
         payload_bytes = base64.urlsafe_b64decode(payload_b64 + "=" * padding)
-        payload = eval(payload_bytes.decode())  # Safe: we verified signature
+        import json
+        payload = json.loads(payload_bytes.decode())
     except Exception:
         return None
 

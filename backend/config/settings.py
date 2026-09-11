@@ -185,7 +185,8 @@ if not API_ENCRYPTION_KEY:
         # Production: require explicit key, fail fast
         raise ImproperlyConfigured(
             "API_ENCRYPTION_KEY must be set in production (DEBUG=False). "
-            "Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+            "Generate with: python -c 'from cryptography.fernet import "
+            "Fernet; print(Fernet.generate_key().decode())'"
         )
 
 # ── Security (hardened when DEBUG=False) ────────────
@@ -315,7 +316,7 @@ LOGGING = {
 }
 
 if LOG_FILE:
-    LOGGING["handlers"]["file"] = {
+    LOGGING["handlers"]["file"] = {  # type: ignore[index]
         "class": "logging.handlers.RotatingFileHandler",
         "filename": LOG_FILE,
         "maxBytes": 5 * 1024 * 1024,
@@ -323,9 +324,9 @@ if LOG_FILE:
         "encoding": "utf-8",
         "formatter": "json",
     }
-    LOGGING["root"]["handlers"] = ["console", "file"]
-    for _name, _cfg in LOGGING["loggers"].items():
-        _cfg["handlers"] = ["console", "file"]
+    LOGGING["root"]["handlers"] = ["console", "file"]  # type: ignore[index]
+    for _name, _cfg in LOGGING["loggers"].items():  # type: ignore[attr-defined]
+        _cfg["handlers"] = ["console", "file"]  # type: ignore[index]
 
 if DEBUG:
     SILENCED_SYSTEM_CHECKS = [

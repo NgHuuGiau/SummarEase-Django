@@ -14,7 +14,7 @@ def _check_weasyprint():
     global HAS_WEASYPRINT
     if not HAS_WEASYPRINT:
         try:
-            from weasyprint import HTML
+            import weasyprint  # noqa: F401
             HAS_WEASYPRINT = True
         except (ImportError, OSError):
             HAS_WEASYPRINT = False
@@ -31,10 +31,10 @@ def export_markdown(summary) -> HttpResponse:
     """Export summary as Markdown file."""
     md_content = f"""# {summary.title}
 
-**Phương pháp:** {summary.get_method_display()}  
-**Ngôn ngữ:** {summary.language}  
-**Tỉ lệ:** {summary.ratio * 100:.0f}%  
-**Nguồn:** {summary.document.get_source_type_display()}  
+**Phương pháp:** {summary.get_method_display()}
+**Ngôn ngữ:** {summary.language}
+**Tỉ lệ:** {summary.ratio * 100:.0f}%
+**Nguồn:** {summary.document.get_source_type_display()}
 **Ngày tạo:** {summary.created_at.strftime('%d/%m/%Y %H:%M')}
 
 ---

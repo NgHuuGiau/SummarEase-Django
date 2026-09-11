@@ -189,11 +189,12 @@ class HistoryListView(LoginRequiredMixin, View):
         paginator = Paginator(base, PAGE_SIZE)
         page_number = request.GET.get("page", 1)
         page_obj = paginator.get_page(page_number)
-        return render(
-            request,
-            self.template_name,
-            {"page_obj": page_obj, "is_admin_view": request.user.is_staff, "search_query": search_query},
-        )
+        context = {
+            "page_obj": page_obj,
+            "is_admin_view": request.user.is_staff,
+            "search_query": search_query,
+        }
+        return render(request, self.template_name, context)
 
 
 class HistoryDetailView(LoginRequiredMixin, View):
@@ -321,10 +322,11 @@ def batch_summarize_zip(request: HttpRequest) -> JsonResponse:
             from .signing import decrypt_value
             user_api_key = decrypt_value(request.user.setting.gemini_api_key)
         if not user_api_key and not getattr(settings, "GEMINI_API_KEY", ""):
-            return JsonResponse(
-                {"ok": False, "message": "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."},
-                status=400,
+            msg = (
+                "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong "
+                "settings cá nhân hoặc file .env."
             )
+            return JsonResponse({"ok": False, "message": msg}, status=400)
     else:
         user_api_key = ""
 
@@ -345,7 +347,8 @@ def batch_summarize_urls(request: HttpRequest) -> JsonResponse:
         method = data.get("method", "textrank")
         ratio = float(data.get("ratio", 0.2))
     except (json.JSONDecodeError, ValueError, TypeError) as exc:
-        return JsonResponse({"ok": False, "message": "Dữ liệu không hợp lệ: " + str(exc)}, status=400)
+        msg = f"Dữ liệu không hợp lệ: {exc}"
+        return JsonResponse({"ok": False, "message": msg}, status=400)
 
     if not urls:
         return JsonResponse({"ok": False, "message": "Danh sách URL trống."}, status=400)
@@ -356,10 +359,11 @@ def batch_summarize_urls(request: HttpRequest) -> JsonResponse:
             from .signing import decrypt_value
             user_api_key = decrypt_value(request.user.setting.gemini_api_key)
         if not user_api_key and not getattr(settings, "GEMINI_API_KEY", ""):
-            return JsonResponse(
-                {"ok": False, "message": "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."},
-                status=400,
+            msg = (
+                "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong "
+                "settings cá nhân hoặc file .env."
             )
+            return JsonResponse({"ok": False, "message": msg}, status=400)
     else:
         user_api_key = ""
 

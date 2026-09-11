@@ -66,8 +66,7 @@ def _cache_key(text: str, ratio: float, language: str) -> str:
 
 def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english") -> dict[str, Any]:
     try:
-        import sumy
-        sumy  # suppress unused warning
+        import sumy  # noqa: F401
     except ImportError as exc:
         raise ValueError(
             "Thiếu thư viện 'sumy' để dùng phương pháp tóm tắt TextRank. "
@@ -85,7 +84,12 @@ def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english")
 
 
 @lru_cache(maxsize=128)
-def _textrank_cached(cache_key: str, normalized: str, ratio: float, language: str) -> dict[str, Any]:
+def _textrank_cached(
+    cache_key: str,
+    normalized: str,
+    ratio: float,
+    language: str,
+) -> dict[str, Any]:
     from sumy.parsers.plaintext import PlaintextParser
     from sumy.summarizers.text_rank import TextRankSummarizer
 

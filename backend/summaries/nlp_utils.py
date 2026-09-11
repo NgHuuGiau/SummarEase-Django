@@ -121,7 +121,7 @@ def truncate_text(text: str, max_chars: int = 50000) -> str:
     if len(text) <= max_chars:
         return text
     sentences = split_sentences(text)
-    truncated = []
+    truncated: list[str] = []
     chars = 0
     for sentence in sentences:
         if chars + len(sentence) > max_chars and truncated:

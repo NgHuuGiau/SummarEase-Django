@@ -25,7 +25,9 @@ MAX_ZIP_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_EXTS = {".txt", ".md", ".markdown", ".docx", ".pdf", ".epub"}
 
 
-def create_batch_from_zip(user, zip_file, method: str, ratio: float, user_api_key: str = "") -> dict:
+def create_batch_from_zip(
+    user, zip_file, method: str, ratio: float, user_api_key: str = ""
+) -> dict:
     """Process a ZIP file containing multiple documents."""
     if zip_file.size > MAX_ZIP_SIZE:
         return {"ok": False, "message": "File ZIP vượt quá 50MB."}
@@ -51,7 +53,8 @@ def create_batch_from_zip(user, zip_file, method: str, ratio: float, user_api_ke
                 return {"ok": False, "message": "Không có tệp hợp lệ trong ZIP.", "errors": errors}
 
             if len(file_list) > MAX_BATCH_SIZE:
-                return {"ok": False, "message": f"ZIP chứa quá nhiều tệp (tối đa {MAX_BATCH_SIZE}).", "errors": errors}
+                msg = f"ZIP chứa quá nhiều tệp (tối đa {MAX_BATCH_SIZE})."
+                return {"ok": False, "message": msg, "errors": errors}
 
             # Extract and process each file
             temp_dir = Path(settings.MEDIA_ROOT) / "batch_uploads" / uuid4().hex
@@ -151,7 +154,9 @@ def create_batch_from_zip(user, zip_file, method: str, ratio: float, user_api_ke
         return {"ok": False, "message": f"Lỗi xử lý batch: {str(exc)}", "errors": errors}
 
 
-def create_batch_from_urls(user, urls: list, method: str, ratio: float, user_api_key: str = "") -> dict:
+def create_batch_from_urls(
+    user, urls: list, method: str, ratio: float, user_api_key: str = ""
+) -> dict:
     """Process multiple URLs in batch."""
     if len(urls) > MAX_BATCH_SIZE:
         return {"ok": False, "message": f"Quá nhiều URL (tối đa {MAX_BATCH_SIZE})."}
