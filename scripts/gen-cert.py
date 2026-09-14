@@ -1,4 +1,4 @@
-"""Tao chung chi self-signed cho dev HTTPS (SAN: localhost, 127.0.0.1)."""
+"""Tạo chứng chỉ self-signed cho dev HTTPS (SAN: localhost, 127.0.0.1)."""
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path

@@ -1,4 +1,4 @@
-param(
+﻿param(
     [int]$Port = 8000,
     [switch]$NoBrowser
 )
@@ -22,7 +22,7 @@ function Get-FreePort {
         }
     }
 
-    throw "Khong tim thay cong trong tu $PreferredPort den $($PreferredPort + 19)."
+    throw "Không tìm thấy cổng trống từ $PreferredPort đến $($PreferredPort + 19)."
 }
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -31,7 +31,7 @@ $envFile = Join-Path $projectRoot "backend\.env"
 $envExampleFile = Join-Path $projectRoot "backend\.env.example"
 
 if (-not (Test-Path $pythonExe)) {
-    throw "Khong tim thay .venv\Scripts\python.exe. Hay tao moi truong ao va cai dependencies truoc."
+    throw "Không tìm thấy .venv\Scripts\python.exe. Hãy tạo môi trường ảo và cài dependencies trước."
 }
 
 if (-not (Test-Path $envFile)) {
@@ -44,7 +44,7 @@ DJANGO_DEBUG=True
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
 "@ | Set-Content -Path $envFile
     }
-    Write-Host "Da tao .env cho local dev." -ForegroundColor Green
+    Write-Host "Đã tạo .env cho local dev." -ForegroundColor Green
 }
 
 $selectedPort = Get-FreePort -PreferredPort $Port
@@ -52,20 +52,20 @@ $baseUrl = "http://127.0.0.1:$selectedPort/"
 
 Set-Location $projectRoot
 
-Write-Host "Dang dong bo database..." -ForegroundColor Cyan
+Write-Host "Đang đồng bộ database..." -ForegroundColor Cyan
 & $pythonExe manage.py setup
 
-Write-Host "Mo dung URL nay trong trinh duyet:" -ForegroundColor Green
+Write-Host "Mở đúng URL này trong trình duyệt:" -ForegroundColor Green
 Write-Host "  https://127.0.0.1:$selectedPort/" -ForegroundColor Green
 Write-Host "Admin:" -ForegroundColor Green
 Write-Host "  https://127.0.0.1:${selectedPort}/admin/" -ForegroundColor Green
-Write-Host "Day la HTTPS (daphne + chung chi self-signed)." -ForegroundColor Yellow
+Write-Host "Đây là HTTPS (daphne + chứng chỉ self-signed)." -ForegroundColor Yellow
 
 if (-not $NoBrowser) {
     try {
         Start-Process "https://127.0.0.1:$selectedPort/" | Out-Null
     } catch {
-        Write-Host "Khong the tu dong mo trinh duyet. Hay mo URL ben tren thu cong." -ForegroundColor Yellow
+        Write-Host "Không thể tự động mở trình duyệt. Hãy mở URL bên trên thủ công." -ForegroundColor Yellow
     }
 }
 
@@ -75,6 +75,7 @@ if (-not (Test-Path "$projectRoot\$certFile")) {
     & $pythonExe "$projectRoot\scripts\gen-cert.py"
 }
 
-$env:PYTHONPATH = "$projectRoot\backend;$env:PYTHONPATH"
-& $pythonExe -m daphne -e "ssl:$selectedPort`:privateKey=$keyFile`:certKey=$certFile" config.asgi:application
+$env:PYTHONPATH = (Join-Path $projectRoot "backend") + ";" + $env:PYTHONPATH
+$daphneEndpoint = "ssl:{0}:privateKey={1}:certKey={2}" -f $selectedPort, $keyFile, $certFile
+& $pythonExe -m daphne -e $daphneEndpoint config.asgi:application
 exit $LASTEXITCODE
