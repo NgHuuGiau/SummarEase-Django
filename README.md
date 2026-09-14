@@ -68,16 +68,17 @@
 | `beautifulsoup4` | 4.13.4 | Trích xuất nội dung HTML/URL |
 | `requests` | 2.32.4 | Gọi API Gemini & tải URL |
 | `chardet` | 5.2.0 | Phát hiện mã hoá file TXT |
-| `mssql-django` | 1.7.4 | Kết nối SQL Server |
+| `mssql-django` | 1.7.4 | Kết nối SQL Server tùy chọn |
 | `daphne` | 4.2.3 | ASGI server (HTTPS dev) |
 | `whitenoise` | 6.12.0 | Phục vụ file tĩnh |
-| `cryptography` | 44.0.3 | Tạo chứng chỉ SSL |
-| `pytest` / `pytest-django` | — | Kiểm thử (112 tests) |
+| `cryptography` | 50.0.1 | Tạo chứng chỉ SSL |
+| `pytest` / `pytest-django` | — | Kiểm thử tự động |
 
 ### Cơ sở dữ liệu
 
-- **SQL Server** — mặc định (`mssql-django` + pyodbc)
-- Hỗ trợ Windows Auth (`Trusted_Connection=yes`) hoặc SQL Auth (`sa` user)
+- **SQLite** — mặc định cho development/test
+- **SQL Server** — tùy chọn cho production (`mssql-django` + pyodbc)
+- **MySQL** — tùy chọn (`PyMySQL`)
 
 ---
 
@@ -86,10 +87,10 @@
 ```
 SummarEase-Django/
 ├── .github/workflows/       # CI/CD pipeline (GitHub Actions)
-│   └── django.yml           #   Chạy test + lint
+│   └── ci.yml               #   Lint, typecheck, security, test, E2E, build
 ├── backend/                 # Mã nguồn chính (Django)
 │   ├── config/              #   Settings, URLs, WSGI/ASGI
-│   │   ├── settings.py      #     Cấu hình Django (SQL Server, whitenoise, CSP)
+│   │   ├── settings.py      #     Cấu hình Django (DB, whitenoise, CSP)
 │   │   ├── urls.py          #     URL routing chính
 │   │   ├── wsgi.py          #     WSGI entry point
 │   │   ├── asgi.py          #     ASGI entry point (Daphne)
@@ -105,7 +106,7 @@ SummarEase-Django/
 │   │   ├── readers.py       #     Đọc PDF/DOCX/EPUB/TXT + SSRF hop validation
 │   │   ├── signing.py       #     Mã hoá API key
 │   │   ├── urls.py          #     URL routing (login lockout, password reset, health, security.txt)
-│   │   ├── tests.py         #     Tests (coverage 98%+)
+│   │   ├── tests.py         #     Backend tests
 │   │   ├── logging_fmt.py   #     JSON formatter cho structured logging (gộp trong config)
 │   │   ├── stopwords.txt    #     Stopwords tiếng Việt
 │   │   ├── management/
@@ -130,7 +131,8 @@ SummarEase-Django/
 │   ├── architecture.md      #   Kiến trúc hệ thống
 │   ├── help.md              #   Hướng dẫn chi tiết
 │   ├── CONTRIBUTING.md      #   Hướng dẫn đóng góp
-│   └── SECURITY.md          #   Chính sách bảo mật
+│   ├── SECURITY.md          #   Chính sách bảo mật
+│   └── production.md        #   Production runbook
 ├── frontend/                # Giao diện người dùng
 │   ├── static/css/          #   Stylesheets (tokens-base, layout-buttons, form-area, history, pages-footer, responsive, admin.css)
 │   ├── static/js/app.js     #   JavaScript
@@ -160,8 +162,8 @@ SummarEase-Django/
 
 - Python 3.12+
 - pip
-- SQL Server (local hoặc remote) — TCP/IP port 1433
-- ODBC Driver 17 for SQL Server
+- SQLite (mặc định cho development)
+- SQL Server + ODBC Driver 17 (tùy chọn cho production)
 
 ### Các bước
 
@@ -175,8 +177,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-# 3. Tạo database SQL Server (nếu chưa có)
-sqlcmd -S 127.0.0.1 -U sa -P "Admin@123" -i backend\sql\schema_sqlserver.sql
+# 3. Nếu dùng SQL Server, tạo database và chạy schema tương ứng.
+#    Development mặc định dùng SQLite, không cần bước này.
 
 # 4. MỘT LỆNH -> migrate + chạy server
 .\scripts\run-dev.bat
@@ -189,7 +191,7 @@ python manage.py setup --create-superuser # migrate + tạo admin
 .\scripts\run-dev.ps1                     # daphne HTTPS trên cổng 8000
 ```
 
-- Superuser mặc định: `admin` / `admin`
+- Không có superuser mặc định; dùng `python manage.py createsuperuser`
 - Web: **https://127.0.0.1:8000/** (tự sinh chứng chỉ SSL nếu chưa có)
 - Admin: **https://127.0.0.1:8000/admin/**
 
@@ -230,7 +232,7 @@ Server chạy tại **https://localhost:8443/** (hoặc port tùy chọn).
 
 ## 🧪 Kiểm thử
 
-Chạy toàn bộ bộ test (112 tests):
+Chạy toàn bộ bộ test:
 
 ```powershell
 python -m pytest backend -q
@@ -245,7 +247,7 @@ python -m pytest backend/summaries/tests.py -k Security # bảo mật
 python -m pytest backend/summaries/tests.py -k Error    # trang lỗi 404/500
 ```
 
-**Phạm vi bộ test (112 tests / 27 nhóm):**
+**Phạm vi bộ test (27 nhóm):**
 
 | Nhóm | Số test | Nội dung |
 |------|--------:|----------|
@@ -282,7 +284,7 @@ python -m pytest backend/summaries/tests.py -k Error    # trang lỗi 404/500
 ## 🐳 Chạy với Docker
 
 ```powershell
-# Chuẩn bị: backend/.env đã có SECRET_KEY, ALLOWED_HOSTS, DB_ENGINE (sqlite mặc định)
+# Chuẩn bị: backend/.env đã có secret production và DB_ENGINE phù hợp
 docker compose up --build
 # Mở http://localhost:8000/health/ để kiểm (trả {"status":"ok","database":"ok","media":"ok"})
 docker compose logs -f web
@@ -293,6 +295,16 @@ Dockerfile: `python:3.12-slim`, user `summarizease` (non-root), HEALTHCHECK gọ
 Compose: `restart: unless-stopped`, volume `media_data` + `sqlite_data`, lệnh `migrate && setup && gunicorn --bind 0.0.0.0:8000 --workers 3`.
 
 > Biến môi trường lấy từ `backend/.env`. Đổi `DJANGO_SECRET_KEY`, `API_ENCRYPTION_KEY` trong production. Xem `.env.example`.
+
+### Checklist production
+
+Xem [docs/production.md](docs/production.md) trước khi public hệ thống. Tối thiểu cần:
+
+- Dùng database production có backup ngoài container và kiểm tra restore định kỳ.
+- Đặt `DJANGO_SECRET_KEY`, `API_ENCRYPTION_KEY`, `DJANGO_ALLOWED_HOSTS` bằng secret manager.
+- Chạy Redis trong private network, không expose port ra Internet.
+- Thiết lập monitoring/alert cho web, database, Redis, Celery, disk và Gemini quota.
+- Chạy load test và security review trước mỗi release lớn.
 
 ---
 
@@ -309,6 +321,17 @@ Compose: `restart: unless-stopped`, volume `media_data` + `sqlite_data`, lệnh 
 | `/history/<id>/` | GET | Chi tiết bản tóm tắt |
 | `/history/<id>/delete/` | POST | Xoá bản tóm tắt |
 | `/api/summaries/create/` | POST | Tạo bản tóm tắt mới |
+| `/api/v1/summaries/create/` | POST | API versioned tạo tóm tắt |
+| `/api/summaries/status/<task_id>/` | GET | Kiểm tra trạng thái task |
+| `/api/summaries/batch/zip/` | POST | Tóm tắt nhiều file ZIP |
+| `/api/summaries/batch/urls/` | POST | Tóm tắt nhiều URL |
+| `/history/<id>/export/<format>/` | GET | Export PDF/DOCX/Markdown |
+| `/history/<id>/share/` | POST | Tạo link chia sẻ 1–30 ngày |
+| `/share/<token>/` | GET | Xem summary được chia sẻ |
+| `/webhooks/` | GET/POST | Quản lý webhook |
+| `/metrics/` | GET | Prometheus metrics |
+| `/api/schema/` | GET | OpenAPI schema |
+| `/api/docs/` | GET | Swagger UI |
 | `/admin/` | GET | Trang quản trị Django |
 
 ---

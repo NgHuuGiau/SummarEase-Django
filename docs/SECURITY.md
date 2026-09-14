@@ -25,4 +25,11 @@ Nếu bạn phát hiện vấn đề bảo mật, **không tạo issue công kha
 - ✅ File upload validate loại file, tự động xoá khi xoá Document
 - ✅ Rate limiting 5s giữa các request tóm tắt
 - ✅ API key người dùng được mã hoá trong database
-- ✅ `.env` và `certs/` nằm trong `.gitignore`
+- ✅ `.env`, media, backup và chứng chỉ nằm trong `.gitignore`
+- ✅ SSRF chặn mạng nội bộ, redirect không an toàn và proxy môi trường
+- ✅ Giới hạn upload, URL response và ZIP extraction
+- ✅ Metrics được bảo vệ trong production
+
+## Giới hạn và trách nhiệm triển khai
+
+Các biện pháp trên không thay thế penetration test độc lập. Production phải dùng secret manager, database có backup ngoài container, Redis private network và monitoring có cảnh báo. Khi nghi ngờ lộ secret, hãy rotate secret trước khi điều tra chi tiết.

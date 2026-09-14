@@ -7,7 +7,7 @@ Cảm ơn bạn quan tâm đến việc đóng góp cho **SummarEase Django**! �
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 python manage.py setup
 python manage.py runserver
 ```
@@ -19,7 +19,10 @@ python manage.py runserver
 
    ```powershell
    python manage.py check
-   python manage.py test summaries
+   python -m pytest backend/summaries/tests.py -q
+   ruff check backend manage.py
+   ruff format --check backend manage.py
+   python manage.py check --deploy --fail-level ERROR
    ```
 
 3. **Tự kiểm tra giao diện hoặc API bị ảnh hưởng**

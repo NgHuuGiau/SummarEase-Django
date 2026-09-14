@@ -2,7 +2,7 @@
 
 ## Tổng quan
 
-SummarEase Django là ứng dụng web Django 5.2 với kiến trúc MVT (Model-View-Template) truyền thống, kết hợp xử lý NLP ở backend và giao diện người dùng ở frontend. Hệ thống chạy trên SQL Server, hỗ trợ HTTPS dev với Daphne + whitenoise.
+SummarEase Django là ứng dụng web Django 5.2 với kiến trúc MVT, kết hợp xử lý NLP ở backend và giao diện người dùng ở frontend. SQLite được dùng mặc định cho development/test; production nên dùng SQL Server hoặc MySQL managed. Tác vụ dài được xử lý qua Celery + Redis.
 
 ## Sơ đồ thư mục
 
@@ -10,7 +10,7 @@ SummarEase Django là ứng dụng web Django 5.2 với kiến trúc MVT (Model-
 SummarEase-Django/
 ├── backend/                     # Django project
 │   ├── config/                  # Settings, URLs, WSGI, ASGI
-│   │   ├── settings.py          #   Cấu hình Django (SQL Server, whitenoise, CSP)
+│   │   ├── settings.py          #   Cấu hình Django (DB, whitenoise, CSP)
 │   │   ├── urls.py              #   URL routing chính
 │   │   ├── wsgi.py              #   WSGI entry point
 │   │   ├── asgi.py              #   ASGI entry point (dùng cho Daphne)
@@ -22,7 +22,7 @@ SummarEase-Django/
 │   │   ├── nlp.py               #   Xử lý NLP, TextRank, Gemini
 │   │   ├── forms.py             #   Django forms
 │   │   ├── admin.py             #   Django Admin config
-│   │   ├── tests.py             #   112 tests
+│   │   ├── tests.py             #   Backend tests
 │   │   ├── stopwords.txt        #   Stopwords tiếng Việt
 │   │   ├── management/
 │   │   │   └── commands/
@@ -86,8 +86,10 @@ User -> POST /api/summaries/create/
          -> nlp.py: summarize_text(text, method, ratio)
               -> TextRank: sumy TextRankSummarizer
               -> Gemini: requests POST lên Gemini API
+         -> Development/test: chạy đồng bộ
+         -> Production: đưa vào Celery + Redis
          -> Lưu Document + Summary vào database
-         -> Trả kết quả về frontend
+         -> Trả kết quả hoặc task_id về frontend
 ```
 
 ### 2. Xác thực
@@ -116,7 +118,7 @@ nlp.py -> requests.post(
 | Web framework | Django 5.2 |
 | NLP (offline) | sumy (TextRank) |
 | NLP (online) | Google Gemini API |
-| Database | SQL Server (mssql-django + pyodbc) |
+| Database | SQLite mặc định; SQL Server/MySQL tùy chọn |
 | ASGI server | Daphne (HTTPS dev) |
 | Static files | whitenoise |
 | Frontend | HTML + CSS + Vanilla JS |
@@ -131,7 +133,7 @@ nlp.py -> requests.post(
 - **Auth**: Windows Auth (`Trusted_Connection=yes`) hoặc SQL Auth (`sa` user)
 - **Driver**: ODBC Driver 17 for SQL Server
 - **Schema**: `backend/sql/schema_sqlserver.sql`
-- **Cấu hình**: biến môi trường `DB_ENGINE`, `DB_NAME`, `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_DRIVER`
+- **Cấu hình**: biến môi trường `DB_ENGINE`, `DB_NAME`, `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_DRIVER`; mặc định là SQLite
 
 ## HTTPS Dev
 
@@ -157,4 +159,5 @@ Hệ thống sử dụng **Daphne** làm ASGI server cho HTTPS development:
 | `python manage.py setup` | Migrate DB + tạo superuser (nếu `--create-superuser`) |
 | `python manage.py migrate` | Áp migration |
 | `python manage.py collectstatic` | Gom file tĩnh |
-| `python manage.py test` | Chạy tất cả tests (112 tests) |
+| `python -m pytest backend/summaries/tests.py -q` | Chạy backend tests |
+| `python manage.py backup_db --include-media` | Backup database và media |

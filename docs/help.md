@@ -4,8 +4,8 @@
 
 - **Python** 3.12 trở lên
 - **pip** (Python package manager)
-- **SQL Server** 2017+ (local hoặc remote) — đã bật TCP/IP, port 1433
-- **ODBC Driver 17 for SQL Server** — [tải tại đây](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
+- **SQLite** — mặc định, không cần cài thêm database cho development
+- **SQL Server** 2017+ và **ODBC Driver 17** — tùy chọn cho production
 
 ---
 
@@ -71,7 +71,7 @@ DB_USE_WINDOWS_AUTH=True
 GEMINI_API_KEY=your_google_api_key
 ```
 
-### 5. Tạo database SQL Server
+### 5. Tạo database SQL Server (chỉ khi chọn SQL Server)
 
 Mở **SQL Server Management Studio** hoặc dùng `sqlcmd`:
 
@@ -147,7 +147,20 @@ Mặc định: **https://localhost:8443/**
 | Endpoint | Method | Mô tả | Auth |
 |----------|--------|-------|------|
 | `/api/summaries/create/` | POST | Tạo tóm tắt mới | Có |
+| `/api/v1/summaries/create/` | POST | API versioned tạo tóm tắt | Có |
+| `/api/summaries/status/<task_id>/` | GET | Kiểm tra task nền | Có |
+| `/api/summaries/batch/zip/` | POST | Tóm tắt nhiều file ZIP | Có |
+| `/api/summaries/batch/urls/` | POST | Tóm tắt nhiều URL | Có |
+| `/history/<id>/export/<format>/` | GET | Export PDF/DOCX/Markdown | Có |
+| `/history/<id>/share/` | POST | Tạo link chia sẻ 1–30 ngày | Có |
+| `/share/<token>/` | GET | Xem summary được chia sẻ | Không |
+| `/webhooks/` | GET/POST | Quản lý webhook | Có |
+| `/metrics/` | GET | Prometheus metrics (staff/private network production) | Có* |
+| `/api/schema/` | GET | OpenAPI schema | Không |
+| `/api/docs/` | GET | Swagger UI | Không |
 | `/health/` | GET | Health check | Không |
+
+`Có*`: trong production cần tài khoản staff; nên giới hạn thêm bằng network policy.
 
 ---
 
@@ -155,8 +168,8 @@ Mặc định: **https://localhost:8443/**
 
 ```powershell
 python manage.py check                  # Kiểm tra hệ thống
-python manage.py test                   # Chạy tất cả test (112 tests)
-python manage.py test summaries         # Chạy test app summaries
+   python -m pytest backend/summaries/tests.py -q  # Chạy toàn bộ backend test
+   python -m pytest backend/summaries/tests.py -k Security
 python manage.py setup                  # Migrate + (tuỳ chọn) tạo superuser
 python manage.py setup --create-superuser  # Migrate + tạo admin luôn
 python manage.py createsuperuser        # Tạo superuser thủ công
@@ -166,6 +179,7 @@ python manage.py collectstatic          # Gom file tĩnh
 python manage.py makemigrations         # Tạo migration mới
 python manage.py migrate                # Áp migration
 python manage.py migrate --plan         # Xem kế hoạch migrate
+python manage.py backup_db --dest backups --include-media  # Backup DB + media
 ```
 
 ---
