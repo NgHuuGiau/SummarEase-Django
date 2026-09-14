@@ -29,6 +29,7 @@ WEBHOOK_TIMEOUT = 15  # seconds
 @dataclass
 class WebhookPayload:
     """Structured webhook payload for summary completion."""
+
     event: str  # "summary.completed" | "summary.failed"
     summary_id: int
     title: str
@@ -63,14 +64,13 @@ class WebhookPayload:
 
 class WebhookRegistration(models.Model):
     """User-registered webhook endpoints."""
-    user = models.ForeignKey(
-        'auth.User', on_delete=models.CASCADE, related_name="webhooks"
-    )
+
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="webhooks")
     url = models.URLField(max_length=500)
     secret = models.CharField(max_length=64, help_text="HMAC secret for signature verification")
     events = models.JSONField(
         default=list,
-        help_text="List of events to subscribe to: ['summary.completed', 'summary.failed']"
+        help_text="List of events to subscribe to: ['summary.completed', 'summary.failed']",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -89,11 +89,7 @@ class WebhookRegistration(models.Model):
 
     def verify_signature(self, payload: bytes, signature: str) -> bool:
         """Verify HMAC signature from webhook delivery."""
-        expected = hmac.new(
-            self.secret.encode(),
-            payload,
-            hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self.secret.encode(), payload, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
 
@@ -118,14 +114,14 @@ def _build_webhook_payload(summary: Summary, event: str) -> WebhookPayload:
 
 def _sign_payload(payload: dict, secret: str) -> str:
     """Generate HMAC signature for payload."""
-    payload_bytes = json.dumps(payload, separators=(',', ':'), ensure_ascii=False).encode()
+    payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
     return hmac.new(secret.encode(), payload_bytes, hashlib.sha256).hexdigest()
 
 
 def _deliver_webhook(webhook: WebhookRegistration, payload: WebhookPayload) -> bool:
     """Deliver webhook with retries. Returns True if successful."""
     payload_dict = payload.to_dict()
-    payload_bytes = json.dumps(payload_dict, separators=(',', ':'), ensure_ascii=False).encode()
+    payload_bytes = json.dumps(payload_dict, separators=(",", ":"), ensure_ascii=False).encode()
     signature = _sign_payload(payload_dict, webhook.secret)
 
     headers = {
@@ -172,7 +168,7 @@ def trigger_webhooks(user, summary: Summary, event: str) -> None:
     from django.db import connection
 
     # SQLite doesn't support __contains on JSONField, use raw SQL for cross-db compatibility
-    if connection.vendor == 'sqlite':
+    if connection.vendor == "sqlite":
         webhooks = WebhookRegistration.objects.filter(user=user, is_active=True)
         webhooks = [w for w in webhooks if event in (w.events or [])]
     else:

@@ -156,17 +156,21 @@ class Summary(models.Model):
         """Full-text search summaries for a user (PostgreSQL only)."""
         if not HAS_POSTGRES_SEARCH:
             # SQLite fallback: simple icontains search
-            return cls.objects.filter(user=user).filter(
-                models.Q(title__icontains=query) |
-                models.Q(summary_text__icontains=query)
-            ).order_by("-created_at")
+            return (
+                cls.objects.filter(user=user)
+                .filter(models.Q(title__icontains=query) | models.Q(summary_text__icontains=query))
+                .order_by("-created_at")
+            )
 
         from django.contrib.postgres.search import SearchQuery, SearchRank
 
         search_query = SearchQuery(query, config=language)
-        return cls.objects.filter(user=user).annotate(
-            rank=SearchRank("search_vector", search_query)
-        ).filter(rank__gte=0.1).order_by("-rank", "-created_at")
+        return (
+            cls.objects.filter(user=user)
+            .annotate(rank=SearchRank("search_vector", search_query))
+            .filter(rank__gte=0.1)
+            .order_by("-rank", "-created_at")
+        )
 
 
 class SummarySentence(models.Model):

@@ -45,7 +45,10 @@ def process_summary_task(
     start_time = time.time()
     logger.info(
         "process_summary_task started: user=%d, source=%s, method=%s, ratio=%.2f",
-        user_id, source_type, method, ratio
+        user_id,
+        source_type,
+        method,
+        ratio,
     )
 
     try:
@@ -121,7 +124,9 @@ def process_summary_task(
         elapsed = time.time() - start_time
         logger.info(
             "process_summary_task done: user=%d, summary_id=%d, elapsed=%.2fs",
-            user_id, summary.id, elapsed
+            user_id,
+            summary.id,
+            elapsed,
         )
 
         return {

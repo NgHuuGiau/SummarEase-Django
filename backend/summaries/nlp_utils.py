@@ -155,9 +155,7 @@ def highlight_keywords(text: str, keywords: list[str]) -> str:
     kw_end = "\x00KWEND\x00"
     for keyword in sorted(keywords, key=len, reverse=True):
         pattern = re.compile(rf"\b({re.escape(keyword)})\b", re.IGNORECASE)
-        text = pattern.sub(
-            lambda m: f"{kw_start}{html.escape(m.group(1))}{kw_end}", text
-        )
+        text = pattern.sub(lambda m: f"{kw_start}{html.escape(m.group(1))}{kw_end}", text)
     text = html.escape(text)
     text = text.replace(kw_start, "<mark>").replace(kw_end, "</mark>")
     return text

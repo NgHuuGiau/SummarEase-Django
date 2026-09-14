@@ -10,18 +10,22 @@ from django.template.loader import render_to_string
 
 HAS_WEASYPRINT = False
 
+
 def _check_weasyprint():
     global HAS_WEASYPRINT
     if not HAS_WEASYPRINT:
         try:
             import weasyprint  # noqa: F401
+
             HAS_WEASYPRINT = True
         except (ImportError, OSError):
             HAS_WEASYPRINT = False
     return HAS_WEASYPRINT
 
+
 try:
     from docx import Document as DocxDocument
+
     HAS_DOCX = True
 except ImportError:
     HAS_DOCX = False
@@ -35,7 +39,7 @@ def export_markdown(summary) -> HttpResponse:
 **Ngôn ngữ:** {summary.language}
 **Tỉ lệ:** {summary.ratio * 100:.0f}%
 **Nguồn:** {summary.document.get_source_type_display()}
-**Ngày tạo:** {summary.created_at.strftime('%d/%m/%Y %H:%M')}
+**Ngày tạo:** {summary.created_at.strftime("%d/%m/%Y %H:%M")}
 
 ---
 
@@ -44,10 +48,10 @@ def export_markdown(summary) -> HttpResponse:
 ---
 
 ## Từ khóa
-{', '.join(f'`{tag.name}`' for tag in summary.tags.all()) if summary.tags.exists() else 'Không có'}
+{", ".join(f"`{tag.name}`" for tag in summary.tags.all()) if summary.tags.exists() else "Không có"}
 
 ## Câu gốc
-{chr(10).join(f'{i}. {s.sentence_text}' for i, s in enumerate(summary.sentences.all(), 1))}
+{chr(10).join(f"{i}. {s.sentence_text}" for i, s in enumerate(summary.sentences.all(), 1))}
 """
     response = HttpResponse(md_content, content_type="text/markdown; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{summary.title[:50]}.md"'
@@ -111,11 +115,14 @@ def export_pdf(summary) -> HttpResponse:
 
     from weasyprint import HTML
 
-    html_content = render_to_string("summaries/export_pdf.html", {
-        "summary": summary,
-        "tags": summary.tags.all(),
-        "sentences": summary.sentences.all(),
-    })
+    html_content = render_to_string(
+        "summaries/export_pdf.html",
+        {
+            "summary": summary,
+            "tags": summary.tags.all(),
+            "sentences": summary.sentences.all(),
+        },
+    )
 
     pdf_file = io.BytesIO()
     HTML(string=html_content, base_url=settings.STATIC_ROOT).write_pdf(pdf_file)

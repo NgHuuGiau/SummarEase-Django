@@ -159,7 +159,8 @@ def gemini_summarize(
         except requests.exceptions.Timeout:
             logger.error(
                 "Gemini API timeout after 60s (attempt %d/%d)",
-                attempt + 1, GEMINI_RETRY_MAX,
+                attempt + 1,
+                GEMINI_RETRY_MAX,
             )
             raise ValueError(
                 "Gemini API không phản hồi sau 60 giây. Vui lòng thử lại sau."
@@ -167,7 +168,8 @@ def gemini_summarize(
         except requests.exceptions.ConnectionError:
             logger.error(
                 "Gemini API connection error (attempt %d/%d)",
-                attempt + 1, GEMINI_RETRY_MAX,
+                attempt + 1,
+                GEMINI_RETRY_MAX,
             )
             raise ValueError("Không thể kết nối tới Gemini API. Kiểm tra kết nối mạng.") from None
 

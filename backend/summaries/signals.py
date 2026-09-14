@@ -33,7 +33,7 @@ if HAS_POSTGRES_SEARCH:
         # Use update() to avoid triggering this signal again
         Summary.objects.filter(pk=instance.pk).update(
             search_vector=(
-                SearchVector("title", weight="A", config="vietnamese") +
-                SearchVector("summary_text", weight="B", config="vietnamese")
+                SearchVector("title", weight="A", config="vietnamese")
+                + SearchVector("summary_text", weight="B", config="vietnamese")
             )
         )
