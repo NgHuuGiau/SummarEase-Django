@@ -372,7 +372,6 @@ class SummaryFlowTests(TestCase):
 
         self.admin = User.objects.create_superuser(username="admin", password="secret123")
 
-
     def test_login_required_for_create_summary(self):
         response = self.client.post(
             reverse("create_summary"),
@@ -483,7 +482,6 @@ class SettingsFlowTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="settings-test", password="secret123")
-
 
     def test_settings_requires_login(self):
         response = self.client.get(reverse("settings"))
@@ -678,7 +676,6 @@ class AdminPageTests(TestCase):
             password="secret123",
         )
 
-
     def test_admin_login_required(self):
         response = self.client.get(reverse("admin:index"))
         self.assertEqual(response.status_code, 302)
@@ -807,7 +804,6 @@ class DeleteCascadeTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="cascade-user", password="secret123")
 
-
     def test_delete_document_cascades_summary(self):
         doc = Document.objects.create(
             user=self.user,
@@ -927,24 +923,18 @@ class SsrfProtectionTests(TestCase):
 
     @patch("summaries.readers.socket.getaddrinfo")
     def test_resolve_and_validate_blocks_private(self, mock_getaddrinfo):
-        mock_getaddrinfo.return_value = [
-            (None, None, None, None, ("127.0.0.1", 80))
-        ]
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("127.0.0.1", 80))]
         with self.assertRaises(ValueError):
             _resolve_and_validate("localhost")
 
     @patch("summaries.readers.socket.getaddrinfo")
     def test_resolve_and_validate_allows_public(self, mock_getaddrinfo):
-        mock_getaddrinfo.return_value = [
-            (None, None, None, None, ("8.8.8.8", 80))
-        ]
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("8.8.8.8", 80))]
         _resolve_and_validate("example.com")
 
     @patch("summaries.readers.socket.getaddrinfo")
     def test_extract_url_blocks_private_hostname(self, mock_getaddrinfo):
-        mock_getaddrinfo.return_value = [
-            (None, None, None, None, ("127.0.0.1", 80))
-        ]
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("127.0.0.1", 80))]
         with self.assertRaises(ValueError):
             extract_text("http://localhost/secret")
 
@@ -1026,6 +1016,7 @@ class SuperuserRoleEvolutionTests(TestCase):
 class FileUploadTests(TestCase):
     def setUp(self):
         from django.core.cache import cache
+
         cache.clear()
         self.user = User.objects.create_user(username="uploader", password="secret123")
 
@@ -1612,9 +1603,7 @@ class GeminiPromptBranchTests(TestCase):
         resp = MagicMock()
         resp.status_code = 200
         resp.text = ""
-        resp.json.return_value = {
-            "candidates": [{"content": {"parts": [{"text": "Tóm tắt."}]}}]
-        }
+        resp.json.return_value = {"candidates": [{"content": {"parts": [{"text": "Tóm tắt."}]}}]}
         mock_get_session.return_value.post.return_value = resp
 
         from .nlp import _ratio_to_vietnamese
@@ -1907,8 +1896,9 @@ class ModelStrAndCleanupTests(TestCase):
     def test_cleanup_uploaded_file_ignores_oserror(self):
         from .models import _cleanup_uploaded_file
 
-        with patch("pathlib.Path.exists", return_value=True), patch(
-            "pathlib.Path.unlink", side_effect=OSError("denied")
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("pathlib.Path.unlink", side_effect=OSError("denied")),
         ):
             _cleanup_uploaded_file("locked.txt")
 
@@ -2178,8 +2168,7 @@ class BackupDbTests(TestCase):
             doc_dump = next(
                 item
                 for item in data
-                if item["model"] == "summaries.document"
-                and item["fields"]["title"] == "Backup Doc"
+                if item["model"] == "summaries.document" and item["fields"]["title"] == "Backup Doc"
             )
             self.assertEqual(doc_dump["fields"]["content"], "Nội dung test backup restore")
 
@@ -2194,8 +2183,7 @@ class BackupDbTests(TestCase):
             tag_dump = next(
                 item
                 for item in data
-                if item["model"] == "summaries.tag"
-                and item["fields"]["name"] == "backup-tag"
+                if item["model"] == "summaries.tag" and item["fields"]["name"] == "backup-tag"
             )
             self.assertEqual(tag_dump["fields"]["name"], "backup-tag")
 
@@ -2317,6 +2305,7 @@ class MetricsEndpointTests(TestCase):
 class APIDocsTests(TestCase):
     def test_schema_endpoint(self):
         import json
+
         response = self.client.get("/api/schema/", HTTP_ACCEPT="application/json")
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
@@ -2350,6 +2339,7 @@ class CeleryTaskIntegrationTests(TestCase):
         UserSetting.objects.filter(user=self.user).update(gemini_api_key="")
         # Disable rate limiting for API tests
         from django.conf import settings
+
         settings.RATE_LIMIT_SECONDS = 0
 
     def tearDown(self):
@@ -2396,6 +2386,7 @@ class CeleryTaskIntegrationTests(TestCase):
         from django.conf import settings
 
         from .services import SummaryService
+
         settings.RATE_LIMIT_SECONDS = 5  # Re-enable rate limiting for this test
 
         service = SummaryService(self.user)
@@ -2458,12 +2449,16 @@ class CeleryTaskIntegrationTests(TestCase):
         """Verify /api/v1/ routes are registered."""
         # Get CSRF token first
         self.client.get("/api/v1/summaries/create/")
-        response = self.client.post("/api/v1/summaries/create/", {
-            "source_type": "text",
-            "text": "Test content for API v1.",
-            "method": "textrank",
-            "ratio": 0.3,
-        }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        response = self.client.post(
+            "/api/v1/summaries/create/",
+            {
+                "source_type": "text",
+                "text": "Test content for API v1.",
+                "method": "textrank",
+                "ratio": 0.3,
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         # In test mode (eager), returns full result directly
@@ -2475,12 +2470,16 @@ class CeleryTaskIntegrationTests(TestCase):
         """Verify task status polling endpoint."""
         # Create a task first
         self.client.get("/api/v1/summaries/create/")
-        response = self.client.post("/api/v1/summaries/create/", {
-            "source_type": "text",
-            "text": "Test content for status check.",
-            "method": "textrank",
-            "ratio": 0.3,
-        }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        response = self.client.post(
+            "/api/v1/summaries/create/",
+            {
+                "source_type": "text",
+                "text": "Test content for status check.",
+                "method": "textrank",
+                "ratio": 0.3,
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         # In eager mode, returns full result
@@ -2502,13 +2501,15 @@ class CeleryTaskIntegrationTests(TestCase):
     def test_old_api_endpoint_still_works(self):
         """Backward compatibility - old /api/summaries/create/ should still work."""
         self.client.get("/api/summaries/create/")
-        response = self.client.post("/api/summaries/create/", {
-            "source_type": "text",
-            "text": "Test old endpoint.",
-            "method": "textrank",
-            "ratio": 0.3,
-        }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        response = self.client.post(
+            "/api/summaries/create/",
+            {
+                "source_type": "text",
+                "text": "Test old endpoint.",
+                "method": "textrank",
+                "ratio": 0.3,
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
         # Old endpoint may not exist anymore since we moved to /api/v1/
         self.assertIn(response.status_code, [200, 404, 405])
-
-

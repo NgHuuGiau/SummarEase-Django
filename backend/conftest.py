@@ -8,6 +8,7 @@ if BACKEND_DIR not in sys.path:
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 os.environ.setdefault("DJANGO_ALLOWED_HOSTS", "*")
+os.environ.setdefault("DJANGO_TEST", "1")
 
 
 def pytest_configure(config):
