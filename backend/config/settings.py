@@ -31,6 +31,12 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY") or secrets.token_urlsafe(50)
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
 ALLOWED_HOSTS = [host for host in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if host]
 
+if not DEBUG:
+    if not os.getenv("DJANGO_SECRET_KEY"):
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in production.")
+    if not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS:
+        raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must be restricted in production.")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -179,6 +185,7 @@ if not API_ENCRYPTION_KEY:
     if DEBUG:
         # Dev: derive from SECRET_KEY for convenience
         import hashlib
+
         _LEGACY_API_KEY = hashlib.sha256(SECRET_KEY.encode()).hexdigest()[:32]
         API_ENCRYPTION_KEY = _LEGACY_API_KEY
     else:
@@ -191,6 +198,8 @@ if not API_ENCRYPTION_KEY:
 
 # ── Security (hardened when DEBUG=False) ────────────
 SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
 SECURE_SSL_REDIRECT = False if DEBUG else True
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
@@ -198,6 +207,7 @@ CSRF_USE_SESSIONS = not DEBUG
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if not DEBUG else None
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
@@ -209,9 +219,7 @@ LOGOUT_REDIRECT_URL = "home"
 # ── Email ─────────────────────────────────────────────
 # Mặc định in ra console cho dev; production: EMAIL_BACKEND=smtp + host/port/user/pass
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@summarease.local")
-EMAIL_BACKEND = os.getenv(
-    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
-)
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
 if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
     EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
     EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
@@ -257,7 +265,10 @@ else:
     CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
 
 CELERY_TASK_TRACK_STARTED = True
+CELERY_RESULT_EXPIRES = 60 * 60
 CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"

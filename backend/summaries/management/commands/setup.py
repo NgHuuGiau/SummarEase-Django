@@ -1,7 +1,7 @@
 import os
 
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
@@ -19,7 +19,7 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--password",
-            default=os.getenv("DJANGO_SUPERUSER_PASSWORD", "admin123"),
+            default=os.getenv("DJANGO_SUPERUSER_PASSWORD"),
         )
         parser.add_argument(
             "--email",
@@ -31,6 +31,8 @@ class Command(BaseCommand):
         call_command("migrate", "--noinput")
 
         if options["create_superuser"]:
+            if not options["password"]:
+                raise CommandError("Cần truyền --password hoặc DJANGO_SUPERUSER_PASSWORD.")
             from django.contrib.auth import get_user_model
 
             user_model = get_user_model()
@@ -43,9 +45,7 @@ class Command(BaseCommand):
                     email=options["email"],
                 )
                 self.stdout.write(
-                    self.style.SUCCESS(
-                        f"==> Created superuser: {options['username']} / {options['password']}"
-                    )
+                    self.style.SUCCESS(f"==> Created superuser: {options['username']}")
                 )
 
         self.stdout.write(self.style.SUCCESS("==> Setup complete!"))

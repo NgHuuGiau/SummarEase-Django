@@ -9,7 +9,7 @@ import socket
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 if TYPE_CHECKING:
     import requests
@@ -21,6 +21,8 @@ SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".docx", ".pdf", ".epub"}
 MAX_GEMINI_CHARS = 50000
 MAX_REDIRECTS = 5
 REQUEST_TIMEOUT = 25
+MAX_RESPONSE_BYTES = 20 * 1024 * 1024
+MAX_URL_LENGTH = 2048
 
 # ── SSRF protection ─────────────────────────────────
 _BLOCKED_NETWORKS = [
@@ -40,10 +42,20 @@ def _is_private_ip(addr: str) -> bool:
         ip = ipaddress.ip_address(addr)
     except ValueError:
         return False
-    return any(ip in net for net in _BLOCKED_NETWORKS)
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+        or any(ip in net for net in _BLOCKED_NETWORKS)
+    )
 
 
 def _resolve_and_validate(host: str) -> None:
+    if not host:
+        raise ValueError("URL redirect không hợp lệ.")
     # ponytail: chống DNS-rebinding đầy đủ (nối tới IP đã xác thực) gặp khó vì
     # urllib3 gắn chặt connect-host với SNI; thêm khi mục tiêu trở thành SSRF
     # nội bộ đáng giá. Hiện tại mọi hop đều re-resolve + chặn private IP.
@@ -55,8 +67,7 @@ def _resolve_and_validate(host: str) -> None:
         addr = str(sockaddr[0])
         if _is_private_ip(addr):
             raise ValueError(
-                f"URL trỏ tới địa chỉ nội bộ ({sockaddr[0]}). "
-                "Không cho phép truy cập mạng nội bộ."
+                f"URL trỏ tới địa chỉ nội bộ ({sockaddr[0]}). Không cho phép truy cập mạng nội bộ."
             )
 
 
@@ -71,6 +82,7 @@ def _get_http_session() -> requests.Session:
         import requests
 
         session = requests.Session()
+        session.trust_env = False
         session.headers.update(
             {
                 "User-Agent": (
@@ -184,6 +196,8 @@ def extract_text_from_url(url: str) -> str:
         ) from exc
 
     parsed = urlparse(url)
+    if len(url) > MAX_URL_LENGTH:
+        raise ValueError("URL vượt quá giới hạn 2048 ký tự.")
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("URL không hợp lệ.")
 
@@ -214,8 +228,11 @@ def extract_text_from_url(url: str) -> str:
         if response is not None and response.status_code in (301, 302, 303, 307, 308):
             redirect_url = response.headers.get("Location", "")
             if redirect_url:
-                _resolve_and_validate(urlparse(redirect_url).hostname or "")
-                last_url = redirect_url
+                last_url = urljoin(last_url, redirect_url)
+                parsed_redirect = urlparse(last_url)
+                if parsed_redirect.scheme not in {"http", "https"}:
+                    raise ValueError("URL redirect không hợp lệ.")
+                _resolve_and_validate(parsed_redirect.hostname or "")
                 continue
 
         break
@@ -225,6 +242,10 @@ def extract_text_from_url(url: str) -> str:
 
     if response.status_code >= 400:
         raise ValueError(f"URL trả về lỗi HTTP {response.status_code}.")
+    if int(response.headers.get("Content-Length", 0) or 0) > MAX_RESPONSE_BYTES:
+        raise ValueError("Nội dung URL vượt quá giới hạn 20MB.")
+    if len(response.content) > MAX_RESPONSE_BYTES:
+        raise ValueError("Nội dung URL vượt quá giới hạn 20MB.")
 
     content_type = response.headers.get("Content-Type", "")
     if "text/html" not in content_type and "application/xhtml" not in content_type:

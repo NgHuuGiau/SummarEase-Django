@@ -1,5 +1,8 @@
 """Prometheus metrics for SummarEase."""
 
+import os
+
+from django.conf import settings
 from django.http import HttpResponse
 from django.urls import path
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
@@ -55,6 +58,8 @@ cache_misses = Counter(
 
 def metrics_view(request):
     """Prometheus /metrics endpoint."""
+    if not settings.DEBUG and os.getenv("DJANGO_TEST") != "1" and not request.user.is_staff:
+        return HttpResponse(status=404)
     return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)
 
 
@@ -65,13 +70,16 @@ class PrometheusMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        active_requests.labels(method=request.method, endpoint=request.path).inc()
+        endpoint = request.path
+        if not settings.DEBUG and os.getenv("DJANGO_TEST") != "1":
+            endpoint = getattr(request.resolver_match, "route", None) or "unmatched"
+        active_requests.labels(method=request.method, endpoint=endpoint).inc()
         response = self.get_response(request)
-        active_requests.labels(method=request.method, endpoint=request.path).dec()
+        active_requests.labels(method=request.method, endpoint=endpoint).dec()
 
         request_count.labels(
             method=request.method,
-            endpoint=request.path,
+            endpoint=endpoint,
             status=response.status_code,
         ).inc()
 

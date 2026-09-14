@@ -1,3 +1,5 @@
+# Legacy development compose file. Use ../docker-compose.yml for the supported
+# production-style stack; this file is retained only for older local setups.
 services:
   backend:
     build:

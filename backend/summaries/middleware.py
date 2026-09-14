@@ -29,8 +29,9 @@ class RateLimitMiddleware(MiddlewareMixin):
         key = f"ratelimit:{ip}:{path}"
         limit_seconds = getattr(settings, "RATE_LIMIT_SECONDS", 5)
 
-        current = cache.get(key, 0)
-        if current >= 1:
+        if limit_seconds <= 0:
+            return None
+        if not cache.add(key, 1, timeout=limit_seconds):
             retry_after = limit_seconds
             return JsonResponse(
                 {
@@ -42,7 +43,6 @@ class RateLimitMiddleware(MiddlewareMixin):
                 headers={"Retry-After": str(retry_after)},
             )
 
-        cache.set(key, 1, timeout=limit_seconds)
         return None
 
     def _get_client_ip(self, request):

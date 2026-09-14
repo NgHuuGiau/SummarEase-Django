@@ -1,8 +1,7 @@
 services:
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -11,6 +10,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
 
   web:
     build: .
@@ -30,6 +34,13 @@ services:
              python manage.py setup &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 1G
     depends_on:
       redis:
         condition: service_healthy
@@ -46,6 +57,13 @@ services:
       - sqlite_data:/app/backend/sql
     command: celery -A config worker -l INFO --concurrency=2
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1G
     depends_on:
       redis:
         condition: service_healthy

@@ -22,6 +22,7 @@ User = get_user_model()
 
 MAX_BATCH_SIZE = 20
 MAX_ZIP_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_EXTRACTED_SIZE = 200 * 1024 * 1024
 ALLOWED_EXTS = {".txt", ".md", ".markdown", ".docx", ".pdf", ".epub"}
 
 
@@ -37,11 +38,11 @@ def create_batch_from_zip(
     processed = 0
 
     try:
-        with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        with zipfile.ZipFile(zip_file, "r") as zip_ref:
             # Validate all files first
             file_list = []
             for name in zip_ref.namelist():
-                if name.endswith('/') or name.startswith('__MACOSX'):
+                if name.endswith("/") or name.startswith("__MACOSX"):
                     continue
                 ext = Path(name).suffix.lower()
                 if ext not in ALLOWED_EXTS:
@@ -55,6 +56,14 @@ def create_batch_from_zip(
             if len(file_list) > MAX_BATCH_SIZE:
                 msg = f"ZIP chứa quá nhiều tệp (tối đa {MAX_BATCH_SIZE})."
                 return {"ok": False, "message": msg, "errors": errors}
+            if sum(info.file_size for info in zip_ref.infolist()) > MAX_EXTRACTED_SIZE:
+                return {"ok": False, "message": "Tổng dung lượng giải nén vượt quá 200MB."}
+            for info in zip_ref.infolist():
+                if info.file_size > 1_048_576 and info.compress_size * 100 < info.file_size:
+                    return {
+                        "ok": False,
+                        "message": "ZIP có tỷ lệ nén bất thường, không được chấp nhận.",
+                    }
 
             # Extract and process each file
             temp_dir = Path(settings.MEDIA_ROOT) / "batch_uploads" / uuid4().hex
@@ -119,16 +128,18 @@ def create_batch_from_zip(
                             ]
                         )
 
-                    results.append({
-                        "id": summary.id,
-                        "title": summary.title,
-                        "file_name": name,
-                        "method": method,
-                        "language": result["language"],
-                        "ratio": ratio,
-                        "summary": result["summary"],
-                        "keywords": result["keywords"],
-                    })
+                    results.append(
+                        {
+                            "id": summary.id,
+                            "title": summary.title,
+                            "file_name": name,
+                            "method": method,
+                            "language": result["language"],
+                            "ratio": ratio,
+                            "summary": result["summary"],
+                            "keywords": result["keywords"],
+                        }
+                    )
                     processed += 1
 
                 except Exception as exc:  # noqa: BLE001
@@ -137,6 +148,7 @@ def create_batch_from_zip(
 
             # Cleanup temp directory
             import shutil
+
             shutil.rmtree(temp_dir, ignore_errors=True)
 
             return {
@@ -215,16 +227,18 @@ def create_batch_from_urls(
                     ]
                 )
 
-            results.append({
-                "id": summary.id,
-                "title": summary.title,
-                "source_url": url,
-                "method": method,
-                "language": result["language"],
-                "ratio": ratio,
-                "summary": result["summary"],
-                "keywords": result["keywords"],
-            })
+            results.append(
+                {
+                    "id": summary.id,
+                    "title": summary.title,
+                    "source_url": url,
+                    "method": method,
+                    "language": result["language"],
+                    "ratio": ratio,
+                    "summary": result["summary"],
+                    "keywords": result["keywords"],
+                }
+            )
 
         except Exception as exc:  # noqa: BLE001
             logger.exception("Batch URL failed: %s", url)

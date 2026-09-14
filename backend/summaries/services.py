@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
+from celery.exceptions import CeleryError
 from django.conf import settings
 from django.core.cache import cache
 
@@ -16,6 +17,7 @@ from .tasks import process_summary_task
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_EXTS = {".txt", ".md", ".markdown", ".docx", ".pdf", ".epub"}
 RATE_LIMIT_SECONDS = getattr(settings, "RATE_LIMIT_SECONDS", 5)
+TASK_OWNER_TIMEOUT = 60 * 60
 
 
 class SummaryService:
@@ -38,14 +40,9 @@ class SummaryService:
 
         # Rate limit check
         cache_key = f"rate_limit:{self.user.id}"
-        last_call = cache.get(cache_key, 0.0)
-        import time
-        now = time.time()
-        if now - last_call < RATE_LIMIT_SECONDS:
-            wait = int(RATE_LIMIT_SECONDS - (now - last_call))
-            msg = f"Vui lòng đợi {wait} giây trước khi gửi yêu cầu tiếp theo."
+        if RATE_LIMIT_SECONDS > 0 and not cache.add(cache_key, True, RATE_LIMIT_SECONDS):
+            msg = f"Vui lòng đợi {RATE_LIMIT_SECONDS} giây trước khi gửi yêu cầu tiếp theo."
             return {"ok": False, "message": msg, "status": 429}
-        cache.set(cache_key, now, RATE_LIMIT_SECONDS)
 
         file_path = ""
         user_api_key = ""
@@ -64,7 +61,8 @@ class SummaryService:
                 msg = "Dung lượng tệp vượt quá 10MB. Vui lòng chọn tệp nhỏ hơn."
                 return {"ok": False, "message": msg, "status": 400}
             else:
-                file_ext = Path(uploaded_file.name).suffix.lower()
+                safe_name = Path(uploaded_file.name).name
+                file_ext = Path(safe_name).suffix.lower()
                 if file_ext not in ALLOWED_EXTS:
                     msg = f"Định dạng tệp không được hỗ trợ: {file_ext}"
                     return {"ok": False, "message": msg, "status": 400}
@@ -79,7 +77,7 @@ class SummaryService:
                 uploaded_file.seek(0)
                 temp_dir = Path(settings.MEDIA_ROOT) / "uploads"
                 temp_dir.mkdir(parents=True, exist_ok=True)
-                temp_path = temp_dir / f"{uuid4().hex}_{uploaded_file.name}"
+                temp_path = temp_dir / f"{uuid4().hex}_{safe_name}"
                 with temp_path.open("wb+") as destination:
                     for chunk in uploaded_file.chunks():
                         destination.write(chunk)
@@ -98,8 +96,7 @@ class SummaryService:
                 user_key = decrypt_value(self.user.setting.gemini_api_key)
             if not system_key and not user_key:
                 msg = (
-                    "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong "
-                    "settings cá nhân hoặc file .env."
+                    "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."
                 )
                 return {"ok": False, "message": msg, "status": 400}
             user_api_key = user_key
@@ -134,7 +131,15 @@ class SummaryService:
             return {**task_result, "status": status}
 
         # Production: queue async task
-        task = process_summary_task.delay(**task_args)
+        try:
+            task = process_summary_task.delay(**task_args)
+        except CeleryError:
+            return {
+                "ok": False,
+                "message": "Dịch vụ xử lý nền hiện không khả dụng. Vui lòng thử lại sau.",
+                "status": 503,
+            }
+        cache.set(f"task_owner:{task.id}", self.user.id, TASK_OWNER_TIMEOUT)
         return {"ok": True, "task_id": task.id}
 
     def cleanup_file(self, file_path: str) -> None:

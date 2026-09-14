@@ -1,3 +1,5 @@
+import hashlib
+import json
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +33,19 @@ class Command(BaseCommand):
         db_path = folder / "db.json"
         with open(db_path, "w", encoding="utf-8") as fh:
             call_command("dumpdata", stdout=fh)
+        digest = hashlib.sha256(db_path.read_bytes()).hexdigest()
+        (folder / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "created_at": stamp,
+                    "database_dump": db_path.name,
+                    "sha256": digest,
+                    "media_included": bool(options["include_media"]),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         self.stdout.write(self.style.SUCCESS(f"==> DB backup: {db_path}"))
 
         if options["include_media"]:

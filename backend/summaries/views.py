@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_POST
@@ -20,7 +21,7 @@ from .batch import create_batch_from_urls, create_batch_from_zip
 from .exports import export_summary
 from .forms import LoginForm, RegisterForm, SettingsForm, SummaryRequestForm
 from .models import Summary
-from .sharing import generate_share_token, get_share_url, get_shared_summary
+from .sharing import generate_share_token, get_shared_summary
 from .webhooks import WebhookRegistration
 
 PAGE_SIZE = 12
@@ -222,6 +223,7 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             setting.default_summary_ratio = form.cleaned_data["default_summary_ratio"]
             api_key = form.cleaned_data.get("gemini_api_key", "").strip()
             from .signing import encrypt_value
+
             setting.gemini_api_key = encrypt_value(api_key) if api_key else ""
             setting.save(update_fields=["default_summary_ratio", "gemini_api_key"])
             messages.success(request, "Đã lưu cài đặt.")
@@ -266,6 +268,7 @@ def create_summary(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"ok": False, "errors": _serialize_form_errors(form)}, status=400)
 
     from .services import SummaryService
+
     service = SummaryService(request.user)
 
     source_type = form.cleaned_data["source_type"]
@@ -287,6 +290,8 @@ def create_summary(request: HttpRequest) -> JsonResponse:
 
 @login_required
 def check_task_status(request: HttpRequest, task_id: str) -> JsonResponse:
+    if cache.get(f"task_owner:{task_id}") != request.user.id:
+        return JsonResponse({"ok": False, "message": "Không tìm thấy tác vụ."}, status=404)
     result = AsyncResult(task_id)
     if result.ready():
         return JsonResponse({"status": "done", "data": result.result})
@@ -320,12 +325,10 @@ def batch_summarize_zip(request: HttpRequest) -> JsonResponse:
         user_api_key = ""
         if hasattr(request.user, "setting") and request.user.setting.gemini_api_key:
             from .signing import decrypt_value
+
             user_api_key = decrypt_value(request.user.setting.gemini_api_key)
         if not user_api_key and not getattr(settings, "GEMINI_API_KEY", ""):
-            msg = (
-                "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong "
-                "settings cá nhân hoặc file .env."
-            )
+            msg = "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."
             return JsonResponse({"ok": False, "message": msg}, status=400)
     else:
         user_api_key = ""
@@ -350,19 +353,19 @@ def batch_summarize_urls(request: HttpRequest) -> JsonResponse:
         msg = f"Dữ liệu không hợp lệ: {exc}"
         return JsonResponse({"ok": False, "message": msg}, status=400)
 
-    if not urls:
+    if not isinstance(urls, list) or not urls or not all(isinstance(url, str) for url in urls):
         return JsonResponse({"ok": False, "message": "Danh sách URL trống."}, status=400)
+    if method not in {"textrank", "gemini"} or not 0.0 <= ratio <= 1.0:
+        return JsonResponse({"ok": False, "message": "Method hoặc ratio không hợp lệ."}, status=400)
 
     if method == "gemini":
         user_api_key = ""
         if hasattr(request.user, "setting") and request.user.setting.gemini_api_key:
             from .signing import decrypt_value
+
             user_api_key = decrypt_value(request.user.setting.gemini_api_key)
         if not user_api_key and not getattr(settings, "GEMINI_API_KEY", ""):
-            msg = (
-                "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong "
-                "settings cá nhân hoặc file .env."
-            )
+            msg = "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."
             return JsonResponse({"ok": False, "message": msg}, status=400)
     else:
         user_api_key = ""
@@ -381,15 +384,24 @@ def create_share_link(request: HttpRequest, pk: int) -> JsonResponse:
         pk=pk,
         user=request.user,
     )
-    expiry_days = int(request.POST.get("expiry_days", 7))
+    try:
+        expiry_days = int(request.POST.get("expiry_days", 7))
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "message": "Thời hạn chia sẻ không hợp lệ."}, status=400)
+    if not 1 <= expiry_days <= 30:
+        return JsonResponse(
+            {"ok": False, "message": "Thời hạn chia sẻ phải từ 1 đến 30 ngày."}, status=400
+        )
     token = generate_share_token(summary, expiry_days)
-    share_url = get_share_url(summary, request, expiry_days)
-    return JsonResponse({
-        "ok": True,
-        "share_url": share_url,
-        "token": token,
-        "expires_in_days": expiry_days,
-    })
+    share_url = request.build_absolute_uri(reverse("shared_summary", kwargs={"token": token}))
+    return JsonResponse(
+        {
+            "ok": True,
+            "share_url": share_url,
+            "token": token,
+            "expires_in_days": expiry_days,
+        }
+    )
 
 
 def shared_summary_view(request: HttpRequest, token: str) -> HttpResponse:
@@ -416,6 +428,7 @@ def webhook_list(request: HttpRequest) -> HttpResponse:
             messages.error(request, "Chọn ít nhất một sự kiện.")
         else:
             import secrets
+
             secret = secrets.token_urlsafe(32)
             WebhookRegistration.objects.create(
                 user=request.user,
@@ -457,19 +470,31 @@ def webhook_test(request: HttpRequest, pk: int) -> JsonResponse:
         summary_text="Đây là bản tóm tắt test để kiểm tra webhook.",
         created_at=timezone.now(),
     )
-    test_summary.document = type('obj', (object,), {
-        'source_type': 'text',
-        'source_name': 'Test',
-    })()
-    test_summary.tags = type('obj', (object,), {
-        'values_list': lambda *a, **k: iter([]),
-    })()
+    test_summary.document = type(
+        "obj",
+        (object,),
+        {
+            "source_type": "text",
+            "source_name": "Test",
+        },
+    )()
+    test_summary.tags = type(
+        "obj",
+        (object,),
+        {
+            "values_list": lambda *a, **k: iter([]),
+        },
+    )()
     test_summary.user = request.user
 
     payload = _build_webhook_payload(test_summary, "summary.completed")
     success = _deliver_webhook(webhook, payload)
 
-    return JsonResponse({
-        "ok": success,
-        "message": "Test webhook sent successfully" if success else "Failed to send test webhook",
-    })
+    return JsonResponse(
+        {
+            "ok": success,
+            "message": "Test webhook sent successfully"
+            if success
+            else "Failed to send test webhook",
+        }
+    )
