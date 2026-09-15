@@ -66,7 +66,7 @@
 | `python-docx` | 1.1.0 | Đọc file DOCX |
 | `ebooklib` | 0.19 | Đọc file EPUB |
 | `beautifulsoup4` | 4.13.4 | Trích xuất nội dung HTML/URL |
-| `requests` | 2.32.4 | Gọi API Gemini & tải URL |
+| `requests` | 2.33.0 | Gọi API Gemini & tải URL |
 | `chardet` | 5.2.0 | Phát hiện mã hoá file TXT |
 | `mssql-django` | 1.7.4 | Kết nối SQL Server tùy chọn |
 | `daphne` | 4.2.3 | ASGI server (HTTPS dev) |

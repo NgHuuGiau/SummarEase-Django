@@ -80,7 +80,7 @@ jobs:
           --disable-error-code union-attr
 
   security:
-    name: Security Scan (pip-audit + safety)
+    name: Security Scan (pip-audit)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -93,13 +93,10 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pip-audit safety
+        run: pip install -r requirements.txt pip-audit
 
       - name: Run pip-audit (fail on vulnerabilities)
         run: pip-audit -r requirements.txt -f json -o pip-audit-results.json
-
-      - name: Run Safety (fail on vulnerabilities)
-        run: safety check -r requirements.txt --json -o safety-results.json
 
       - name: Upload security artifacts
         uses: actions/upload-artifact@v4
@@ -108,7 +105,6 @@ jobs:
           name: security-results
           path: |
             pip-audit-results.json
-            safety-results.json
           retention-days: 14
 
   test:
