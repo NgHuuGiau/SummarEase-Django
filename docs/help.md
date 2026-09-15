@@ -37,31 +37,25 @@ pip install -r requirements.txt
 
 ### 4. Cấu hình môi trường
 
-Tạo file `backend/.env` với nội dung:
+Tạo file `backend/.env` từ `backend/.env.example`. Cấu hình tối thiểu cho development:
 
 ```env
 DJANGO_SECRET_KEY=summarease-local-dev-key
 DJANGO_DEBUG=True
-DJANGO_ALLOWED_HOSTS=*
+DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
+# SQLite là mặc định; không cần khai báo DB_ENGINE.
+```
 
-# Database — SQL Server
+#### SQL Server (tùy chọn)
+
+```env
 DB_ENGINE=sqlserver
 DB_NAME=SummarEase_Django
 DB_HOST=127.0.0.1
 DB_PORT=1433
 DB_USER=sa
-DB_PASSWORD=Admin@123
+DB_PASSWORD=<mật-khẩu-local>
 DB_DRIVER=ODBC Driver 17 for SQL Server
-DB_USE_WINDOWS_AUTH=False
-```
-
-#### Windows Auth (thay cho SQL Auth)
-
-```env
-DB_ENGINE=sqlserver
-DB_NAME=SummarEase_Django
-DB_HOST=127.0.0.1
-DB_PORT=1433
 DB_USE_WINDOWS_AUTH=True
 ```
 
@@ -81,7 +75,7 @@ CREATE DATABASE SummarEase_Django;
 
 Hoặc chạy script:
 ```powershell
-sqlcmd -S 127.0.0.1 -U sa -P "Admin@123" -i backend\sql\schema_sqlserver.sql
+sqlcmd -S 127.0.0.1 -U sa -P "<mật-khẩu-local>" -i backend\sql\schema_sqlserver.sql
 ```
 
 ### 6. Migrate + tạo admin
@@ -104,7 +98,7 @@ python manage.py createsuperuser
 
 ## Chạy server
 
-### HTTP (cổ điển)
+### HTTP (Django development server)
 
 ```powershell
 .\scripts\run-dev.ps1
@@ -112,11 +106,12 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Mặc định: **http://127.0.0.1:8000/**
+`run-dev.ps1` chạy HTTPS bằng Daphne tại **https://127.0.0.1:8000/**. Nếu chỉ cần HTTP, dùng lệnh `python manage.py runserver`.
 
-### HTTPS (khi trình duyệt ép buộc HTTPS)
+### HTTPS (khuyến nghị cho giao diện local)
 
 ```powershell
+.\scripts\run-dev.ps1              # Daphne, port 8000
 .\scripts\run-ssl.ps1              # Port 8443
 .\scripts\run-ssl.ps1 -Port 8443   # Custom port
 ```
@@ -168,8 +163,8 @@ Mặc định: **https://localhost:8443/**
 
 ```powershell
 python manage.py check                  # Kiểm tra hệ thống
-   python -m pytest backend/summaries/tests.py -q  # Chạy toàn bộ backend test
-   python -m pytest backend/summaries/tests.py -k Security
+python -m pytest backend/summaries/tests.py -q  # Chạy toàn bộ backend test
+python -m pytest backend/summaries/tests.py -k Security
 python manage.py setup                  # Migrate + (tuỳ chọn) tạo superuser
 python manage.py setup --create-superuser  # Migrate + tạo admin luôn
 python manage.py createsuperuser        # Tạo superuser thủ công
@@ -197,14 +192,14 @@ Get-Service MSSQLSERVER
 # -> Protocols for MSSQLSERVER -> TCP/IP -> Enabled = Yes
 
 # Kiểm tra kết nối
-sqlcmd -S 127.0.0.1 -U sa -P "Admin@123" -Q "SELECT 1"
+sqlcmd -S 127.0.0.1 -U sa -P "<mật-khẩu-local>" -Q "SELECT 1"
 ```
 
 ### Lỗi "Login failed for user 'sa'"
 
 ```powershell
 # Reset password cho sa
-sqlcmd -S 127.0.0.1 -Q "ALTER LOGIN [sa] WITH PASSWORD = 'Admin@123'; ALTER LOGIN [sa] ENABLE;"
+sqlcmd -S 127.0.0.1 -Q "ALTER LOGIN [sa] WITH PASSWORD = '<mật-khẩu-mới>'; ALTER LOGIN [sa] ENABLE;"
 ```
 
 ### Lỗi "Invalid object name 'summaries_summary'"
@@ -253,9 +248,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 ### Lỗi "No module named 'config'" khi chạy script
 
-Set PYTHONPATH trước khi chạy:
+Chạy lệnh từ thư mục gốc dự án. Với script HTTPS, dùng:
 
 ```powershell
-$env:PYTHONPATH = "backend"
-python backend/run_https.py
+.\scripts\run-dev.ps1
 ```

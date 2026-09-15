@@ -64,8 +64,8 @@ SummarEase-Django/
 │           ├── password_reset*.html # Password reset (4 templates)
 │           └── password_reset_email.txt # Email khôi phục
 ├── scripts/                     # Scripts dev
-│   ├── run-dev.bat              #   Script dev HTTP (Windows)
-│   ├── run-dev.ps1              #   Script dev HTTP (PowerShell)
+│   ├── run-dev.bat              #   Script dev HTTPS (Windows)
+│   ├── run-dev.ps1              #   Script dev HTTPS (PowerShell/Daphne)
 │   └── run-ssl.ps1              #   Script dev HTTPS (PowerShell/Daphne)
 ├── docs/                        # Tài liệu
 ├── manage.py                    # Django CLI
