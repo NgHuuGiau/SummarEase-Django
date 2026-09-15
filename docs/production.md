@@ -1,40 +1,40 @@
-# Production Runbook
+# Runbook production
 
-## 1. Required configuration
+## 1. Cấu hình bắt buộc
 
-Set these values in a secret manager or deployment environment, never in Git:
+Đặt các giá trị sau trong secret manager hoặc biến môi trường triển khai, không lưu vào Git:
 
 ```env
 DJANGO_DEBUG=False
-DJANGO_SECRET_KEY=<random-secret-at-least-50-characters>
+DJANGO_SECRET_KEY=<secret-ngau-nhien-it-nhat-50-ky-tu>
 API_ENCRYPTION_KEY=<fernet-key>
 DJANGO_ALLOWED_HOSTS=app.example.com
 DB_ENGINE=sqlserver
-REDIS_URL=redis://:<password>@redis:6379/0
+REDIS_URL=redis://:<mat-khau>@redis:6379/0
 ```
 
-Use a managed database for public deployments. SQLite is suitable only for development or a single-process internal installation.
+Dùng database managed cho public deployment. SQLite chỉ phù hợp cho development hoặc hệ thống nội bộ một tiến trình.
 
-## 2. Backup and restore
+## 2. Backup và khôi phục
 
-Create a database and media backup at least daily:
+Tạo backup database và media ít nhất mỗi ngày:
 
 ```bash
 python manage.py backup_db --dest /backups --include-media
 ```
 
-Each backup contains `db.json`, optional media, and `manifest.json` with a SHA-256 checksum. Copy the complete timestamped folder to storage outside the host/container. Test restore at least monthly on an isolated database; a backup that has never been restored is not verified.
+Mỗi backup gồm `db.json`, media tùy chọn và `manifest.json` chứa checksum SHA-256. Sao chép đầy đủ thư mục theo timestamp ra nơi lưu trữ bên ngoài host/container. Kiểm tra khôi phục hàng tháng trên database cô lập; backup chưa từng restore thì chưa được xác minh.
 
-## 3. Health and monitoring
+## 3. Health check và monitoring
 
-- Probe `/health/` for database and media readiness.
-- Scrape `/metrics/` only from the monitoring network; it is protected in production.
-- Alert on HTTP 5xx, latency, Celery task failures, queue age, Redis availability, database connections, disk usage and Gemini quota/errors.
-- Include deployment version and correlation/request IDs in the log aggregation system.
+- Probe `/health/` để kiểm tra database và media.
+- Chỉ scrape `/metrics/` từ mạng monitoring; endpoint được bảo vệ trong production.
+- Cảnh báo HTTP 5xx, latency, lỗi task Celery, độ dài hàng đợi, Redis, kết nối database, dung lượng đĩa và quota/lỗi Gemini.
+- Đưa version triển khai và request/correlation ID vào hệ thống tập trung log.
 
-## 4. Release gate
+## 4. Điều kiện release
 
-Before deploying:
+Chạy trước khi deploy:
 
 ```bash
 python -m pytest backend/summaries/tests.py -q
@@ -44,12 +44,12 @@ python manage.py check --deploy --fail-level ERROR
 docker compose config --quiet
 ```
 
-Run a load test with the expected peak concurrency and perform an OWASP review for every public release. Record the result and rollback target.
+Chạy load test theo concurrency đỉnh dự kiến và review OWASP trước mỗi release public. Ghi lại kết quả và image/version dùng để rollback.
 
-## 5. Recovery
+## 5. Khôi phục sự cố
 
-1. Stop receiving traffic or roll back to the last known-good image.
-2. Preserve logs and metrics before restarting workers.
-3. Restore the database only after verifying the backup manifest checksum.
-4. Reconcile media and database records, then run health and smoke tests.
-5. Rotate exposed secrets and document the incident.
+1. Ngừng nhận traffic hoặc rollback về image cuối cùng đã biết là ổn định.
+2. Lưu log và metrics trước khi restart worker.
+3. Chỉ restore database sau khi xác minh checksum trong manifest.
+4. Đối chiếu media với bản ghi database, sau đó chạy health check và smoke test.
+5. Rotate secret bị lộ và ghi nhận sự cố.

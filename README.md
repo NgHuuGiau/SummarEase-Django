@@ -142,7 +142,7 @@ SummarEase-Django/
 │       ├── admin/           #     Admin custom
 │       └── summaries/       #     App templates (home, login, register, history_*, settings, password_reset_*)
 ├── scripts/                 # Scripts dev
-│   ├── run-dev.bat          #   Script chạy dev (Windows)
+│   ├── run-dev.bat          #   Script chạy dev HTTPS (Windows)
 │   ├── run-dev.ps1          #   Script chạy dev HTTPS (Daphne, port 8000)
 │   ├── run-ssl.ps1          #   Script chạy dev HTTPS (PowerShell/Daphne)
 │   └── gen-cert.py          #   Tự sinh chứng chỉ SSL self-signed
