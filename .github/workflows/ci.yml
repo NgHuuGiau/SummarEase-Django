@@ -98,7 +98,15 @@ jobs:
       - name: Run pip-audit (fail on vulnerabilities)
         # requirements.txt is the project's source of truth; audit its pinned
         # direct dependencies without resolving an unpinned transitive tree.
-        run: pip-audit -r requirements.txt --no-deps -f json -o pip-audit-results.json
+        run: |
+          set +e
+          pip-audit -r requirements.txt --no-deps -f json -o pip-audit-results.json
+          audit_status=$?
+          if [ "$audit_status" -ne 0 ]; then
+            echo "Audit details:"
+            pip-audit -r requirements.txt --no-deps -f columns
+          fi
+          exit "$audit_status"
 
       - name: Upload security artifacts
         uses: actions/upload-artifact@v4
