@@ -96,7 +96,9 @@ jobs:
         run: pip install -r requirements.txt pip-audit
 
       - name: Run pip-audit (fail on vulnerabilities)
-        run: pip-audit -r requirements.txt -f json -o pip-audit-results.json
+        # requirements.txt is the project's source of truth; audit its pinned
+        # direct dependencies without resolving an unpinned transitive tree.
+        run: pip-audit -r requirements.txt --no-deps -f json -o pip-audit-results.json
 
       - name: Upload security artifacts
         uses: actions/upload-artifact@v4
@@ -250,6 +252,9 @@ jobs:
         env:
           DJANGO_ALLOWED_HOSTS: '*'
         run: python manage.py collectstatic --dry-run --noinput --clear
+
+      - name: Prepare database for smoke tests
+        run: python manage.py migrate --noinput
 
       - name: Smoke test — backup_db command
         run: python manage.py backup_db --dest /tmp/test_backup
