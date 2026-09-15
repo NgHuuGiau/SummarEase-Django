@@ -104,17 +104,21 @@ jobs:
           retention-days: 14
 
   test:
-    name: Django Tests (Python 3.12)
+    name: Django Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
           cache-dependency-path: |
             requirements.txt
@@ -158,6 +162,29 @@ jobs:
         with:
           files: ./coverage.xml
           flags: unittests
+
+  frontend_lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          for file in frontend/static/js/*.js frontend/static/sw.js; do
+            node --check "$file"
+          done
+
+      - name: Validate frontend manifest
+        run: python -m json.tool frontend/static/manifest.json > /dev/null
 
   e2e:
     name: E2E Tests (Playwright)
@@ -226,22 +253,22 @@ jobs:
       - name: Smoke test — health endpoint
         run: |
           python -c "
-import django, os
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-django.setup()
-from django.test import Client
-c = Client()
-resp = c.get('/health/')
-assert resp.status_code == 200, f'Health failed: {resp.status_code}'
-assert resp.json()['status'] in ('ok', 'healthy', 'degraded')
-print('Health OK:', resp.json())
-"
+          import django, os
+          os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+          django.setup()
+          from django.test import Client
+          c = Client()
+          resp = c.get('/health/')
+          assert resp.status_code == 200, f'Health failed: {resp.status_code}'
+          assert resp.json()['status'] in ('ok', 'healthy', 'degraded')
+          print('Health OK:', resp.json())
+          "
 
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, typecheck, security, test, e2e, build]
+    needs: [lint, typecheck, security, test, e2e, frontend_lint, build]
     steps:
       - name: Collect results
         run: |
@@ -254,6 +281,7 @@ print('Health OK:', resp.json())
           echo "| Security Scan | ${{ needs.security.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Django Tests | ${{ needs.test.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| E2E Tests | ${{ needs.e2e.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Frontend Lint | ${{ needs.frontend_lint.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build Verification | ${{ needs.build.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**All checks must pass for merge.**" >> "$GITHUB_STEP_SUMMARY"

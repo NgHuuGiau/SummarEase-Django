@@ -51,7 +51,7 @@
 
 | Công nghệ | Phiên bản | Mục đích |
 |-----------|-----------|----------|
-| Python | 3.12+ | Ngôn ngữ lập trình |
+| Python | 3.10–3.13 | Ngôn ngữ lập trình |
 | Django | 5.2 | Web framework |
 | HTML5 / CSS3 | — | Giao diện người dùng |
 | JavaScript | Vanilla | Tương tác frontend |
@@ -87,7 +87,7 @@
 ```
 SummarEase-Django/
 ├── .github/workflows/       # CI/CD pipeline (GitHub Actions)
-│   └── ci.yml               #   Lint, typecheck, security, test, E2E, build
+│   └── ci.yml               #   Lint, typecheck, security, test 3.10–3.13, E2E, frontend, build
 ├── backend/                 # Mã nguồn chính (Django)
 │   ├── config/              #   Settings, URLs, WSGI/ASGI
 │   │   ├── settings.py      #     Cấu hình Django (DB, whitenoise, CSP)
@@ -160,7 +160,7 @@ SummarEase-Django/
 
 ### Yêu cầu
 
-- Python 3.12+
+- Python 3.10–3.13
 - pip
 - SQLite (mặc định cho development)
 - SQL Server + ODBC Driver 17 (tùy chọn cho production)
@@ -237,6 +237,8 @@ Chạy toàn bộ bộ test:
 ```powershell
 python -m pytest backend -q
 ```
+
+CI tự động kiểm tra backend trên Python 3.10, 3.11, 3.12 và 3.13; đồng thời kiểm tra cú pháp JavaScript và manifest frontend.
 
 Chạy theo nhóm:
 

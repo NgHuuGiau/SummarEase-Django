@@ -28,6 +28,8 @@ python manage.py runserver
 3. **Tự kiểm tra giao diện hoặc API bị ảnh hưởng**
 4. **Cập nhật tài liệu** nếu thay đổi làm khác hành vi hoặc cách cài đặt
 
+CI kiểm tra Python 3.10, 3.11, 3.12, 3.13; Ruff, mypy, security scan, E2E và cú pháp frontend. Hãy chạy các kiểm tra liên quan trước khi mở PR.
+
 ## Khi viết Pull Request
 
 - Mô tả rõ vấn đề đang giải quyết

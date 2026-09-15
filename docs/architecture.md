@@ -122,7 +122,7 @@ nlp.py -> requests.post(
 | ASGI server | Daphne (HTTPS dev) |
 | Static files | whitenoise |
 | Frontend | HTML + CSS + Vanilla JS |
-| CI/CD | GitHub Actions |
+| CI/CD | GitHub Actions (Python 3.10–3.13, Ruff, mypy, security, frontend, E2E, build) |
 | Management | python manage.py setup |
 
 ## Database

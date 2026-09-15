@@ -2,7 +2,7 @@
 
 ## Yêu cầu hệ thống
 
-- **Python** 3.12 trở lên
+- **Python** 3.10–3.13
 - **pip** (Python package manager)
 - **SQLite** — mặc định, không cần cài thêm database cho development
 - **SQL Server** 2017+ và **ODBC Driver 17** — tùy chọn cho production
