@@ -22,6 +22,7 @@ python manage.py runserver
    python -m pytest backend/summaries/tests.py -q
    ruff check backend manage.py
    ruff format --check backend manage.py
+   mypy backend manage.py --ignore-missing-imports --follow-imports=skip
    python manage.py check --deploy --fail-level ERROR
    ```
 

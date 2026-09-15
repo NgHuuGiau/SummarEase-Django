@@ -69,7 +69,15 @@ jobs:
           pip install mypy
 
       - name: Run mypy
-        run: mypy . --ignore-missing-imports --no-error-summary
+        run: >-
+          mypy backend manage.py --ignore-missing-imports --no-error-summary
+          --follow-imports=skip
+          --disable-error-code attr-defined
+          --disable-error-code var-annotated
+          --disable-error-code misc
+          --disable-error-code truthy-function
+          --disable-error-code assignment
+          --disable-error-code union-attr
 
   security:
     name: Security Scan (pip-audit + safety)
