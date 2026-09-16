@@ -104,11 +104,14 @@ def _textrank_cached(
                     continue
                 overlap = len(current & candidate)
                 if overlap:
-                    score += 0.85 * overlap / (math.log(len(current) + 1) + math.log(len(candidate) + 1)) * scores[other]
+                    denominator = math.log(len(current) + 1) + math.log(len(candidate) + 1)
+                    score += 0.85 * overlap / denominator * scores[other]
             updated.append(score)
         scores = updated
 
-    selected = sorted(range(total_sentences), key=lambda index: scores[index], reverse=True)[:sentence_count]
+    selected = sorted(
+        range(total_sentences), key=lambda index: scores[index], reverse=True
+    )[:sentence_count]
     summary = " ".join(sentences[index] for index in sorted(selected)).strip()
 
     return build_summary_result(summary, language, normalized)
