@@ -5,6 +5,36 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+SEARCH_VECTOR_INDEX = "summaries_s_search__c92837_idx"
+
+
+def add_search_vector_column(apps, schema_editor):
+    """Use PostgreSQL's tsvector only where that database type exists."""
+    Summary = apps.get_model("summaries", "Summary")
+    if schema_editor.connection.vendor == "postgresql":
+        field = django.contrib.postgres.search.SearchVectorField(null=True, editable=False)
+    else:
+        field = models.TextField(null=True, blank=True, editable=False)
+    Summary.add_to_class("search_vector", field)
+    schema_editor.add_field(Summary, field)
+
+    if schema_editor.connection.vendor == "postgresql":
+        schema_editor.add_index(
+            Summary,
+            models.Index(fields=["search_vector"], name=SEARCH_VECTOR_INDEX),
+        )
+
+
+def remove_search_vector_column(apps, schema_editor):
+    Summary = apps.get_model("summaries", "Summary")
+    if schema_editor.connection.vendor == "postgresql":
+        schema_editor.remove_index(
+            Summary,
+            models.Index(fields=["search_vector"], name=SEARCH_VECTOR_INDEX),
+        )
+    schema_editor.remove_field(Summary, Summary._meta.get_field("search_vector"))
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -13,13 +43,22 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='summary',
-            name='search_vector',
-            field=django.contrib.postgres.search.SearchVectorField(editable=False, null=True),
-        ),
-        migrations.AddIndex(
-            model_name='summary',
-            index=models.Index(fields=['search_vector'], name='summaries_s_search__c92837_idx'),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(add_search_vector_column, remove_search_vector_column),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name="summary",
+                    name="search_vector",
+                    field=django.contrib.postgres.search.SearchVectorField(
+                        editable=False, null=True
+                    ),
+                ),
+                migrations.AddIndex(
+                    model_name="summary",
+                    index=models.Index(fields=["search_vector"], name=SEARCH_VECTOR_INDEX),
+                ),
+            ],
         ),
     ]
