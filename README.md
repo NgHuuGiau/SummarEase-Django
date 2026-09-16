@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
 </p>
 
-**SummarEase Django** là ứng dụng web tóm tắt nội dung thông minh, hỗ trợ tóm tắt từ văn bản, URL hoặc file tải lên (PDF, DOCX, EPUB, TXT). Hệ thống cung cấp hai phương pháp tóm tắt: **TextRank** (cổ điển) và **Gemini AI** (hiện đại), kèm theo quản lý lịch sử và tài khoản người dùng.
+**SummarEase Django** là ứng dụng web tóm tắt nội dung thông minh, hỗ trợ văn bản, URL và file PDF, DOCX, EPUB, TXT hoặc Markdown. Hệ thống cung cấp hai phương pháp tóm tắt: **TextRank** (chạy nội bộ) và **Gemini AI** (cần API key), cùng quản lý tài khoản, lịch sử, chia sẻ và xuất kết quả.
 
 ---
 
@@ -34,13 +34,15 @@
 |-----------|-------|
 | **📄 Tóm tắt văn bản** | Nhập trực tiếp nội dung cần tóm tắt |
 | **🔗 Tóm tắt URL** | Trích xuất và tóm tắt nội dung trang web |
-| **📁 Tải file lên** | Hỗ trợ PDF, DOCX, EPUB, TXT |
+| **📁 Tải file lên** | Hỗ trợ PDF, DOCX, EPUB, TXT, Markdown (`.md`, `.markdown`); giới hạn 10 MB |
 | **🧠 TextRank** | Thuật toán xếp hạng câu cổ điển, chạy nội bộ không cần API |
 | **🤖 Gemini AI** | Tóm tắt thông minh bằng Google Gemini |
-| **📊 Tuỳ chỉnh tỷ lệ** | Chọn độ dài bản tóm tắt từ 10%–90% |
+| **📊 Tuỳ chỉnh tỷ lệ** | Chọn mức rút gọn từ 5%–80% |
 | **👤 Quản lý tài khoản** | Đăng ký, đăng nhập, phân quyền |
 | **📜 Lịch sử tóm tắt** | Lưu và xem lại các bản tóm tắt đã tạo |
+| **📤 Chia sẻ và xuất file** | Tạo liên kết chia sẻ có thời hạn; xuất Markdown, DOCX hoặc PDF |
 | **🌓 Giao diện tối/sáng** | Theme mặc định theo hệ thống, có thể chuyển đổi |
+| **✅ Kiểm tra dữ liệu đầu vào** | Báo lỗi ngay trên giao diện; backend vẫn kiểm tra lại trước khi xử lý |
 | **🔒 Bảo mật** | API key được mã hoá, XSS-safe, rate limiting |
 
 ---
@@ -94,6 +96,8 @@ SummarEase-Django/
 │   │   ├── wsgi.py          #     WSGI entry point
 │   │   ├── asgi.py          #     ASGI entry point (Daphne)
 │   │   ├── csp.py           #     CSP middleware
+│   │   ├── request_id.py    #     Request ID middleware
+│   │   ├── logging_fmt.py   #     JSON formatter cho structured logging
 │   │   └── _setup.py        #     Chung cho WSGI/ASGI
 │   ├── summaries/           #   Django app chính
 │   │   ├── models.py        #     Document, Summary, Tag, UserProfile, UserSetting
@@ -106,12 +110,12 @@ SummarEase-Django/
 │   │   ├── signing.py       #     Mã hoá API key
 │   │   ├── urls.py          #     URL routing (login lockout, password reset, health, security.txt)
 │   │   ├── tests.py         #     Backend tests
-│   │   ├── logging_fmt.py   #     JSON formatter cho structured logging (gộp trong config)
 │   │   ├── stopwords.txt    #     Stopwords tiếng Việt
 │   │   ├── management/
 │   │   │   └── commands/
 │   │   │       ├── setup.py     #   migrate + superuser
-│   │   │       └── backup_db.py #   backup dumpdata (+ media)
+│   │   │       ├── backup_db.py #   backup dumpdata (+ media)
+│   │   │       └── verify_backup.py # kiểm tra checksum backup
 │   │   └── migrations/      #     DB migrations
 │   ├── api-tests/           #   Bruno API test collection
 │   ├── media/               #   File upload (gitignored)
@@ -120,12 +124,12 @@ SummarEase-Django/
 │   ├── ssl/                 #   Chứng chỉ SSL tự ký (gitignored)
 │   │   ├── cert.pem         #     Certificate
 │   │   └── key.pem          #     Private key
-│   ├── staticfiles/         #   File tĩnh đã collect (auto-gen, gitignored)
+│   ├── staticfiles/         #   Đích collectstatic (.gitkeep được theo dõi; file sinh ra bị ignore)
 │   ├── .env                 #   Biến môi trường (local)
 │   ├── .env.example         #   Mẫu biến môi trường
 │   └── conftest.py          #   Pytest config
 ├── Dockerfile               # Production image (python:3.12-slim, non-root summarizease, HEALTHCHECK)
-├── docker-compose.yml       # Compose: build, migrate+setup, gunicorn, restart unless-stopped
+├── docker-compose.yml       # Compose: web, Redis, Celery worker và Beat
 ├── docs/                    # Tài liệu
 │   ├── architecture.md      #   Kiến trúc hệ thống
 │   ├── help.md              #   Hướng dẫn chi tiết
@@ -133,6 +137,7 @@ SummarEase-Django/
 │   ├── SECURITY.md          #   Chính sách bảo mật
 │   └── production.md        #   Production runbook
 ├── frontend/                # Giao diện người dùng
+│   ├── e2e/                 #   Playwright E2E tests (guest + authenticated flows)
 │   ├── static/css/          #   Stylesheets (tokens-base, layout-buttons, form-area, history, pages-footer, responsive, admin.css)
 │   ├── static/js/app.js     #   JavaScript
 │   └── templates/           #   HTML templates
@@ -162,7 +167,7 @@ SummarEase-Django/
 - Python 3.10–3.13
 - pip
 - SQLite (mặc định cho development)
-- SQL Server + ODBC Driver 17 (tùy chọn cho production)
+- SQL Server + ODBC Driver 18 (tùy chọn cho production; đã có trong Docker image)
 
 ### Các bước
 
@@ -207,10 +212,11 @@ GEMINI_API_KEY=your_google_api_key
 
 1. **Đăng ký** tài khoản mới hoặc **đăng nhập**
 2. Chọn nguồn dữ liệu: `Văn bản`, `File` hoặc `URL`
-3. Chọn phương pháp tóm tắt: `TextRank` hoặc `Gemini`
-4. Điều chỉnh tỷ lệ tóm tắt (10%–90%)
+3. Chọn phương pháp tóm tắt: `TextRank` hoặc `Gemini` (Gemini cần API key hệ thống hoặc cá nhân)
+4. Điều chỉnh tỷ lệ rút gọn (5%–80%)
 5. Nhấn **Tóm tắt** để nhận kết quả
-6. Xem lại lịch sử trong mục **Lịch sử**
+6. Sao chép kết quả, mở chi tiết, xuất Markdown/DOCX/PDF hoặc tạo liên kết chia sẻ có thời hạn
+7. Xem lại các bản đã lưu trong mục **Lịch sử**
 
 ---
 
@@ -231,13 +237,26 @@ Server chạy tại **https://localhost:8443/** (hoặc port tùy chọn).
 
 ## 🧪 Kiểm thử
 
-Chạy toàn bộ bộ test:
+### Backend
 
 ```powershell
-python -m pytest backend -q
+python -m pytest backend/summaries/tests.py -q
 ```
 
-CI tự động kiểm tra backend trên Python 3.10, 3.11, 3.12 và 3.13; đồng thời kiểm tra cú pháp JavaScript và manifest frontend.
+### Giao diện E2E
+
+Khởi động server ở một terminal, sau đó chạy Playwright ở terminal khác:
+
+```powershell
+python manage.py migrate
+python manage.py runserver 127.0.0.1:8000
+$env:BASE_URL = "http://127.0.0.1:8000"
+python -m pytest frontend/e2e/test_home.py -q
+```
+
+E2E bao phủ trang khách, chuyển nguồn, tỷ lệ, theme, đăng nhập/đăng ký và luồng tài khoản đã xác thực gồm tạo tóm tắt, mở chi tiết, chia sẻ. Test upload hiện xác nhận tên tệp được chọn; xử lý định dạng và kích thước được kiểm thử ở backend. E2E tạo user riêng cho mỗi lần chạy.
+
+CI kiểm tra backend trên Python 3.10–3.13, Ruff, mypy, pip-audit, E2E Playwright, cú pháp JavaScript, manifest frontend và build/deploy checks. Kết quả gần nhất có thể xem trong GitHub Actions; không cố định số test trong tài liệu vì suite thay đổi theo mã nguồn.
 
 Chạy theo nhóm:
 
@@ -248,52 +267,31 @@ python -m pytest backend/summaries/tests.py -k Security # bảo mật
 python -m pytest backend/summaries/tests.py -k Error    # trang lỗi 404/500
 ```
 
-**Phạm vi bộ test (27 nhóm):**
+**Phạm vi backend test:**
 
-| Nhóm | Số test | Nội dung |
-|------|--------:|----------|
-| NLP — tách câu/từ | 5 | Viết tắt, tiếng Việt |
-| NLP — chuẩn hóa | 2 | Khoảng trắng, trim |
-| NLP — nhận diện ngôn ngữ | 4 | Việt/Anh theo dấu |
-| NLP — từ khóa | 3 | Lọc, highlight `<mark>`, escape HTML |
-| NLP — tiêu đề | 3 | Tự sinh tiêu đề |
-| NLP — cắt ngắn | 2 | Văn bản dài/ngắn |
-| NLP — trường hợp biên | 16 | Rỗng, ký tự đặc biệt, dấu `?!` |
-| Model (Document/Summary/Profile/Health) | 6 | Tạo bản ghi, timestamp, role |
-| Trang auth | 4 | Home, login, register, static CSS |
-| Luồng auth | 2 | Đăng ký, đăng nhập/đăng xuất |
-| Luồng tóm tắt | 6 | TextRank, lỗi, rate limit, phân quyền |
-| Cài đặt | 5 | Tỉ lệ, API key mã hoá |
-| Form validation | 5 | Ratio, API key, thiếu field |
-| Admin | 5 | Trang quản trị, phân quyền |
-| Phân trang lịch sử | 3 | Page 1/2, page lỗi |
-| Phân quyền | 4 | Xoá bản ghi của mình/người khác |
-| Xoá cascade | 2 | Document → Summary |
-| Trích URL | 6 | Scheme lạ, timeout, bỏ script |
-| Upload file | 4 | Quá lớn, định dạng, thiếu file |
-| Trích file | 4 | TXT/DOCX/PDF/EPUB |
-| Gemini | 5 | Thiếu key, HTTP lỗi, JSON sai (mock) |
-| **Trang lỗi 404/500** | 2 | Template custom render đúng |
-| **Bảo mật headers** | 5 | CSP, clickjacking, nosniff, referrer, CSRF |
-| **Biên nội dung** | 3 | Text 1 ký tự, text trắng, text rất dài |
-| Tóm tắt từ URL | 2 | Xem URL trên view, thiếu source_url |
-| Mã hoá token | 3 | Roundtrip, rỗng, token không hợp lệ |
-| Superuser → admin | 1 | Hồ sơ admin + tỉ lệ mặc định khi đăng nhập |
+| Phạm vi | Nội dung |
+|---------|----------|
+| NLP | Tách câu, nhận diện ngôn ngữ, từ khóa, tiêu đề, highlight an toàn và trường hợp biên |
+| Xác thực và phân quyền | Đăng ký/đăng nhập/đăng xuất, admin, lịch sử theo chủ sở hữu |
+| Tóm tắt và cấu hình | TextRank, Gemini (mock), tỷ lệ, rate limit, lỗi và lưu lịch sử |
+| Nguồn đầu vào | Văn bản, URL có kiểm tra SSRF, upload và trích xuất TXT/DOCX/PDF/EPUB |
+| Bảo mật và vận hành | CSP/headers, CSRF, token chia sẻ, health, backup, lỗi 404/500 |
 
 ---
 
 ## 🐳 Chạy với Docker
 
 ```powershell
-# Chuẩn bị: backend/.env đã có secret production và DB_ENGINE phù hợp
-docker compose up --build
+# Chuẩn bị: backend/.env có secret production, DB_ENGINE=mysql hoặc sqlserver,
+# DB_HOST trỏ tới database có thể truy cập từ container và host công khai.
+docker compose --env-file backend/.env up --build
 # Mở http://localhost:8000/health/ để kiểm (trả {"status":"ok","database":"ok","media":"ok"})
 docker compose logs -f web
 docker compose down
 ```
 
 Dockerfile: `python:3.12-slim`, user `summarizease` (non-root), HEALTHCHECK gọi `GET /health/`, COLLECTSTATIC lúc build.  
-Compose: `restart: unless-stopped`, volume `media_data` + `sqlite_data`, lệnh `migrate && setup && gunicorn --bind 0.0.0.0:8000 --workers 3`.
+Compose: `restart: unless-stopped`, volume `media_data`, Redis có health check; web, Celery worker và Celery Beat dùng chung MySQL/SQL Server ngoài container. Outbox webhook lưu bền trong database, thử gửi lại nền và gắn `X-Webhook-Delivery` để phía nhận khử trùng lặp.
 
 > Biến môi trường lấy từ `backend/.env`. Đổi `DJANGO_SECRET_KEY`, `API_ENCRYPTION_KEY` trong production. Xem `.env.example`.
 
@@ -316,7 +314,7 @@ Xem [docs/production.md](docs/production.md) trước khi public hệ thống. T
 | `/` | GET | Trang chủ |
 | `/login/` | GET/POST | Đăng nhập |
 | `/register/` | GET/POST | Đăng ký |
-| `/logout/` | GET | Đăng xuất |
+| `/logout/` | POST | Đăng xuất |
 | `/settings/` | GET/POST | Cài đặt (API key) |
 | `/history/` | GET | Lịch sử tóm tắt |
 | `/history/<id>/` | GET | Chi tiết bản tóm tắt |

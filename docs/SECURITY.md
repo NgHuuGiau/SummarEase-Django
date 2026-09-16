@@ -27,9 +27,12 @@ Nếu bạn phát hiện vấn đề bảo mật, **không tạo issue công kha
 - ✅ API key người dùng được mã hoá trong database
 - ✅ `.env`, media, backup và chứng chỉ nằm trong `.gitignore`
 - ✅ SSRF chặn mạng nội bộ, redirect không an toàn và proxy môi trường
+- ✅ Webhook production yêu cầu HTTPS, từ chối mạng riêng và không theo redirect
 - ✅ Giới hạn upload, URL response và ZIP extraction
 - ✅ Metrics được bảo vệ trong production
+- ✅ Kiểm tra dữ liệu trên giao diện để phản hồi sớm; Django forms/services vẫn xác thực lại ở backend
+- ✅ Giới hạn kích thước file upload ở 10 MB và allowlist phần mở rộng (`.txt`, `.md`, `.markdown`, `.docx`, `.pdf`, `.epub`)
 
 ## Giới hạn và trách nhiệm triển khai
 
-Các biện pháp trên không thay thế penetration test độc lập. Production phải dùng secret manager, database có backup ngoài container, Redis private network và monitoring có cảnh báo. Khi nghi ngờ lộ secret, hãy rotate secret trước khi điều tra chi tiết.
+Kiểm tra phía trình duyệt chỉ nhằm cải thiện trải nghiệm, không phải ranh giới bảo mật; mọi dữ liệu nhận từ client phải tiếp tục được xác thực ở server. Các biện pháp trên không thay thế penetration test độc lập. Production phải dùng secret manager, database có backup ngoài container, Redis private network, egress firewall chặn mạng nội bộ và monitoring có cảnh báo. Chỉ tin `X-Forwarded-For` từ proxy được khai báo trong `TRUSTED_PROXY_IPS`; đặt TLS termination ở proxy tin cậy và chặn truy cập trực tiếp từ Internet vào cổng ứng dụng. Khi nghi ngờ lộ secret, hãy rotate secret trước khi điều tra chi tiết.

@@ -15,6 +15,8 @@ SummarEase-Django/
 │   │   ├── wsgi.py              #   WSGI entry point
 │   │   ├── asgi.py              #   ASGI entry point (dùng cho Daphne)
 │   │   ├── csp.py               #   CSP middleware
+│   │   ├── request_id.py        #   Request ID middleware
+│   │   ├── logging_fmt.py       #   JSON formatter cho structured logging
 │   │   └── _setup.py            #   Chung cho WSGI/ASGI
 │   ├── summaries/               # Django app chính
 │   │   ├── models.py            #   Document, Summary, Tag, UserProfile, UserSetting
@@ -25,8 +27,7 @@ SummarEase-Django/
 │   │   ├── tests.py             #   Backend tests
 │   │   ├── stopwords.txt        #   Stopwords tiếng Việt
 │   │   ├── management/
-│   │   │   └── commands/
-│   │   │       └── setup.py     #   Management command: migrate + create-superuser
+│   │   │   └── commands/       #   setup, backup_db, verify_backup
 │   │   └── migrations/          #   DB migrations
 │   ├── api-tests/               #   Bruno API test collection
 │   ├── media/                   #   File upload (gitignored)
@@ -35,11 +36,12 @@ SummarEase-Django/
 │   ├── ssl/                     #   Chứng chỉ SSL tự ký (gitignored)
 │   │   ├── cert.pem             #     Certificate
 │   │   └── key.pem              #     Private key
-│   ├── staticfiles/             #   File tĩnh đã collect (auto-gen, gitignored)
+│   ├── staticfiles/             #   Đích collectstatic; file sinh ra bị ignore
 │   ├── .env                     #   Biến môi trường (local)
 │   ├── .env.example             #   Mẫu biến môi trường
 │   └── conftest.py              #   Pytest config
 ├── frontend/                    # Giao diện người dùng
+│   ├── e2e/                      # Playwright E2E tests
 │   ├── static/                  # File tĩnh
 │   │   ├── css/tokens-base.css      #   Design tokens + reset
 │   │   ├── css/layout-buttons.css   #   Header/nav + buttons/badges
@@ -48,7 +50,7 @@ SummarEase-Django/
 │   │   ├── css/pages-footer.css     #   Detail + auth/settings + footer
 │   │   ├── css/responsive.css       #   Breakpoints
 │   │   ├── css/admin.css            #   Admin styles
-│   │   └── js/app.js                #   JavaScript (guard is-disabled cho Gemini)
+│   │   └── js/app.js                #   JavaScript (source/method, validation, submit, theme)
 │   └── templates/               # Django templates
 │       ├── 404.html             #   Lỗi 404
 │       ├── 500.html             #   Lỗi 500
@@ -89,8 +91,19 @@ User -> POST /api/summaries/create/
          -> Development/test: chạy đồng bộ
          -> Production: đưa vào Celery + Redis
          -> Lưu Document + Summary vào database
+         -> Ghi WebhookDelivery cùng transaction nếu có endpoint đăng ký
+         -> Celery gửi sau commit; Beat quét outbox pending và phục hồi worker bị gián đoạn
          -> Trả kết quả hoặc task_id về frontend
+         -> app.js cập nhật trạng thái kết quả
 ```
+
+Webhook dùng giao nhận at-least-once: retry có backoff, tối đa 5 lần và header `X-Webhook-Delivery` ổn định để bên nhận khử trùng lặp. Không thể bảo đảm exactly-once qua HTTP.
+
+### 1.1. Kiểm tra form trên giao diện
+
+`frontend/static/js/app.js` kiểm tra theo nguồn đang chọn trước khi gửi request: văn bản sau trim phải có nội dung, URL phải có giá trị và chế độ tệp phải có tệp đã chọn. Lỗi hiển thị tại trường tương ứng; server tiếp tục xác thực độc lập qua `SummaryRequestForm` và `SummaryService` để bảo đảm an toàn khi JavaScript bị tắt hoặc bị giả mạo.
+
+Luồng bắt đầu ở trình duyệt: `form submit -> client validation -> POST nếu hợp lệ`. Client validation chỉ nhằm phản hồi sớm; backend luôn là nơi xác thực cuối cùng và không tin dữ liệu client.
 
 ### 2. Xác thực
 
@@ -123,15 +136,16 @@ nlp.py -> requests.post(
 | Static files | whitenoise |
 | Frontend | HTML + CSS + Vanilla JS |
 | CI/CD | GitHub Actions (Python 3.10–3.13, Ruff, mypy, security, frontend, E2E, build) |
+| UI E2E | Playwright/Chromium trong `frontend/e2e/test_home.py` |
 | Management | python manage.py setup |
 
 ## Database
 
 ### SQL Server
 
-- **Engine**: `mssql` (django-mssql-backend)
+- **Engine**: `mssql` (gói `mssql-django`)
 - **Auth**: Windows Auth (`Trusted_Connection=yes`) hoặc SQL Auth (`sa` user)
-- **Driver**: ODBC Driver 17 for SQL Server
+- **Driver**: ODBC Driver 18 for SQL Server
 - **Schema**: `backend/sql/schema_sqlserver.sql`
 - **Cấu hình**: biến môi trường `DB_ENGINE`, `DB_NAME`, `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_DRIVER`; mặc định là SQLite
 
@@ -151,6 +165,8 @@ Hệ thống sử dụng **Daphne** làm ASGI server cho HTTPS development:
 - **CSP**: Content-Security-Policy headers qua middleware custom
 - **File upload**: Validate loại file, xoá file khi xoá Document
 - **Rate limiting**: 5s giữa các request tóm tắt
+- **Validation**: client-side để tăng trải nghiệm; Django forms/services xác thực lại ở server
+- **Upload**: tối đa 10 MB; cho phép TXT/Markdown/DOCX/PDF/EPUB và kiểm tra nội dung/đuôi file
 
 ## Management Commands
 
@@ -160,4 +176,5 @@ Hệ thống sử dụng **Daphne** làm ASGI server cho HTTPS development:
 | `python manage.py migrate` | Áp migration |
 | `python manage.py collectstatic` | Gom file tĩnh |
 | `python -m pytest backend/summaries/tests.py -q` | Chạy backend tests |
+| `python -m pytest frontend/e2e/test_home.py -q` | Chạy Playwright E2E; cần server local đang chạy |
 | `python manage.py backup_db --include-media` | Backup database và media |

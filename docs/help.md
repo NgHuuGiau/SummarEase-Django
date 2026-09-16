@@ -5,7 +5,7 @@
 - **Python** 3.10–3.13
 - **pip** (Python package manager)
 - **SQLite** — mặc định, không cần cài thêm database cho development
-- **SQL Server** 2017+ và **ODBC Driver 17** — tùy chọn cho production
+- **SQL Server** 2017+ và **ODBC Driver 18** — tùy chọn cho production
 
 ---
 
@@ -55,7 +55,7 @@ DB_HOST=127.0.0.1
 DB_PORT=1433
 DB_USER=sa
 DB_PASSWORD=<mật-khẩu-local>
-DB_DRIVER=ODBC Driver 17 for SQL Server
+DB_DRIVER=ODBC Driver 18 for SQL Server
 DB_USE_WINDOWS_AUTH=True
 ```
 
@@ -64,6 +64,8 @@ DB_USE_WINDOWS_AUTH=True
 ```env
 GEMINI_API_KEY=your_google_api_key
 ```
+
+Gemini chỉ được bật khi có API key hệ thống hoặc key cá nhân đã lưu trong **Cài đặt**. Không dán key vào nội dung, URL hoặc log. Khi chưa cấu hình, lựa chọn Gemini bị vô hiệu hóa và TextRank vẫn dùng được.
 
 ### 5. Tạo database SQL Server (chỉ khi chọn SQL Server)
 
@@ -176,6 +178,29 @@ python manage.py migrate                # Áp migration
 python manage.py migrate --plan         # Xem kế hoạch migrate
 python manage.py backup_db --dest backups --include-media  # Backup DB + media
 ```
+
+### Kiểm thử giao diện E2E
+
+Chạy server trong terminal riêng rồi chạy Playwright:
+
+```powershell
+python manage.py migrate
+python manage.py runserver 127.0.0.1:8000
+$env:BASE_URL = "http://127.0.0.1:8000"
+python -m pytest frontend/e2e/test_home.py -q
+```
+
+Bộ E2E kiểm tra chuyển nguồn, tỷ lệ, theme, trang xác thực và luồng tạo tóm tắt/chia sẻ của tài khoản mới. Playwright cần được cài theo hướng dẫn trong `requirements-dev.txt` và có Chromium tương ứng (`playwright install chromium`).
+
+### Kiểm tra đầu vào
+
+Trang chủ báo lỗi ngay khi chọn văn bản rỗng, URL rỗng hoặc chế độ tệp chưa chọn tệp. Đây chỉ là phản hồi UX; backend vẫn xác thực lại dữ liệu, giới hạn tệp 10 MB và chỉ nhận `.txt`, `.md`, `.markdown`, `.docx`, `.pdf`, `.epub`.
+
+Tỷ lệ trên thanh giao diện có thể đặt từ **5% đến 80%**. Tỷ lệ mặc định của tài khoản được cấu hình riêng tại **Cài đặt**.
+
+### Chia sẻ và xuất kết quả
+
+Trong trang chi tiết, có thể xuất Markdown, DOCX hoặc PDF. Tạo liên kết chia sẻ sẽ tạo URL công khai cho đúng bản tóm tắt và có hạn dùng từ 1 đến 30 ngày; chỉ tạo liên kết khi thực sự muốn cho người khác truy cập.
 
 ---
 

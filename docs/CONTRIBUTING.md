@@ -26,10 +26,21 @@ python manage.py runserver
    python manage.py check --deploy --fail-level ERROR
    ```
 
-3. **Tự kiểm tra giao diện hoặc API bị ảnh hưởng**
-4. **Cập nhật tài liệu** nếu thay đổi làm khác hành vi hoặc cách cài đặt
+3. **Chạy E2E khi thay đổi giao diện hoặc luồng người dùng**. Mở server ở terminal riêng rồi chạy:
 
-CI kiểm tra Python 3.10, 3.11, 3.12, 3.13; Ruff, mypy, security scan, E2E và cú pháp frontend. Hãy chạy các kiểm tra liên quan trước khi mở PR.
+   ```powershell
+   python manage.py migrate
+   python manage.py runserver 127.0.0.1:8000
+   $env:BASE_URL = "http://127.0.0.1:8000"
+   python -m pytest frontend/e2e/test_home.py -q
+   ```
+
+   Cài Chromium cho Playwright nếu môi trường chưa có: `playwright install chromium`.
+
+4. **Tự kiểm tra API bị ảnh hưởng** bằng Django tests hoặc collection trong `backend/api-tests/`.
+5. **Cập nhật tài liệu Markdown liên quan** nếu thay đổi hành vi, endpoint, cấu hình, kiểm thử hoặc quy trình triển khai.
+
+CI trên GitHub Actions kiểm tra Python 3.10–3.13, Django tests/coverage, Ruff, mypy, pip-audit, Playwright E2E, cú pháp JavaScript, manifest và build/deploy checks. Hãy chạy các kiểm tra liên quan trước khi mở PR.
 
 ## Khi viết Pull Request
 
@@ -37,6 +48,7 @@ CI kiểm tra Python 3.10, 3.11, 3.12, 3.13; Ruff, mypy, security scan, E2E và 
 - Tóm tắt cách triển khai
 - Đính kèm ảnh chụp màn hình nếu có thay đổi giao diện
 - Nêu rõ rủi ro, giới hạn hiện tại hoặc việc cần làm tiếp
+- Nêu test đã chạy và kết quả; không ghi kết quả chưa được xác minh
 
 ## Code style
 
