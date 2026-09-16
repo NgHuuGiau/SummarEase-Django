@@ -1,3 +1,6 @@
+import ipaddress
+
+from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.utils.deprecation import MiddlewareMixin
@@ -46,7 +49,28 @@ class RateLimitMiddleware(MiddlewareMixin):
         return None
 
     def _get_client_ip(self, request):
-        xff = request.META.get("HTTP_X_FORWARDED_FOR")
-        if xff:
-            return xff.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR", "unknown")
+        remote_addr = request.META.get("REMOTE_ADDR", "unknown")
+        if not self._is_trusted_proxy(remote_addr):
+            return remote_addr
+
+        forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+        for candidate in reversed(forwarded_for.split(",")):
+            candidate = candidate.strip()
+            try:
+                address = ipaddress.ip_address(candidate)
+            except ValueError:
+                continue
+            if not self._is_trusted_proxy(str(address)):
+                return str(address)
+        return remote_addr
+
+    @staticmethod
+    def _is_trusted_proxy(address):
+        try:
+            parsed_address = ipaddress.ip_address(address)
+            return any(
+                parsed_address in ipaddress.ip_network(network, strict=False)
+                for network in settings.TRUSTED_PROXY_IPS
+            )
+        except ValueError:
+            return False

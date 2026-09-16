@@ -16,7 +16,6 @@ from .tasks import process_summary_task
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_EXTS = {".txt", ".md", ".markdown", ".docx", ".pdf", ".epub"}
-RATE_LIMIT_SECONDS = getattr(settings, "RATE_LIMIT_SECONDS", 5)
 TASK_OWNER_TIMEOUT = 60 * 60
 
 
@@ -40,8 +39,9 @@ class SummaryService:
 
         # Rate limit check
         cache_key = f"rate_limit:{self.user.id}"
-        if RATE_LIMIT_SECONDS > 0 and not cache.add(cache_key, True, RATE_LIMIT_SECONDS):
-            msg = f"Vui lòng đợi {RATE_LIMIT_SECONDS} giây trước khi gửi yêu cầu tiếp theo."
+        rate_limit_seconds = getattr(settings, "RATE_LIMIT_SECONDS", 5)
+        if rate_limit_seconds > 0 and not cache.add(cache_key, True, rate_limit_seconds):
+            msg = f"Vui lòng đợi {rate_limit_seconds} giây trước khi gửi yêu cầu tiếp theo."
             return {"ok": False, "message": msg, "status": 429}
 
         file_path = ""

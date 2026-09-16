@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from celery.result import AsyncResult
@@ -22,10 +23,11 @@ from .exports import export_summary
 from .forms import LoginForm, RegisterForm, SettingsForm, SummaryRequestForm
 from .models import Summary
 from .sharing import generate_share_token, get_shared_summary
-from .webhooks import WebhookRegistration
+from .webhooks import WebhookRegistration, validate_webhook_url
 
 PAGE_SIZE = 12
 MAX_FILE_SIZE = 10 * 1024 * 1024
+logger = logging.getLogger(__name__)
 
 
 def _serialize_form_errors(form) -> dict[str, list[str]]:
@@ -48,9 +50,10 @@ def health(request: HttpRequest) -> HttpResponse:
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
         checks["database"] = "ok"
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
+        logger.exception("Health check database probe failed")
         checks["status"] = "degraded"
-        checks["database"] = f"error: {exc}"
+        checks["database"] = "error"
 
     media = Path(settings.MEDIA_ROOT)
     try:
@@ -59,9 +62,10 @@ def health(request: HttpRequest) -> HttpResponse:
         probe.write_text("ok", encoding="utf-8")
         probe.unlink()
         checks["media"] = "ok"
-    except OSError as exc:
+    except OSError:
+        logger.exception("Health check media probe failed")
         checks["status"] = "degraded"
-        checks["media"] = f"error: {exc}"
+        checks["media"] = "error"
 
     status = 200 if checks["status"] == "ok" else 503
     return JsonResponse(checks, status=status)
@@ -427,17 +431,22 @@ def webhook_list(request: HttpRequest) -> HttpResponse:
         elif not events:
             messages.error(request, "Chọn ít nhất một sự kiện.")
         else:
-            import secrets
+            try:
+                validate_webhook_url(url)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                import secrets
 
-            secret = secrets.token_urlsafe(32)
-            WebhookRegistration.objects.create(
-                user=request.user,
-                url=url,
-                secret=secret,
-                events=events,
-            )
-            messages.success(request, "Đã tạo webhook mới.")
-            return redirect("webhook_list")
+                secret = secrets.token_urlsafe(32)
+                WebhookRegistration.objects.create(
+                    user=request.user,
+                    url=url,
+                    secret=secret,
+                    events=events,
+                )
+                messages.success(request, "Đã tạo webhook mới.")
+                return redirect("webhook_list")
 
     return render(request, "summaries/webhook_list.html", {"webhooks": webhooks})
 

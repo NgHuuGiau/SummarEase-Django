@@ -142,9 +142,9 @@ def create_batch_from_zip(
                     )
                     processed += 1
 
-                except Exception as exc:  # noqa: BLE001
+                except Exception:  # noqa: BLE001
                     logger.exception("Batch item failed: %s", name)
-                    errors.append(f"{name}: {str(exc)}")
+                    errors.append(f"{name}: Không thể xử lý tệp này.")
 
             # Cleanup temp directory
             import shutil
@@ -161,9 +161,13 @@ def create_batch_from_zip(
 
     except zipfile.BadZipFile:
         return {"ok": False, "message": "File ZIP không hợp lệ hoặc bị hỏng."}
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         logger.exception("Batch processing failed")
-        return {"ok": False, "message": f"Lỗi xử lý batch: {str(exc)}", "errors": errors}
+        return {
+            "ok": False,
+            "message": "Không thể xử lý lô tệp. Vui lòng thử lại sau.",
+            "errors": errors,
+        }
 
 
 def create_batch_from_urls(
@@ -183,7 +187,7 @@ def create_batch_from_urls(
         try:
             original_text = extract_text(url)
             if not original_text.strip():
-                errors.append(f"{url}: không trích xuất được nội dung")
+                errors.append("Không trích xuất được nội dung từ URL đã cung cấp.")
                 continue
 
             language = detect_language(original_text)
@@ -240,9 +244,9 @@ def create_batch_from_urls(
                 }
             )
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             logger.exception("Batch URL failed: %s", url)
-            errors.append(f"{url}: {str(exc)}")
+            errors.append("Không thể xử lý URL đã cung cấp.")
 
     return {
         "ok": True,
