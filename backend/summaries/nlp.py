@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import time as time_module
 from functools import lru_cache
 from typing import Any
@@ -65,14 +66,6 @@ def _cache_key(text: str, ratio: float, language: str) -> str:
 
 
 def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english") -> dict[str, Any]:
-    try:
-        import sumy  # noqa: F401
-    except ImportError as exc:
-        raise ValueError(
-            "Thiếu thư viện 'sumy' để dùng phương pháp tóm tắt TextRank. "
-            "Hãy chạy 'pip install -r requirements.txt'."
-        ) from exc
-
     from .nlp_utils import normalize_text
 
     normalized = normalize_text(text)
@@ -90,23 +83,33 @@ def _textrank_cached(
     ratio: float,
     language: str,
 ) -> dict[str, Any]:
-    from sumy.parsers.plaintext import PlaintextParser
-    from sumy.summarizers.text_rank import TextRankSummarizer
-
-    from .nlp_utils import RegexTokenizer
-
-    tokenizer = RegexTokenizer()
-    parser = PlaintextParser.from_string(normalized, tokenizer)
-    summarizer = TextRankSummarizer()
-    summarizer.stop_words = load_stop_words()
-
-    total_sentences = max(1, len(parser.document.sentences))
+    sentences = split_sentences(normalized)
+    total_sentences = max(1, len(sentences))
     sentence_count = max(1, min(total_sentences, int(total_sentences * ratio) or 1))
-    summary_sentences = summarizer(parser.document, sentence_count)
-    summary = " ".join(str(sentence) for sentence in summary_sentences).strip()
-    if not summary:
-        all_sentences = split_sentences(normalized)
-        summary = " ".join(all_sentences[:sentence_count])
+    if total_sentences == 1:
+        return build_summary_result(sentences[0], language, normalized)
+
+    stop_words = load_stop_words()
+    words = [
+        {word for word in sentence.lower().split() if word not in stop_words}
+        for sentence in sentences
+    ]
+    scores = [1.0] * total_sentences
+    for _ in range(20):
+        updated = []
+        for index, current in enumerate(words):
+            score = 0.15
+            for other, candidate in enumerate(words):
+                if index == other or not current or not candidate:
+                    continue
+                overlap = len(current & candidate)
+                if overlap:
+                    score += 0.85 * overlap / (math.log(len(current) + 1) + math.log(len(candidate) + 1)) * scores[other]
+            updated.append(score)
+        scores = updated
+
+    selected = sorted(range(total_sentences), key=lambda index: scores[index], reverse=True)[:sentence_count]
+    summary = " ".join(sentences[index] for index in sorted(selected)).strip()
 
     return build_summary_result(summary, language, normalized)
 

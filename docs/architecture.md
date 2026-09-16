@@ -84,7 +84,7 @@ User -> POST /api/summaries/create/
               -> Nếu source_type = url: requests.get() + BeautifulSoup
               -> Nếu source_type = file: đọc file (PDF/DOCX/EPUB/TXT)
          -> nlp.py: summarize_text(text, method, ratio)
-              -> TextRank: sumy TextRankSummarizer
+              -> TextRank: thuật toán nội bộ không phụ thuộc NLP bên ngoài
               -> Gemini: requests POST lên Gemini API
          -> Development/test: chạy đồng bộ
          -> Production: đưa vào Celery + Redis
@@ -116,7 +116,7 @@ nlp.py -> requests.post(
 | Thành phần | Giải pháp |
 |-----------|-----------|
 | Web framework | Django 5.2 |
-| NLP (offline) | sumy (TextRank) |
+| NLP (offline) | TextRank nội bộ trên thư viện chuẩn |
 | NLP (online) | Google Gemini API |
 | Database | SQLite mặc định; SQL Server/MySQL tùy chọn |
 | ASGI server | Daphne (HTTPS dev) |

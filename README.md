@@ -35,7 +35,7 @@
 | **📄 Tóm tắt văn bản** | Nhập trực tiếp nội dung cần tóm tắt |
 | **🔗 Tóm tắt URL** | Trích xuất và tóm tắt nội dung trang web |
 | **📁 Tải file lên** | Hỗ trợ PDF, DOCX, EPUB, TXT |
-| **🧠 TextRank** | Thuật toán xếp hạng câu cổ điển, không cần API |
+| **🧠 TextRank** | Thuật toán xếp hạng câu cổ điển, chạy nội bộ không cần API |
 | **🤖 Gemini AI** | Tóm tắt thông minh bằng Google Gemini |
 | **📊 Tuỳ chỉnh tỷ lệ** | Chọn độ dài bản tóm tắt từ 10%–90% |
 | **👤 Quản lý tài khoản** | Đăng ký, đăng nhập, phân quyền |
@@ -60,8 +60,7 @@
 
 | Thư viện | Phiên bản | Mục đích |
 |----------|-----------|----------|
-| `sumy` | 0.11.0 | Tóm tắt TextRank |
-| `numpy` | 2.3.0 | Tính toán ma trận cho TextRank |
+| Python chuẩn | — | Tính điểm câu cho TextRank nội bộ |
 | `PyMuPDF` | 1.28.0 | Đọc file PDF |
 | `python-docx` | 1.1.0 | Đọc file DOCX |
 | `ebooklib` | 0.19 | Đọc file EPUB |

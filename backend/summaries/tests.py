@@ -618,18 +618,9 @@ class NlpEdgeCaseTests(TestCase):
         self.assertIn("keywords", result)
         self.assertIn("title", result)
 
-    def test_textrank_summarize_missing_sumy(self):
-        missing = {
-            "sumy": None,
-            "sumy.parsers": None,
-            "sumy.parsers.plaintext": None,
-            "sumy.summarizers": None,
-            "sumy.summarizers.text_rank": None,
-        }
-        with patch.dict("sys.modules", missing):
-            with self.assertRaises(ValueError) as ctx:
-                textrank_summarize("Some text here", ratio=0.5)
-        self.assertIn("sumy", str(ctx.exception))
+    def test_textrank_summarize_does_not_require_external_nlp_package(self):
+        result = textrank_summarize("First sentence. Second sentence.", ratio=0.5)
+        self.assertTrue(result["summary"])
 
     def test_textrank_summarize_empty_text(self):
         with self.assertRaises(ValueError) as ctx:
