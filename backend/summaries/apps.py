@@ -8,3 +8,4 @@ class SummariesConfig(AppConfig):
     def ready(self):
         import summaries.checks  # noqa: F401
         import summaries.signals  # noqa: F401
+        import summaries.webhooks  # noqa: F401

@@ -3,6 +3,8 @@
 import json
 import logging
 
+from .request_id import request_id_var
+
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -13,6 +15,7 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
             "module": record.module,
             "line": record.lineno,
+            "request_id": request_id_var.get(),
         }
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)

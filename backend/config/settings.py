@@ -30,6 +30,9 @@ load_env_file(ENV_FILE)
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY") or secrets.token_urlsafe(50)
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
 ALLOWED_HOSTS = [host for host in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if host]
+TRUSTED_PROXY_IPS = tuple(
+    address.strip() for address in os.getenv("TRUSTED_PROXY_IPS", "").split(",") if address.strip()
+)
 
 if not DEBUG:
     if not os.getenv("DJANGO_SECRET_KEY"):
@@ -49,6 +52,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "config.request_id.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.gzip.GZipMiddleware",
@@ -83,6 +87,15 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 db_engine = os.getenv("DB_ENGINE", "sqlite").lower()
+if (
+    not DEBUG
+    and os.getenv("DJANGO_REQUIRE_EXTERNAL_DATABASE", "").lower() == "true"
+    and db_engine not in {"mysql", "sqlserver"}
+):
+    raise ImproperlyConfigured(
+        "This multi-process deployment requires DB_ENGINE=mysql or DB_ENGINE=sqlserver."
+    )
+
 if db_engine == "mysql":
     try:
         import pymysql
@@ -110,7 +123,7 @@ if db_engine == "mysql":
     }
 elif db_engine == "sqlserver":
     db_options = {
-        "driver": os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server"),
+        "driver": os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server"),
         "extra_params": "TrustServerCertificate=yes;Encrypt=yes",
     }
     if os.getenv("DB_USE_WINDOWS_AUTH", "").lower() == "true":
@@ -139,7 +152,7 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": SQL_DIR / "db.sqlite3",
+            "NAME": os.getenv("SQLITE_DB_PATH", str(SQL_DIR / "db.sqlite3")),
             "CONN_MAX_AGE": 0,
             "OPTIONS": {
                 "timeout": 30,
@@ -169,7 +182,7 @@ STORAGES = {
 
 # ── Media files ──────────────────────────────────────
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BACKEND_DIR / "media"
+MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", str(BACKEND_DIR / "media")))
 
 # ── Gemini ───────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -276,6 +289,12 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_BEAT_SCHEDULE = {
+    "enqueue-pending-webhook-deliveries": {
+        "task": "summaries.tasks.enqueue_pending_webhook_deliveries",
+        "schedule": 60.0,
+    }
+}
 
 # ── Rate limiting ──────────────────────────────────
 RATE_LIMIT_SECONDS = 5

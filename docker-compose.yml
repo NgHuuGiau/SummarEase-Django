@@ -1,12 +1,19 @@
 services:
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - "${REDIS_PASSWORD:?Set REDIS_PASSWORD in backend/.env}"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in backend/.env}
     volumes:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -23,12 +30,13 @@ services:
     env_file:
       - backend/.env
     environment:
-      - DJANGO_DEBUG=False
-      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-      - REDIS_URL=redis://redis:6379/0
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS in backend/.env}
+      DB_ENGINE: ${DB_ENGINE:?Set DB_ENGINE to mysql or sqlserver in backend/.env}
+      DJANGO_REQUIRE_EXTERNAL_DATABASE: "True"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in backend/.env}@redis:6379/0"
     volumes:
       - media_data:/app/backend/media
-      - sqlite_data:/app/backend/sql
     command: >
       sh -c "python manage.py migrate &&
              python manage.py setup &&
@@ -50,11 +58,13 @@ services:
     env_file:
       - backend/.env
     environment:
-      - DJANGO_DEBUG=False
-      - REDIS_URL=redis://redis:6379/0
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS in backend/.env}
+      DB_ENGINE: ${DB_ENGINE:?Set DB_ENGINE to mysql or sqlserver in backend/.env}
+      DJANGO_REQUIRE_EXTERNAL_DATABASE: "True"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in backend/.env}@redis:6379/0"
     volumes:
       - media_data:/app/backend/media
-      - sqlite_data:/app/backend/sql
     command: celery -A config worker -l INFO --concurrency=2
     restart: unless-stopped
     init: true
@@ -68,7 +78,29 @@ services:
       redis:
         condition: service_healthy
 
+  celery-beat:
+    build: .
+    env_file:
+      - backend/.env
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS in backend/.env}
+      DB_ENGINE: ${DB_ENGINE:?Set DB_ENGINE to mysql or sqlserver in backend/.env}
+      DJANGO_REQUIRE_EXTERNAL_DATABASE: "True"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in backend/.env}@redis:6379/0"
+    command: celery -A config beat -l INFO --schedule /tmp/celerybeat-schedule
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   media_data:
-  sqlite_data:
   redis_data:

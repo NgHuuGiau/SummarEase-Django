@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import timedelta
 from pathlib import Path
 
 from celery import shared_task
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import F
+from django.utils import timezone
 
 from .models import Document, Summary, SummarySentence, Tag, _cleanup_uploaded_file
 from .nlp import gemini_summarize, textrank_summarize
@@ -21,6 +24,102 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
+
+
+@shared_task
+def dispatch_webhook_delivery(delivery_id: int) -> None:
+    """Attempt one durable webhook delivery; retries are scheduled without blocking a worker."""
+    from .webhooks import (
+        DELIVERY_MAX_ATTEMPTS,
+        DELIVERY_RETRY_DELAYS,
+        WebhookDelivery,
+        _build_webhook_payload,
+        _deliver_webhook,
+    )
+
+    now = timezone.now()
+    claimed = WebhookDelivery.objects.filter(
+        pk=delivery_id,
+        status=WebhookDelivery.PENDING,
+        available_at__lte=now,
+    ).update(status=WebhookDelivery.PROCESSING, locked_at=now)
+    if not claimed:
+        return
+
+    delivery = WebhookDelivery.objects.select_related(
+        "webhook", "summary", "summary__document"
+    ).get(pk=delivery_id)
+    webhook = delivery.webhook
+    if not webhook.is_active:
+        delivery.status = WebhookDelivery.FAILED
+        delivery.locked_at = None
+        delivery.save(update_fields=["status", "locked_at"])
+        return
+
+    summary = delivery.summary
+    success = _deliver_webhook(
+        webhook,
+        _build_webhook_payload(summary, delivery.event),
+        max_retries=1,
+        delivery_id=str(delivery.pk),
+    )
+    delivery.locked_at = None
+    if success:
+        delivery.status = WebhookDelivery.DELIVERED
+        delivery.delivered_at = timezone.now()
+        delivery.save(update_fields=["status", "locked_at", "delivered_at"])
+        return
+
+    delivery.attempt_count += 1
+    if delivery.attempt_count >= DELIVERY_MAX_ATTEMPTS:
+        delivery.status = WebhookDelivery.FAILED
+        delay = 0
+    else:
+        delivery.status = WebhookDelivery.PENDING
+        delay = DELIVERY_RETRY_DELAYS[delivery.attempt_count - 1]
+        delivery.available_at = timezone.now() + timedelta(seconds=delay)
+    delivery.save(update_fields=["status", "attempt_count", "available_at", "locked_at"])
+
+
+@shared_task
+def enqueue_pending_webhook_deliveries() -> int:
+    """Recover stale claims and enqueue due outbox rows in bounded batches."""
+    from .webhooks import DELIVERY_MAX_ATTEMPTS, WebhookDelivery
+
+    now = timezone.now()
+    stale = WebhookDelivery.objects.filter(
+        status=WebhookDelivery.PROCESSING,
+        locked_at__lt=now - timedelta(minutes=15),
+    )
+    stale.filter(attempt_count__gte=DELIVERY_MAX_ATTEMPTS - 1).update(
+        status=WebhookDelivery.FAILED,
+        attempt_count=F("attempt_count") + 1,
+        locked_at=None,
+    )
+    stale.filter(attempt_count__lt=DELIVERY_MAX_ATTEMPTS - 1).update(
+        status=WebhookDelivery.PENDING,
+        attempt_count=F("attempt_count") + 1,
+        locked_at=None,
+        available_at=now,
+    )
+
+    delivery_ids = list(
+        WebhookDelivery.objects.filter(
+            status=WebhookDelivery.PENDING,
+            available_at__lte=now,
+        )
+        .order_by("available_at", "pk")
+        .values_list("pk", flat=True)[:100]
+    )
+    enqueued = 0
+    for delivery_id in delivery_ids:
+        try:
+            dispatch_webhook_delivery.delay(delivery_id)
+            enqueued += 1
+        except Exception:  # noqa: BLE001
+            logger.exception("Could not enqueue pending webhook delivery id=%s", delivery_id)
+            break
+    return enqueued
 
 
 def _schedule_file_cleanup(file_path: str) -> None:
@@ -147,7 +246,7 @@ def process_summary_task(
             },
         }
 
-    except (OSError, ValueError, Exception) as exc:  # noqa: BLE001
-        logger.exception("process_summary_task failed: user=%d, error=%s", user_id, exc)
+    except Exception:  # noqa: BLE001
+        logger.exception("process_summary_task failed: user=%d", user_id)
         _schedule_file_cleanup(stored_file_name)
-        return {"ok": False, "message": str(exc)}
+        return {"ok": False, "message": "Không thể xử lý yêu cầu. Vui lòng thử lại sau."}
