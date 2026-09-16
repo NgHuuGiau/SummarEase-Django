@@ -16,8 +16,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  pull-requests: write
 
 env:
   PYTHON_VERSION: '3.12'
@@ -96,18 +94,13 @@ jobs:
         run: pip install -r requirements.txt pip-audit
 
       - name: Run pip-audit (fail on vulnerabilities)
-        # requirements.txt is the project's source of truth; audit its pinned
-        # direct dependencies without resolving an unpinned transitive tree.
         run: |
           set +e
-          # PYSEC-2026-3740 affects NLTK model-path APIs that this service
-          # does not expose. Upstream has no patched release yet; keep the
-          # finding documented while avoiding a false CI block.
-          pip-audit -r requirements.txt --no-deps --ignore-vuln PYSEC-2026-3740 -f json -o pip-audit-results.json
+          pip-audit -r requirements.txt -f json -o pip-audit-results.json
           audit_status=$?
           if [ "$audit_status" -ne 0 ]; then
             echo "Audit details:"
-            pip-audit -r requirements.txt --no-deps --ignore-vuln PYSEC-2026-3740 -f columns
+            pip-audit -r requirements.txt -f columns
           fi
           exit "$audit_status"
 
@@ -180,6 +173,130 @@ jobs:
           files: ./coverage.xml
           flags: unittests
 
+  mysql_integration:
+    name: MySQL Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-mysql-password
+          MYSQL_DATABASE: summarease
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=ci-mysql-password --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_ENGINE: mysql
+      DB_NAME: summarease
+      DB_USER: root
+      DB_PASSWORD: ci-mysql-password
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Check migrations and webhook integration on MySQL
+        env:
+          PYTHONPATH: backend
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python -m pytest backend/summaries/tests.py -q -k WebhookSecurityTests --tb=short
+
+  sqlserver_integration:
+    name: SQL Server Integration
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: "Ci_only_Passw0rd!2026"
+        ports:
+          - 1433:1433
+    env:
+      DB_ENGINE: sqlserver
+      DB_NAME: SummarEase_CI
+      DB_USER: sa
+      DB_PASSWORD: "Ci_only_Passw0rd!2026"
+      DB_HOST: 127.0.0.1
+      DB_PORT: '1433'
+      DB_DRIVER: ODBC Driver 18 for SQL Server
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Microsoft ODBC Driver 18
+        run: |
+          curl -fsSLo /tmp/packages-microsoft-prod.deb https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+          sudo dpkg -i /tmp/packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Wait for SQL Server and create test database
+        run: |
+          python - <<'PY'
+          import time
+          import pyodbc
+
+          connection_string = (
+              "DRIVER={ODBC Driver 18 for SQL Server};"
+              "SERVER=127.0.0.1,1433;UID=sa;PWD=Ci_only_Passw0rd!2026;"
+              "Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=5"
+          )
+          for attempt in range(90):
+              try:
+                  connection = pyodbc.connect(connection_string)
+                  break
+              except pyodbc.Error:
+                  if attempt == 89:
+                      raise
+                  time.sleep(2)
+          cursor = connection.cursor()
+          cursor.execute("IF DB_ID(N'SummarEase_CI') IS NULL CREATE DATABASE [SummarEase_CI]")
+          connection.commit()
+          connection.close()
+          PY
+
+      - name: Check migrations and webhook integration on SQL Server
+        env:
+          PYTHONPATH: backend
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python -m pytest backend/summaries/tests.py -q -k WebhookSecurityTests --tb=short
+
   frontend_lint:
     name: Frontend Lint
     runs-on: ubuntu-latest
@@ -207,6 +324,9 @@ jobs:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      SQLITE_DB_PATH: /tmp/summarease-e2e.sqlite3
+      MEDIA_ROOT: /tmp/summarease-e2e-media
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -256,8 +376,21 @@ jobs:
 
       - name: Django deploy check
         env:
-          DJANGO_ALLOWED_HOSTS: '*'
+          DJANGO_DEBUG: 'False'
+          DJANGO_SECRET_KEY: 'ci-only-production-check-secret-key-not-used-outside-actions'
+          API_ENCRYPTION_KEY: 'ci-only-encryption-key'
+          DJANGO_ALLOWED_HOSTS: 'app.example.com'
+          DB_ENGINE: 'sqlite'
         run: python manage.py check --deploy --fail-level=ERROR
+
+      - name: Validate production Compose configuration
+        run: |
+          cp backend/.env.example backend/.env
+          DJANGO_ALLOWED_HOSTS=app.example.com DB_ENGINE=mysql REDIS_PASSWORD=ci-only-redis-placeholder docker compose --env-file backend/.env config --quiet
+          rm backend/.env
+
+      - name: Build Docker image
+        run: docker build --tag summarease:ci .
 
       - name: Collect static (dry-run)
         env:
@@ -269,6 +402,11 @@ jobs:
 
       - name: Smoke test — backup_db command
         run: python manage.py backup_db --dest /tmp/test_backup
+
+      - name: Smoke test — verify backup integrity
+        run: |
+          backup_path="$(find /tmp/test_backup -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          python manage.py verify_backup "$backup_path"
 
       - name: Smoke test — health endpoint
         run: |
@@ -289,7 +427,7 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, typecheck, security, test, e2e, frontend_lint, build]
+    needs: [lint, typecheck, security, test, mysql_integration, sqlserver_integration, e2e, frontend_lint, build]
     steps:
       - name: Collect results
         run: |
@@ -301,6 +439,8 @@ jobs:
           echo "| Type Check (mypy) | ${{ needs.typecheck.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Security Scan | ${{ needs.security.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Django Tests | ${{ needs.test.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| MySQL Integration | ${{ needs.mysql_integration.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SQL Server Integration | ${{ needs.sqlserver_integration.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| E2E Tests | ${{ needs.e2e.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Frontend Lint | ${{ needs.frontend_lint.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build Verification | ${{ needs.build.result }} |" >> "$GITHUB_STEP_SUMMARY"
