@@ -10,7 +10,8 @@ __pycache__/
 backend/.env
 
 backend/media/
-backend/staticfiles/
+backend/staticfiles/*
+!backend/staticfiles/.gitkeep
 backend/ssl/
 backend/sql/*.sqlite3
 

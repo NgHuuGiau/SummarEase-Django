@@ -1,5 +1,6 @@
 import os
 import re
+from uuid import uuid4
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -87,7 +88,6 @@ class TestHomePage:
         ratio_input = page.locator("#ratio_input")
         ratio_value = page.locator("#ratio_value")
 
-        initial = slider.get_attribute("value")
         slider.fill("50")
         page.wait_for_timeout(100)
 
@@ -113,6 +113,39 @@ class TestAuthentication:
         expect(page.locator("input[name='username']")).to_be_visible()
         expect(page.locator("input[name='password1']")).to_be_visible()
         expect(page.locator("input[name='password2']")).to_be_visible()
+
+    def test_authenticated_summary_and_share_flow(self, page: Page, base_url: str):
+        """A new user can create a summary and open its sharing dialog."""
+        token = uuid4().hex[:10]
+        username = f"e2e_{token}"
+        password = "E2E!SummarEase2026"
+
+        page.goto(f"{base_url}/register/")
+        page.locator("input[name='username']").fill(username)
+        page.locator("input[name='email']").fill(f"{username}@example.com")
+        page.locator("input[name='password1']").fill(password)
+        page.locator("input[name='password2']").fill(password)
+        page.locator("button[type='submit']").click()
+
+        expect(page.locator("#submit-btn")).to_be_visible()
+        page.locator("#text-input").fill(
+            "Kiểm thử end-to-end giúp xác nhận người dùng có thể tạo và quản lý bản tóm tắt. "
+            "Hệ thống cần phản hồi ổn định, bảo mật và dễ sử dụng."
+        )
+        page.locator("#submit-btn").click()
+
+        expect(page.locator("#form-message")).to_contain_text(
+            "Đã tạo và lưu bản tóm tắt", timeout=15000
+        )
+        expect(page.locator("#detail-link")).to_be_visible()
+        page.locator("#detail-link").click()
+
+        expect(page).to_have_title("Chi tiết bản tóm tắt - SummarEase")
+        expect(page.locator("#copy-detail-btn")).to_be_visible()
+        page.locator("#share-btn").click()
+        expect(page.locator("#share-modal")).to_be_visible()
+        page.locator("#cancel-share").click()
+        expect(page.locator("#share-modal")).to_have_class(re.compile(r".*is-hidden.*"))
 
 
 class TestThemeToggle:
