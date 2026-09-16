@@ -109,9 +109,9 @@ def _textrank_cached(
             updated.append(score)
         scores = updated
 
-    selected = sorted(
-        range(total_sentences), key=lambda index: scores[index], reverse=True
-    )[:sentence_count]
+    selected = sorted(range(total_sentences), key=lambda index: scores[index], reverse=True)[
+        :sentence_count
+    ]
     summary = " ".join(sentences[index] for index in sorted(selected)).strip()
 
     return build_summary_result(summary, language, normalized)
