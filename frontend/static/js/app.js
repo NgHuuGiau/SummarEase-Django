@@ -202,6 +202,28 @@
 
         try {
             const formData = new FormData(form);
+            const sourceType = formData.get("source_type");
+            const hasText = String(formData.get("text") || "").trim();
+            const hasUrl = String(formData.get("source_url") || "").trim();
+            const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+            const clientErrors = {};
+
+            if (sourceType === "text" && !hasText) {
+                clientErrors.text = ["Nhập văn bản cần tóm tắt."];
+            } else if (sourceType === "url" && !hasUrl) {
+                clientErrors.source_url = ["Nhập URL hợp lệ."];
+            } else if (sourceType === "file" && !hasFile) {
+                clientErrors.upload = ["Chọn tệp để tóm tắt."];
+            }
+
+            if (Object.keys(clientErrors).length) {
+                showFieldErrors(clientErrors);
+                message.textContent = "Vui lòng sửa các lỗi trong form.";
+                message.style.color = "var(--danger)";
+                setLoading(false);
+                return;
+            }
+
             const response = await fetch(form.action, {
                 method: "POST",
                 body: formData,

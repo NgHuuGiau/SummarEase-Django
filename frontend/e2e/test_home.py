@@ -128,6 +128,10 @@ class TestAuthentication:
         page.locator("button[type='submit']").click()
 
         expect(page.locator("#submit-btn")).to_be_visible()
+        page.locator("#text-input").fill("")
+        page.locator("#submit-btn").click()
+        expect(page.locator("#error-text")).to_contain_text("Nhập văn bản cần tóm tắt")
+
         page.locator("#text-input").fill(
             "Kiểm thử end-to-end giúp xác nhận người dùng có thể tạo và quản lý bản tóm tắt. "
             "Hệ thống cần phản hồi ổn định, bảo mật và dễ sử dụng."
