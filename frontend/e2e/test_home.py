@@ -29,6 +29,13 @@ class TestHomePage:
         # Feature pills
         expect(page.locator(".feature-pills .pill")).to_have_count(3)
 
+    @pytest.mark.parametrize("width,height", [(375, 812), (768, 1024), (1280, 800)])
+    def test_home_layout_fits_common_viewports(self, page: Page, base_url: str, width: int, height: int):
+        page.set_viewport_size({"width": width, "height": height})
+        page.goto(base_url)
+        expect(page.locator("main")).to_be_visible()
+        assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+
     def test_guest_mode_shows_login_prompt(self, page: Page, base_url: str):
         """Guest mode shows login prompt instead of submit button."""
         page.goto(base_url)
@@ -114,6 +121,13 @@ class TestAuthentication:
         expect(page.locator("input[name='password1']")).to_be_visible()
         expect(page.locator("input[name='password2']")).to_be_visible()
 
+    def test_password_reset_request_shows_confirmation(self, page: Page, base_url: str):
+        page.goto(f"{base_url}/password-reset/")
+        page.locator("input[name='email']").fill("unknown@example.com")
+        page.locator("button[type='submit']").click()
+        expect(page).to_have_url(re.compile(r"/password-reset/done/$"))
+        expect(page.locator("main")).to_contain_text("Nếu email bạn nhập tồn tại")
+
     def test_authenticated_summary_and_share_flow(self, page: Page, base_url: str):
         """A new user can create a summary and open its sharing dialog."""
         token = uuid4().hex[:10]
@@ -128,6 +142,17 @@ class TestAuthentication:
         page.locator("button[type='submit']").click()
 
         expect(page.locator("#submit-btn")).to_be_visible()
+
+        # Account settings persist and feed the user's default summary ratio.
+        page.goto(f"{base_url}/settings/")
+        ratio_setting = page.locator("input[name='default_summary_ratio']")
+        ratio_setting.fill("0.4")
+        page.locator(".settings-form button[type='submit']").click()
+        expect(page.locator(".flash.success")).to_contain_text("Đã lưu cài đặt")
+        page.reload()
+        expect(page.locator("input[name='default_summary_ratio']")).to_have_value("0.4")
+
+        page.goto(base_url)
         page.locator("#text-input").fill("")
         page.locator("#submit-btn").click()
         expect(page.locator("#error-text")).to_contain_text("Nhập văn bản cần tóm tắt")
@@ -146,10 +171,87 @@ class TestAuthentication:
 
         expect(page).to_have_title("Chi tiết bản tóm tắt - SummarEase")
         expect(page.locator("#copy-detail-btn")).to_be_visible()
+        summary_title = page.locator(".panel-header-title h2").inner_text()
+        owned_summary_url = page.url
+
+        # Search from history, create a share link, and open it as a guest.
+        page.goto(f"{base_url}/history/")
+        page.locator("input[name='q']").fill(summary_title)
+        page.locator("input[name='q']").press("Enter")
+        expect(page.locator(".history-list-item")).to_have_count(1)
+        expect(page.locator(".history-list-item")).to_contain_text(summary_title)
+        page.goto(owned_summary_url)
         page.locator("#share-btn").click()
         expect(page.locator("#share-modal")).to_be_visible()
-        page.locator("#cancel-share").click()
-        expect(page.locator("#share-modal")).to_have_class(re.compile(r".*is-hidden.*"))
+        with page.expect_response(lambda response: "/share/" in response.url) as share_info:
+            page.locator("#confirm-share").click()
+        share_response = share_info.value
+        assert share_response.status == 200
+        share_data = share_response.json()
+        assert share_data["ok"] is True
+        page.goto(share_data["share_url"])
+        expect(page.locator(".shared-notice")).to_be_visible()
+        expect(page.locator("#detail-summary-text")).to_be_visible()
+
+        # Upload a real in-memory text file and verify the resulting export.
+        page.goto(base_url)
+        page.locator('[data-source="file"]').click()
+        page.locator("#file-input").set_input_files(
+            {
+                "name": "e2e-upload.txt",
+                "mimeType": "text/plain",
+                "buffer": (
+                    "Tệp tải lên cần được đọc và tóm tắt chính xác. "
+                    "Kiểm thử bao phủ trọn luồng chọn tệp, xử lý và xuất dữ liệu."
+                ).encode("utf-8"),
+            }
+        )
+        # The API intentionally rate-limits requests from one IP for five seconds.
+        page.wait_for_timeout(5200)
+        page.locator("#submit-btn").click()
+        expect(page.locator("#form-message")).to_contain_text(
+            "Đã tạo và lưu bản tóm tắt", timeout=15000
+        )
+        page.locator("#detail-link").click()
+        upload_summary_url = page.url
+        page.locator(".export-trigger").click()
+        expect(page.locator(".export-item").first).to_be_visible()
+        with page.expect_response(lambda response: "/export/md/" in response.url) as export_info:
+            page.locator(".export-item", has_text="Markdown").click()
+        export_response = export_info.value
+        assert export_response.status == 200
+        from email.header import decode_header, make_header
+
+        disposition = str(make_header(decode_header(export_response.headers["content-disposition"])))
+        assert "attachment" in disposition.lower() and ".md" in disposition.lower()
+        assert export_response.headers["content-type"].startswith("text/markdown")
+
+        # A different account must not be able to view this account's summary.
+        page.goto(owned_summary_url)
+        page.locator(".logout-form button").click()
+        username2 = f"e2e_{uuid4().hex[:10]}"
+        page.goto(f"{base_url}/register/")
+        page.locator("input[name='username']").fill(username2)
+        page.locator("input[name='email']").fill(f"{username2}@example.com")
+        page.locator("input[name='password1']").fill(password)
+        page.locator("input[name='password2']").fill(password)
+        page.locator("button[type='submit']").click()
+        response = page.goto(owned_summary_url)
+        assert response is not None and response.status == 404
+        response = page.goto(upload_summary_url)
+        assert response is not None and response.status == 404
+
+        # Log back into the owner account and verify delete confirmation and result.
+        page.locator(".logout-form button").click()
+        page.goto(f"{base_url}/login/")
+        page.locator("input[name='username']").fill(username)
+        page.locator("input[name='password']").fill(password)
+        page.locator("button[type='submit']").click()
+        page.goto(upload_summary_url)
+        page.once("dialog", lambda dialog: dialog.accept())
+        page.locator("form[data-confirm-delete] button").click()
+        expect(page).to_have_url(re.compile(r"/history/$"))
+        expect(page.locator(".history-list-item")).to_have_count(1)
 
 
 class TestThemeToggle:
@@ -207,33 +309,33 @@ class TestSummaryForm:
         page.locator('[data-source="file"]').click()
         page.wait_for_timeout(100)
 
-        # Create a test file
         test_content = "This is a test document for summarization."
-        file_path = os.path.join(os.path.dirname(__file__), "test_upload.txt")
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(test_content)
-
-        try:
-            page.locator("#file-input").set_input_files(file_path)
-            page.wait_for_timeout(200)
-
-            # Dropzone should show filename
-            dropzone_strong = page.locator("#file-wrap .dropzone-content strong")
-            expect(dropzone_strong).to_contain_text("test_upload.txt")
-        finally:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+        page.locator("#file-input").set_input_files(
+            {
+                "name": "test_upload.txt",
+                "mimeType": "text/plain",
+                "buffer": test_content.encode("utf-8"),
+            }
+        )
+        dropzone_strong = page.locator("#file-wrap .dropzone-content strong")
+        expect(dropzone_strong).to_contain_text("test_upload.txt")
 
 
 class TestAccessibility:
-    """Basic accessibility checks."""
+    """Lightweight accessibility checks without a third-party browser add-on."""
 
-    def test_no_axe_violations_home(self, page: Page, base_url: str):
-        """Home page has no critical axe violations."""
+    def test_home_has_landmark_heading_and_named_controls(self, page: Page, base_url: str):
+        """Check primary landmarks and that visible controls have accessible names."""
         page.goto(base_url)
-        # This would require axe-playwright, skipping for now
-        # Just verify page loads
         expect(page.locator("main")).to_be_visible()
+        expect(page.locator("main h1").first).to_be_visible()
+        assert page.locator("html").get_attribute("lang")
+        unnamed = page.locator(
+            "button:visible:not([aria-label]):not([title])"
+        ).evaluate_all(
+            "buttons => buttons.filter(button => !button.innerText.trim()).map(button => button.outerHTML)"
+        )
+        assert not unnamed, f"Visible buttons missing accessible names: {unnamed}"
 
     def test_keyboard_navigation(self, page: Page, base_url: str):
         """Key interactive elements are keyboard accessible."""

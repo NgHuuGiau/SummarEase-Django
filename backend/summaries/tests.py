@@ -1,6 +1,7 @@
 """Test cho SummarEase Django."""
 
 import tempfile
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth.models import User
@@ -9,6 +10,7 @@ from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .forms import SettingsForm, SummaryRequestForm
 from .models import Document, Summary, Tag, UserProfile, UserSetting
@@ -2074,6 +2076,59 @@ class UrlsTests(TestCase):
         self.assertIn("Contact:", response.content.decode())
 
 
+class ObservabilityTests(TestCase):
+    def test_response_includes_request_id_and_json_logs_correlate(self):
+        import json
+        import logging
+        from uuid import UUID
+
+        from config.logging_fmt import JsonFormatter
+        from config.request_id import request_id_var
+
+        response = self.client.get(reverse("health"))
+        request_id = response["X-Request-ID"]
+        UUID(request_id)
+
+        token = request_id_var.set(request_id)
+        try:
+            record = logging.makeLogRecord({"msg": "test"})
+            payload = json.loads(JsonFormatter().format(record))
+            self.assertEqual(payload["request_id"], request_id)
+        finally:
+            request_id_var.reset(token)
+
+
+class DeploymentConfigTests(TestCase):
+    def test_multi_process_production_rejects_sqlite(self):
+        import os
+        import subprocess
+        import sys
+
+        from django.conf import settings
+
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PYTHONPATH": str(settings.BACKEND_DIR),
+                "DJANGO_DEBUG": "False",
+                "DJANGO_SECRET_KEY": "test-production-secret",
+                "DJANGO_ALLOWED_HOSTS": "app.example.com",
+                "API_ENCRYPTION_KEY": "test-encryption-key",
+                "DJANGO_REQUIRE_EXTERNAL_DATABASE": "True",
+                "DB_ENGINE": "sqlite",
+            }
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", "import config.settings"],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires DB_ENGINE=mysql or DB_ENGINE=sqlserver", result.stderr)
+
+
 class BackupDbTests(TestCase):
     def test_backup_creates_dump(self):
         import pathlib
@@ -2089,36 +2144,34 @@ class BackupDbTests(TestCase):
             self.assertGreater(jsons[0].stat().st_size, 0)
 
     def test_backup_with_media(self):
+        import tempfile as _tf
+        from pathlib import Path
+
+        from django.core.management import call_command
+
+        with _tf.TemporaryDirectory() as d:
+            dest = Path(d) / "bk2"
+            media = Path(d) / "media"
+            media.mkdir(parents=True, exist_ok=True)
+            probe = media / "_probe_backup.txt"
+            probe.write_text("backup media probe", encoding="utf-8")
+            with override_settings(MEDIA_ROOT=media):
+                call_command("backup_db", "--dest", str(dest), "--include-media")
+            copied_probe = next(dest.rglob("_probe_backup.txt"))
+            self.assertEqual(copied_probe.read_text(encoding="utf-8"), "backup media probe")
+
+    def test_backup_restore_roundtrip(self):
+        """Backup có thể nạp lại vào một SQLite database cô lập."""
+        import json
+        import os
         import pathlib
+        import subprocess
+        import sys
         import tempfile as _tf
 
         from django.conf import settings as _settings
         from django.core.management import call_command
-
-        _settings.MEDIA_ROOT = str(pathlib.Path(_settings.MEDIA_ROOT))
-        with _tf.TemporaryDirectory() as d:
-            dest = pathlib.Path(d) / "bk2"
-            # tạo 1 file media giả
-            media = pathlib.Path(_settings.MEDIA_ROOT)
-            media.mkdir(parents=True, exist_ok=True)
-            (media / "_probe_backup.txt").write_text("x", encoding="utf-8")
-            try:
-                call_command("backup_db", "--dest", str(dest), "--include-media")
-                self.assertTrue((list(dest.rglob("db.json"))[0]).exists())
-                self.assertTrue(any((dest / "media").rglob("_probe_backup.txt")) or True)
-            finally:
-                try:
-                    (media / "_probe_backup.txt").unlink()
-                except FileNotFoundError:
-                    pass
-
-    def test_backup_restore_roundtrip(self):
-        """Backup JSON chứa đúng dữ liệu test (verify dumpdata structure)."""
-        import json
-        import pathlib
-        import tempfile as _tf
-
-        from django.core.management import call_command
+        from django.db import connection
 
         from .models import Document, Summary, Tag, UserSetting
 
@@ -2186,6 +2239,104 @@ class BackupDbTests(TestCase):
             )
             self.assertEqual(setting_dump["fields"]["gemini_api_key"], "test-key")
 
+            if connection.vendor != "sqlite":
+                self.skipTest("Restore integration currently targets the CI SQLite backend.")
+
+            restore_db = pathlib.Path(d) / "restored.sqlite3"
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "DJANGO_SETTINGS_MODULE": "config.settings",
+                    "DJANGO_DEBUG": "True",
+                    "DJANGO_SECRET_KEY": "isolated-backup-restore-test-key",
+                    "DJANGO_ALLOWED_HOSTS": "localhost,testserver",
+                    "DB_ENGINE": "sqlite",
+                    "SQLITE_DB_PATH": str(restore_db),
+                    "MEDIA_ROOT": str(pathlib.Path(d) / "restored-media"),
+                    "PYTHONPATH": str(_settings.BACKEND_DIR),
+                }
+            )
+            restore_script = (
+                "import django, os; "
+                "os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings'); "
+                "django.setup(); "
+                "from django.core.management import call_command; "
+                "call_command('migrate', verbosity=0); "
+                f"call_command('loaddata', {str(db_json)!r}, verbosity=0); "
+                "from summaries.models import Document, Summary, UserSetting; "
+                "assert Document.objects.filter(title='Backup Doc', "
+                "content='Nội dung test backup restore').exists(); "
+                "assert Summary.objects.filter(title='Backup Summary', "
+                "summary_text='Tóm tắt test').exists(); "
+                "assert UserSetting.objects.filter(user__username='backup-user', "
+                "gemini_api_key='test-key').exists()"
+            )
+            restored = subprocess.run(
+                [sys.executable, "-c", restore_script],
+                cwd=_settings.ROOT_DIR,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(restored.returncode, 0, restored.stderr)
+
+    def test_verify_backup_accepts_valid_backup_and_rejects_corruption(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from django.core.management import CommandError, call_command
+
+        with TemporaryDirectory() as temporary_directory:
+            destination = Path(temporary_directory) / "backup"
+            call_command("backup_db", "--dest", str(destination))
+            folder = next(destination.iterdir())
+            call_command("verify_backup", str(folder))
+
+            (folder / "db.json").write_text("corrupted", encoding="utf-8")
+            with self.assertRaises(CommandError):
+                call_command("verify_backup", str(folder))
+
+    def test_verify_backup_rejects_invalid_manifest_and_path(self):
+        import hashlib
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from django.core.management import CommandError, call_command
+
+        with TemporaryDirectory() as temporary_directory:
+            folder = Path(temporary_directory) / "backup"
+            folder.mkdir()
+            with self.assertRaises(CommandError):
+                call_command("verify_backup", str(folder))
+
+            for unsafe_name in ("../outside", r"..\outside"):
+                (folder / "manifest.json").write_text(
+                    json.dumps({"database_dump": unsafe_name, "sha256": "0" * 64}),
+                    encoding="utf-8",
+                )
+                with self.assertRaises(CommandError):
+                    call_command("verify_backup", str(folder))
+
+            db_path = folder / "db.json"
+            db_path.write_text("{}", encoding="utf-8")
+            digest = hashlib.sha256(db_path.read_bytes()).hexdigest()
+            manifest_path = folder / "manifest.json"
+            manifest_path.write_text(
+                json.dumps({"database_dump": "db.json", "sha256": digest}),
+                encoding="utf-8",
+            )
+            with self.assertRaises(CommandError):
+                call_command("verify_backup", str(folder))
+
+            manifest_path.write_text(
+                json.dumps({"database_dump": "db.json", "sha256": 123}),
+                encoding="utf-8",
+            )
+            with self.assertRaises(CommandError):
+                call_command("verify_backup", str(folder))
+
 
 class HealthDegradedTests(TestCase):
     def test_health_degraded_on_db_error(self):
@@ -2196,12 +2347,15 @@ class HealthDegradedTests(TestCase):
             response = self.client.get(reverse("health"))
             self.assertEqual(response.status_code, 503)
             self.assertEqual(response.json()["status"], "degraded")
+            self.assertEqual(response.json()["database"], "error")
+            self.assertNotIn("db down", response.content.decode())
 
     def test_health_degraded_on_media_error(self):
         with patch("pathlib.Path.unlink", side_effect=OSError("locked")):
             response = self.client.get(reverse("health"))
             self.assertEqual(response.status_code, 503)
-            self.assertIn("error", response.json()["media"])
+            self.assertEqual(response.json()["media"], "error")
+            self.assertNotIn("locked", response.content.decode())
 
     def test_home_gemini_toggle(self):
 
@@ -2229,6 +2383,227 @@ class HealthDegradedTests(TestCase):
             self.assertTrue(home_gemini_available(user))
 
 
+class WebhookSecurityTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="webhook-user", password="secret123")
+        self.document = Document.objects.create(
+            user=self.user,
+            source_type="text",
+            title="Webhook test",
+            content="Test content",
+        )
+        self.summary = Summary.objects.create(
+            user=self.user,
+            document=self.document,
+            title="Webhook test",
+            method="textrank",
+            ratio=0.3,
+            summary_text="Test summary",
+        )
+
+    def test_webhook_url_rejects_private_hosts_and_credentials(self):
+        from summaries.webhooks import validate_webhook_url
+
+        with self.assertRaises(ValueError):
+            validate_webhook_url("http://127.0.0.1:8000/internal")
+        with self.assertRaises(ValueError):
+            validate_webhook_url("https://user:password@example.com/hook")
+
+    def test_production_webhook_requires_https(self):
+        from summaries.webhooks import validate_webhook_url
+
+        with override_settings(DEBUG=False), self.assertRaises(ValueError):
+            validate_webhook_url("http://hooks.example.com/receive")
+
+    def test_successful_delivery_records_datetime_without_redirects(self):
+        from summaries.webhooks import WebhookRegistration, _build_webhook_payload, _deliver_webhook
+
+        webhook = WebhookRegistration.objects.create(
+            user=self.user,
+            url="https://hooks.example.com/receive",
+            secret="test-secret",
+            events=["summary.completed"],
+        )
+        response = MagicMock(status_code=204)
+        with (
+            patch("summaries.webhooks._resolve_and_validate"),
+            patch("requests.Session.post", return_value=response) as post,
+        ):
+            self.assertTrue(
+                _deliver_webhook(
+                    webhook,
+                    _build_webhook_payload(self.summary, "summary.completed"),
+                    delivery_id="test-delivery-1",
+                )
+            )
+
+        webhook.refresh_from_db()
+        self.assertEqual(webhook.failure_count, 0)
+        self.assertIsNotNone(webhook.last_triggered)
+        self.assertFalse(post.call_args.kwargs["allow_redirects"])
+        self.assertEqual(post.call_args.kwargs["headers"]["X-Webhook-Delivery"], "test-delivery-1")
+        post.assert_called_once()
+
+    def test_summary_webhook_outbox_is_queued_after_transaction_commit(self):
+        from summaries.tasks import dispatch_webhook_delivery
+        from summaries.webhooks import WebhookDelivery, WebhookRegistration
+
+        webhook = WebhookRegistration.objects.create(
+            user=self.user,
+            url="https://hooks.example.com/receive",
+            secret="test-secret",
+            events=["summary.completed"],
+        )
+
+        with (
+            override_settings(DEBUG=False),
+            patch.object(dispatch_webhook_delivery, "delay") as enqueue,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            summary = Summary.objects.create(
+                user=self.user,
+                document=self.document,
+                title="Queued webhook",
+                method="textrank",
+                ratio=0.3,
+                summary_text="Queued summary",
+            )
+
+        delivery = WebhookDelivery.objects.get(webhook=webhook, summary=summary)
+        self.assertEqual(delivery.status, WebhookDelivery.PENDING)
+        enqueue.assert_called_once_with(delivery.pk)
+
+    def test_failed_broker_enqueue_leaves_delivery_for_sweeper(self):
+        from summaries.tasks import dispatch_webhook_delivery, enqueue_pending_webhook_deliveries
+        from summaries.webhooks import WebhookDelivery, WebhookRegistration
+
+        webhook = WebhookRegistration.objects.create(
+            user=self.user,
+            url="https://hooks.example.com/receive",
+            secret="test-secret",
+            events=["summary.completed"],
+        )
+        with (
+            override_settings(DEBUG=False),
+            patch.object(dispatch_webhook_delivery, "delay", side_effect=ConnectionError),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            summary = Summary.objects.create(
+                user=self.user,
+                document=self.document,
+                title="Broker unavailable",
+                method="textrank",
+                ratio=0.3,
+                summary_text="Still persisted in the outbox",
+            )
+
+        delivery = WebhookDelivery.objects.get(webhook=webhook, summary=summary)
+        self.assertEqual(delivery.status, WebhookDelivery.PENDING)
+        with patch.object(dispatch_webhook_delivery, "delay") as enqueue:
+            self.assertEqual(enqueue_pending_webhook_deliveries(), 1)
+        enqueue.assert_called_once_with(delivery.pk)
+
+    def test_failed_delivery_is_retried_without_blocking_worker(self):
+        from summaries.tasks import dispatch_webhook_delivery
+        from summaries.webhooks import WebhookDelivery, WebhookRegistration
+
+        webhook = WebhookRegistration.objects.create(
+            user=self.user,
+            url="https://hooks.example.com/receive",
+            secret="test-secret",
+            events=["summary.completed"],
+        )
+        delivery = WebhookDelivery.objects.create(
+            webhook=webhook,
+            summary=self.summary,
+            event="summary.completed",
+        )
+
+        with patch("summaries.webhooks._deliver_webhook", return_value=False) as send:
+            dispatch_webhook_delivery(delivery.pk)
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, WebhookDelivery.PENDING)
+        self.assertEqual(delivery.attempt_count, 1)
+        self.assertGreater(delivery.available_at, timezone.now())
+        self.assertEqual(send.call_args.kwargs["max_retries"], 1)
+        self.assertEqual(send.call_args.kwargs["delivery_id"], str(delivery.pk))
+
+    def test_successful_outbox_delivery_is_marked_delivered(self):
+        from summaries.tasks import dispatch_webhook_delivery
+        from summaries.webhooks import WebhookDelivery, WebhookRegistration
+
+        webhook = WebhookRegistration.objects.create(
+            user=self.user,
+            url="https://hooks.example.com/receive",
+            secret="test-secret",
+            events=["summary.completed"],
+        )
+        delivery = WebhookDelivery.objects.create(
+            webhook=webhook,
+            summary=self.summary,
+            event="summary.completed",
+        )
+
+        with patch("summaries.webhooks._deliver_webhook", return_value=True):
+            dispatch_webhook_delivery(delivery.pk)
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, WebhookDelivery.DELIVERED)
+        self.assertIsNotNone(delivery.delivered_at)
+        self.assertEqual(delivery.attempt_count, 0)
+
+    def test_sweeper_recovers_stale_worker_claim(self):
+        from summaries.tasks import dispatch_webhook_delivery, enqueue_pending_webhook_deliveries
+        from summaries.webhooks import WebhookDelivery, WebhookRegistration
+
+        webhook = WebhookRegistration.objects.create(
+            user=self.user,
+            url="https://hooks.example.com/receive",
+            secret="test-secret",
+            events=["summary.completed"],
+        )
+        delivery = WebhookDelivery.objects.create(
+            webhook=webhook,
+            summary=self.summary,
+            event="summary.completed",
+            status=WebhookDelivery.PROCESSING,
+            locked_at=timezone.now() - timedelta(minutes=16),
+        )
+
+        with patch.object(dispatch_webhook_delivery, "delay") as enqueue:
+            self.assertEqual(enqueue_pending_webhook_deliveries(), 1)
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, WebhookDelivery.PENDING)
+        self.assertIsNone(delivery.locked_at)
+        enqueue.assert_called_once_with(delivery.pk)
+
+    def test_outbox_delivery_stops_after_maximum_attempts(self):
+        from summaries.tasks import dispatch_webhook_delivery
+        from summaries.webhooks import DELIVERY_MAX_ATTEMPTS, WebhookDelivery, WebhookRegistration
+
+        webhook = WebhookRegistration.objects.create(
+            user=self.user,
+            url="https://hooks.example.com/receive",
+            secret="test-secret",
+            events=["summary.completed"],
+        )
+        delivery = WebhookDelivery.objects.create(
+            webhook=webhook,
+            summary=self.summary,
+            event="summary.completed",
+            attempt_count=DELIVERY_MAX_ATTEMPTS - 1,
+        )
+
+        with patch("summaries.webhooks._deliver_webhook", return_value=False):
+            dispatch_webhook_delivery(delivery.pk)
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, WebhookDelivery.FAILED)
+        self.assertEqual(delivery.attempt_count, DELIVERY_MAX_ATTEMPTS)
+
+
 class RateLimitMiddlewareTests(TestCase):
     def test_rate_limit_allows_first_request(self):
         response = self.client.post(
@@ -2254,8 +2629,7 @@ class RateLimitMiddlewareTests(TestCase):
         self.assertEqual(response.status_code, 429)
         self.assertIn("retry_after", response.json())
 
-    def test_rate_limit_different_ips_independent(self):
-        # Use different X-Forwarded-For headers to simulate different IPs
+    def test_untrusted_forwarded_header_cannot_bypass_rate_limit(self):
         self.client.post(
             reverse("create_summary"),
             {"source_type": "text", "text": "Test content", "method": "textrank", "ratio": 0.3},
@@ -2268,7 +2642,49 @@ class RateLimitMiddlewareTests(TestCase):
             content_type="application/x-www-form-urlencoded",
             HTTP_X_FORWARDED_FOR="5.6.7.8",
         )
-        self.assertNotEqual(response.status_code, 429)
+        self.assertEqual(response.status_code, 429)
+
+    def test_different_remote_ips_have_independent_limits(self):
+        for remote_addr in ("192.0.2.10", "192.0.2.11"):
+            response = self.client.post(
+                reverse("create_summary"),
+                {
+                    "source_type": "text",
+                    "text": f"Test content {remote_addr}",
+                    "method": "textrank",
+                    "ratio": 0.3,
+                },
+                content_type="application/x-www-form-urlencoded",
+                REMOTE_ADDR=remote_addr,
+            )
+            self.assertNotEqual(response.status_code, 429)
+
+    def test_trusted_proxy_forwarded_chain_uses_first_untrusted_hop(self):
+        from django.test import RequestFactory
+
+        from summaries.middleware import RateLimitMiddleware
+
+        middleware = RateLimitMiddleware(lambda request: None)
+        request = RequestFactory().get(
+            "/api/test/",
+            REMOTE_ADDR="10.0.0.2",
+            HTTP_X_FORWARDED_FOR="198.51.100.15, 10.0.0.1",
+        )
+        with override_settings(TRUSTED_PROXY_IPS=("10.0.0.0/8",)):
+            self.assertEqual(middleware._get_client_ip(request), "198.51.100.15")
+
+    def test_untrusted_forwarded_chain_is_ignored(self):
+        from django.test import RequestFactory
+
+        from summaries.middleware import RateLimitMiddleware
+
+        request = RequestFactory().get(
+            "/api/test/",
+            REMOTE_ADDR="192.0.2.9",
+            HTTP_X_FORWARDED_FOR="198.51.100.15",
+        )
+        middleware = RateLimitMiddleware(lambda request: None)
+        self.assertEqual(middleware._get_client_ip(request), "192.0.2.9")
 
     def test_rate_limit_exempt_paths(self):
         # Health endpoint should not be rate limited
@@ -2435,6 +2851,63 @@ class CeleryTaskIntegrationTests(TestCase):
             )
             # Should fail gracefully
             self.assertFalse(result["ok"])
+
+    @patch("summaries.tasks.extract_text", side_effect=RuntimeError("private server detail"))
+    def test_process_summary_task_hides_internal_errors(self, _extract_text):
+        from .tasks import process_summary_task
+
+        result = process_summary_task(
+            user_id=self.user.id,
+            source_type="url",
+            method="textrank",
+            ratio=0.5,
+            source_url="https://example.com/article",
+        )
+
+        self.assertEqual(result["message"], "Không thể xử lý yêu cầu. Vui lòng thử lại sau.")
+        self.assertNotIn("private server detail", str(result))
+
+    @patch("summaries.batch.extract_text", side_effect=RuntimeError("private server detail"))
+    def test_batch_url_errors_hide_exception_and_query_string(self, _extract_text):
+        from .batch import create_batch_from_urls
+
+        secret_url = "https://example.com/article?token=private"
+        result = create_batch_from_urls(self.user, [secret_url], "textrank", 0.5)
+
+        self.assertEqual(result["errors"], ["Không thể xử lý URL đã cung cấp."])
+        self.assertNotIn("private server detail", str(result))
+        self.assertNotIn("token=private", str(result))
+
+    def test_batch_zip_item_errors_do_not_expose_exception(self):
+        import io
+        import zipfile
+
+        from .batch import create_batch_from_zip
+
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as zip_file:
+            zip_file.writestr("article.txt", "Nội dung tài liệu kiểm thử.")
+        uploaded_file = SimpleUploadedFile("batch.zip", archive.getvalue())
+
+        with patch(
+            "summaries.batch.extract_text", side_effect=RuntimeError("private server detail")
+        ):
+            result = create_batch_from_zip(self.user, uploaded_file, "textrank", 0.5)
+
+        self.assertEqual(result["errors"], ["article.txt: Không thể xử lý tệp này."])
+        self.assertNotIn("private server detail", str(result))
+
+    def test_batch_zip_failure_does_not_expose_exception(self):
+        from .batch import create_batch_from_zip
+
+        uploaded_file = SimpleUploadedFile("batch.zip", b"invalid archive")
+        with patch(
+            "summaries.batch.zipfile.ZipFile", side_effect=RuntimeError("private server detail")
+        ):
+            result = create_batch_from_zip(self.user, uploaded_file, "textrank", 0.5)
+
+        self.assertEqual(result["message"], "Không thể xử lý lô tệp. Vui lòng thử lại sau.")
+        self.assertNotIn("private server detail", str(result))
 
     def test_api_v1_endpoints_exist(self):
         """Verify /api/v1/ routes are registered."""
