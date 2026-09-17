@@ -37,11 +37,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterField(
-            model_name='summary',
-            name='search_vector',
-            field=models.TextField(blank=True, editable=False, null=True),
-        ),
         migrations.SeparateDatabaseAndState(
             database_operations=[
                 migrations.RunPython(
@@ -55,5 +50,10 @@ class Migration(migrations.Migration):
                     name=SEARCH_VECTOR_INDEX,
                 ),
             ],
+        ),
+        migrations.AlterField(
+            model_name='summary',
+            name='search_vector',
+            field=models.TextField(blank=True, editable=False, null=True),
         ),
     ]
