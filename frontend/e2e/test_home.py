@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 from playwright.sync_api import Page, expect
+from summaries.exports import _check_weasyprint
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
@@ -216,15 +217,35 @@ class TestAuthentication:
         upload_summary_url = page.url
         page.locator(".export-trigger").click()
         expect(page.locator(".export-item").first).to_be_visible()
-        with page.expect_response(lambda response: "/export/md/" in response.url) as export_info:
-            page.locator(".export-item", has_text="Markdown").click()
+        with page.expect_download() as download_info:
+            with page.expect_response(lambda response: "/export/md/" in response.url) as export_info:
+                page.locator(".export-item", has_text="Markdown").click()
+        download = download_info.value
         export_response = export_info.value
         assert export_response.status == 200
-        from email.header import decode_header, make_header
-
-        disposition = str(make_header(decode_header(export_response.headers["content-disposition"])))
-        assert "attachment" in disposition.lower() and ".md" in disposition.lower()
+        assert download.suggested_filename.endswith(".md")
+        assert export_response.headers["content-disposition"].startswith("attachment;")
         assert export_response.headers["content-type"].startswith("text/markdown")
+
+        for label, extension, content_type in (
+            (
+                "Word",
+                "docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+            ("PDF", "pdf", "application/pdf"),
+        ):
+            if extension == "pdf" and not _check_weasyprint():
+                continue
+            page.locator(".export-trigger").click()
+            with page.expect_download() as format_download:
+                with page.expect_response(
+                    lambda response: f"/export/{extension}/" in response.url
+                ) as format_export:
+                    page.locator(".export-item", has_text=label).click()
+            assert format_export.value.status == 200
+            assert format_download.value.suggested_filename.endswith(f".{extension}")
+            assert format_export.value.headers["content-type"].startswith(content_type)
 
         # A different account must not be able to view this account's summary.
         page.goto(owned_summary_url)
@@ -242,6 +263,7 @@ class TestAuthentication:
         assert response is not None and response.status == 404
 
         # Log back into the owner account and verify delete confirmation and result.
+        page.goto(base_url)
         page.locator(".logout-form button").click()
         page.goto(f"{base_url}/login/")
         page.locator("input[name='username']").fill(username)

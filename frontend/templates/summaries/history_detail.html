@@ -183,6 +183,7 @@ if (shareBtn && shareModal) {
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
                     "X-Requested-With": "XMLHttpRequest",
+                    "X-CSRFToken": document.cookie.match(/(?:^|; )csrftoken=([^;]*)/)?.[1] || "",
                 },
                 body: new URLSearchParams({ expiry_days: expiryDays }),
             });

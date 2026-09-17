@@ -234,6 +234,19 @@ class SummaryModelTests(TestCase):
         )
         self.assertIsNotNone(summary.created_at)
 
+    @patch("summaries.models.HAS_POSTGRES_SEARCH", True)
+    def test_search_uses_fallback_for_non_postgres_database(self):
+        summary = Summary.objects.create(
+            document=self.doc,
+            user=self.user,
+            title="Tóm tắt kiểm thử",
+            summary_text="Nội dung tìm kiếm mẫu",
+        )
+
+        results = Summary.search(self.user, "tìm kiếm")
+
+        self.assertEqual(list(results), [summary])
+
 
 class UserProfileModelTests(TestCase):
     def test_create_profile_auto_defaults(self):
@@ -986,6 +999,30 @@ class SigningTests(TestCase):
 
     def test_decrypt_invalid_token_returns_raw(self):
         self.assertEqual(decrypt_value("not-a-valid-token"), "not-a-valid-token")
+
+
+class SharingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="share-tester", password="secret123")
+        self.document = Document.objects.create(
+            user=self.user, source_type="text", title="Tài liệu chia sẻ", content="Nội dung"
+        )
+        self.summary = Summary.objects.create(
+            document=self.document,
+            user=self.user,
+            title="Tóm tắt chia sẻ",
+            summary_text="Nội dung tóm tắt",
+        )
+
+    def test_generated_share_link_opens_public_summary(self):
+        from .sharing import generate_share_token
+
+        token = generate_share_token(self.summary)
+
+        response = self.client.get(reverse("shared_summary", kwargs={"token": token}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nội dung tóm tắt")
 
 
 class SuperuserRoleEvolutionTests(TestCase):

@@ -2,10 +2,12 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import connection, models
 
 # Conditional import for PostgreSQL full-text search
-HAS_POSTGRES_SEARCH = getattr(settings, "ENABLE_FULLTEXT_SEARCH", True)
+HAS_POSTGRES_SEARCH = (
+    getattr(settings, "ENABLE_FULLTEXT_SEARCH", True) and connection.vendor == "postgresql"
+)
 if HAS_POSTGRES_SEARCH:
     try:
         from django.contrib.postgres.search import SearchVectorField
@@ -154,7 +156,7 @@ class Summary(models.Model):
     @classmethod
     def search(cls, user, query: str, language: str = "vietnamese"):
         """Full-text search summaries for a user (PostgreSQL only)."""
-        if not HAS_POSTGRES_SEARCH:
+        if not HAS_POSTGRES_SEARCH or connection.vendor != "postgresql":
             # SQLite fallback: simple icontains search
             return (
                 cls.objects.filter(user=user)

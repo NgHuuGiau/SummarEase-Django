@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import time
 from datetime import timedelta
 from typing import cast
@@ -38,7 +39,9 @@ def generate_share_token(summary: Summary, expiry_days: int = DEFAULT_EXPIRY_DAY
     }
 
     # Create token: base64(payload) + "." + base64(signature)
-    payload_bytes = base64.urlsafe_b64encode(str(payload).encode()).rstrip(b"=")
+    payload_bytes = base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":")).encode()
+    ).rstrip(b"=")
 
     signature = hmac.new(SHARE_SECRET_KEY.encode(), payload_bytes, hashlib.sha256).digest()
     signature_b64 = base64.urlsafe_b64encode(signature).rstrip(b"=")
@@ -67,8 +70,6 @@ def verify_share_token(token: str) -> dict | None:
         # Add padding if needed
         padding = 4 - (len(payload_b64) % 4)
         payload_bytes = base64.urlsafe_b64decode(payload_b64 + "=" * padding)
-        import json
-
         payload = json.loads(payload_bytes.decode())
     except Exception:
         return None
