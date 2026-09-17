@@ -3,7 +3,7 @@ import re
 from uuid import uuid4
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, expect
 from summaries.exports import _check_weasyprint
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
@@ -238,11 +238,19 @@ class TestAuthentication:
             if extension == "pdf" and not _check_weasyprint():
                 continue
             page.locator(".export-trigger").click()
-            with page.expect_download() as format_download:
+            try:
                 with page.expect_response(
                     lambda response: f"/export/{extension}/" in response.url
                 ) as format_export:
-                    page.locator(".export-item", has_text=label).click()
+                    with page.expect_download(timeout=10000) as format_download:
+                        page.locator(".export-item", has_text=label).click()
+            except PlaywrightTimeoutError as exc:
+                response = format_export.value
+                raise AssertionError(
+                    f"{extension} export did not download: HTTP {response.status}, "
+                    f"Content-Disposition={response.headers.get('content-disposition')}, "
+                    f"body={response.text()[:300]}"
+                ) from exc
             assert format_export.value.status == 200
             assert format_download.value.suggested_filename.endswith(f".{extension}")
             assert format_export.value.headers["content-type"].startswith(content_type)
