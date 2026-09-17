@@ -1,7 +1,7 @@
 ﻿# 📝 SummarEase Django
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Python-3.10--3.13-3776AB?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white" alt="Django">
   <img src="https://img.shields.io/badge/TextRank-Summary-00ADD8" alt="TextRank">
   <img src="https://img.shields.io/badge/Gemini-AI-4285F4?logo=google-gemini&logoColor=white" alt="Gemini">
@@ -173,7 +173,7 @@ SummarEase-Django/
 
 ```powershell
 # 1. Clone repo
-git clone https://github.com/your-username/SummarEase-Django.git
+git clone https://github.com/NgHuuGiau/SummarEase-Django.git
 cd SummarEase-Django
 
 # 2. Tạo môi trường ảo + cài dependencies
@@ -218,6 +218,14 @@ GEMINI_API_KEY=your_google_api_key
 6. Sao chép kết quả, mở chi tiết, xuất Markdown/DOCX/PDF hoặc tạo liên kết chia sẻ có thời hạn
 7. Xem lại các bản đã lưu trong mục **Lịch sử**
 
+### Kịch bản demo nhanh (2–3 phút)
+
+Đăng ký tài khoản, dán một đoạn văn tiếng Việt vào trang chủ và chọn **TextRank** để demo không cần API key. Sau khi tạo tóm tắt, mở **Lịch sử**, vào chi tiết, thử chia sẻ liên kết rồi tải Markdown hoặc Word. Gemini là tuỳ chọn; chỉ bật khi đã cấu hình API key.
+
+### Xuất PDF trên Windows
+
+WeasyPrint cần thư viện Pango của hệ điều hành. Docker image đã cài runtime cần thiết; trên Ubuntu/WSL, cài bằng `sudo apt-get install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core`. Nếu chạy Python trực tiếp trên Windows, hãy cài Pango theo [hướng dẫn chính thức của WeasyPrint](https://doc.courtbouillon.org/weasyprint/latest/first_steps.html#windows).
+
 ---
 
 ## 🔐 Chạy HTTPS
@@ -254,7 +262,7 @@ $env:BASE_URL = "http://127.0.0.1:8000"
 python -m pytest frontend/e2e/test_home.py -q
 ```
 
-E2E bao phủ trang khách, chuyển nguồn, tỷ lệ, theme, đăng nhập/đăng ký và luồng tài khoản đã xác thực gồm tạo tóm tắt, mở chi tiết, chia sẻ. Test upload hiện xác nhận tên tệp được chọn; xử lý định dạng và kích thước được kiểm thử ở backend. E2E tạo user riêng cho mỗi lần chạy.
+E2E bao phủ trang khách, chuyển nguồn, tỷ lệ, theme, đăng nhập/đăng ký và luồng tài khoản đã xác thực gồm tạo tóm tắt, tìm kiếm lịch sử, upload tệp TXT thật, chia sẻ, tải Markdown/Word/PDF, kiểm tra phân quyền và xóa. Kiểm tra PDF tự bỏ qua nếu máy chạy test chưa có runtime Pango; Docker và CI cài runtime này để xác nhận đầy đủ. E2E tạo user riêng cho mỗi lần chạy.
 
 CI kiểm tra backend trên Python 3.10–3.13, Ruff, mypy, pip-audit, E2E Playwright, cú pháp JavaScript, manifest frontend và build/deploy checks. Kết quả gần nhất có thể xem trong GitHub Actions; không cố định số test trong tài liệu vì suite thay đổi theo mã nguồn.
 
