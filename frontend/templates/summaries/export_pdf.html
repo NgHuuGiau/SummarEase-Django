@@ -1,4 +1,3 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -25,7 +24,7 @@
     <table class="meta-table">
         <tr><th>Phương pháp</th><td>{{ summary.get_method_display }}</td></tr>
         <tr><th>Ngôn ngữ</th><td>{{ summary.language }}</td></tr>
-        <tr><th>Tỉ lệ</th><td>{{ summary.ratio|mul:100 }}%</td></tr>
+        <tr><th>Tỉ lệ</th><td>{% widthratio summary.ratio 1 100 %}%</td></tr>
         <tr><th>Nguồn</th><td>{{ summary.document.get_source_type_display }}</td></tr>
         <tr><th>Ngày tạo</th><td>{{ summary.created_at|date:"d/m/Y H:i" }}</td></tr>
     </table>

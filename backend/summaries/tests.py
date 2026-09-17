@@ -8,7 +8,8 @@ from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.template.loader import get_template
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -37,6 +38,11 @@ class TestHelperMixin:
         else:
             user = User.objects.create_user(username=username, password=password)
         return user
+
+
+class ExportTemplateTests(SimpleTestCase):
+    def test_pdf_export_template_compiles(self):
+        get_template("summaries/export_pdf.html")
 
 
 # ──────────────────────────────────────────────
