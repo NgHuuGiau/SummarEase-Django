@@ -1,180 +1,110 @@
-# Kiến Trúc Hệ Thống
+# Kiến trúc SummarEase
 
-## Tổng quan
+## Phạm vi
 
-SummarEase Django là ứng dụng web Django 5.2 với kiến trúc MVT, kết hợp xử lý NLP ở backend và giao diện người dùng ở frontend. SQLite được dùng mặc định cho development/test; production nên dùng SQL Server hoặc MySQL managed. Tác vụ dài được xử lý qua Celery + Redis.
+SummarEase là ứng dụng Django 5.2 dạng MVT, gồm giao diện server-rendered và JavaScript/CSS tĩnh. Đây là dự án demo/học tập: cấu hình mặc định dùng SQLite, không cần Redis hay Gemini. TextRank chạy trong ứng dụng; Gemini là tích hợp tùy chọn, gọi dịch vụ Google khi người dùng chọn và đã có khóa.
 
-## Sơ đồ thư mục
+## Thành phần
 
+| Thành phần | Vai trò |
+|---|---|
+| Django `backend/config/` | Settings, URL routing, WSGI/ASGI, middleware bảo mật, request ID và logging |
+| Django app `backend/summaries/` | Tài khoản, biểu mẫu, tóm tắt, lịch sử, chia sẻ, webhook, xuất tệp và API |
+| NLP và trích xuất | TextRank nội bộ; Gemini tùy chọn; đọc TXT/Markdown, PDF, DOCX, EPUB và nội dung URL |
+| Giao diện `frontend/` | Django templates, CSS và JavaScript thuần; không cần frontend build tool |
+| SQLite / MySQL / SQL Server | SQLite mặc định cho local/test; MySQL và SQL Server là lựa chọn cấu hình |
+| Celery + Redis | Tác vụ nền trong chế độ production khi cấu hình broker; không bắt buộc cho demo local |
+| Docker Compose | Web, Redis, Celery worker và Celery Beat; database production được cung cấp bên ngoài |
+| GitHub Actions | Ruff, mypy, bảo mật dependencies, test Python, tích hợp database, E2E và Docker build |
+
+## Luồng tạo bản tóm tắt
+
+```text
+Trình duyệt
+  │ POST (session + CSRF)
+  ▼
+Django view ──► SummaryRequestForm / SummaryService
+  │ kiểm tra quyền, loại nguồn, kích thước và giới hạn request
+  ▼
+Text / URL / file
+  │ URL được kiểm tra SSRF; file được kiểm tra phần mở rộng/kích thước
+  ▼
+Bộ trích xuất nội dung ──► TextRank nội bộ hoặc Gemini tùy chọn
+  ▼
+Database: Document + Summary (+ câu/tag liên quan)
+  │
+  ├── DEBUG/test: xử lý đồng bộ
+  └── production có Redis: Celery task và trả task ID
+  ▼
+Giao diện hiển thị kết quả / lịch sử / chia sẻ / xuất Markdown-DOCX-PDF
 ```
+
+Các file tải lên được giới hạn 10 MB. URL ngoài có kiểm tra địa chỉ đích và redirect, timeout và giới hạn response; đây là biện pháp giảm rủi ro SSRF, không thay thế egress firewall khi triển khai công khai.
+
+## Tác vụ nền và webhook
+
+Trong cấu hình production của Docker Compose, web, worker và Beat dùng chung database ngoài và Redis nội bộ. Tác vụ tóm tắt được đưa vào Celery. Nếu Redis chưa sẵn sàng hoặc lỗi, ứng dụng trả lỗi dịch vụ nền thay vì giả vờ đã tạo tác vụ.
+
+Khi bản tóm tắt phát sinh sự kiện webhook, bản ghi outbox được ghi trong database cùng transaction; sau commit, ứng dụng enqueue delivery. Beat quét các delivery đang chờ mỗi phút để khôi phục tình huống enqueue thất bại hoặc worker gián đoạn. Retry có giới hạn và dùng header `X-Webhook-Delivery` ổn định để bên nhận khử trùng lặp. Mô hình giao nhận là **at-least-once**, không bảo đảm exactly-once qua HTTP. Redis/Celery/Beat chỉ cần khi bật luồng production này.
+
+## Dữ liệu và cấu hình
+
+- Django migrations là nguồn chuẩn để tạo/cập nhật schema.
+- SQLite mặc định lưu tại `backend/sql/db.sqlite3`; có thể đổi bằng `SQLITE_DB_PATH`.
+- Cấu hình MySQL/SQL Server đặt qua `DB_ENGINE` và các biến `DB_*` trong `backend/.env`.
+- Docker Compose production yêu cầu MySQL hoặc SQL Server bên ngoài; SQLite không phù hợp với nhiều tiến trình web/worker trong cấu hình đó.
+- `backend/.env.example` chứa cấu hình mẫu; file `backend/.env`, khóa thật, media và chứng chỉ local không được commit.
+- Khóa Gemini có thể cấu hình ở cấp hệ thống hoặc người dùng. Khóa người dùng được mã hóa trong database; nội dung đưa vào Gemini được gửi tới Google.
+- Không có tài khoản tạo sẵn. `python manage.py setup` chạy migrations; dùng giao diện để đăng ký hoặc `createsuperuser` cho quản trị.
+
+## Sơ đồ thư mục rút gọn
+
+```text
 SummarEase-Django/
-├── backend/                     # Django project
-│   ├── config/                  # Settings, URLs, WSGI, ASGI
-│   │   ├── settings.py          #   Cấu hình Django (DB, whitenoise, CSP)
-│   │   ├── urls.py              #   URL routing chính
-│   │   ├── wsgi.py              #   WSGI entry point
-│   │   ├── asgi.py              #   ASGI entry point (dùng cho Daphne)
-│   │   ├── csp.py               #   CSP middleware
-│   │   ├── request_id.py        #   Request ID middleware
-│   │   ├── logging_fmt.py       #   JSON formatter cho structured logging
-│   │   └── _setup.py            #   Chung cho WSGI/ASGI
-│   ├── summaries/               # Django app chính
-│   │   ├── models.py            #   Document, Summary, Tag, UserProfile, UserSetting
-│   │   ├── views.py             #   View logic
-│   │   ├── nlp.py               #   Xử lý NLP, TextRank, Gemini
-│   │   ├── forms.py             #   Django forms
-│   │   ├── admin.py             #   Django Admin config
-│   │   ├── tests.py             #   Backend tests
-│   │   ├── stopwords.txt        #   Stopwords tiếng Việt
-│   │   ├── management/
-│   │   │   └── commands/       #   setup, backup_db, verify_backup
-│   │   └── migrations/          #   DB migrations
-│   ├── api-tests/               #   Bruno API test collection
-│   ├── media/                   #   File upload (gitignored)
-│   ├── sql/                     #   Database schemas
-│   │   └── schema_sqlserver.sql #     Schema SQL Server
-│   ├── ssl/                     #   Chứng chỉ SSL tự ký (gitignored)
-│   │   ├── cert.pem             #     Certificate
-│   │   └── key.pem              #     Private key
-│   ├── staticfiles/             #   Đích collectstatic; file sinh ra bị ignore
-│   ├── .env                     #   Biến môi trường (local)
-│   ├── .env.example             #   Mẫu biến môi trường
-│   └── conftest.py              #   Pytest config
-├── frontend/                    # Giao diện người dùng
-│   ├── e2e/                      # Playwright E2E tests
-│   ├── static/                  # File tĩnh
-│   │   ├── css/tokens-base.css      #   Design tokens + reset
-│   │   ├── css/layout-buttons.css   #   Header/nav + buttons/badges
-│   │   ├── css/form-area.css        #   Hero + workspace + result panel
-│   │   ├── css/history.css          #   History shelf & cards
-│   │   ├── css/pages-footer.css     #   Detail + auth/settings + footer
-│   │   ├── css/responsive.css       #   Breakpoints
-│   │   ├── css/admin.css            #   Admin styles
-│   │   └── js/app.js                #   JavaScript (source/method, validation, submit, theme)
-│   └── templates/               # Django templates
-│       ├── 404.html             #   Lỗi 404
-│       ├── 500.html             #   Lỗi 500
-│       ├── admin/base_site.html #   Tuỳ chỉnh admin
-│       └── summaries/           #   App templates
-│           ├── base.html        #     Template gốc (load 6 CSS theo thứ tự)
-│           ├── home.html        #     Trang chủ (gemini_available toggle)
-│           ├── login.html       #     Đăng nhập ("Quên mật khẩu?" link)
-│           ├── register.html    #     Đăng ký
-│           ├── settings.html    #     Cài đặt
-│           ├── history_list.html#     Lịch sử
-│           ├── history_detail.html#   Chi tiết
-│           ├── password_reset*.html # Password reset (4 templates)
-│           └── password_reset_email.txt # Email khôi phục
-├── scripts/                     # Scripts dev
-│   ├── run-dev.bat              #   Script dev HTTPS (Windows)
-│   ├── run-dev.ps1              #   Script dev HTTPS (PowerShell/Daphne)
-│   └── run-ssl.ps1              #   Script dev HTTPS (PowerShell/Daphne)
-├── docs/                        # Tài liệu
-├── manage.py                    # Django CLI
-├── requirements.txt             # Dependencies
-└── pyproject.toml               # Cấu hình ruff, pytest, coverage
+├── backend/
+│   ├── config/                 # Settings, URLs, WSGI/ASGI, middleware
+│   ├── summaries/              # Django app, API, NLP, tasks, migrations, tests
+│   ├── sql/                    # SQLite mặc định và schema SQL Server tham khảo
+│   ├── .env.example            # Mẫu cấu hình
+│   └── conftest.py             # Cấu hình pytest
+├── frontend/
+│   ├── templates/              # Giao diện Django
+│   ├── static/                 # CSS và JavaScript
+│   └── e2e/                    # Kiểm thử Playwright
+├── scripts/                    # Script chạy HTTPS/dev trên Windows
+├── docs/                       # Tài liệu hướng dẫn
+├── Dockerfile
+├── docker-compose.yml
+├── manage.py
+├── requirements.txt
+└── requirements-dev.txt
 ```
 
-## Luồng xử lý chính
+Thư mục `media/`, chứng chỉ tự ký và SQLite local có thể được tạo khi chạy, không phải mã nguồn cần commit.
 
-### 1. Tóm tắt nội dung
+## Điểm vào quan trọng
 
-```
-User -> POST /api/summaries/create/
-         -> views.py: create_summary()
-              -> Nếu source_type = text: dùng text trực tiếp
-              -> Nếu source_type = url: requests.get() + BeautifulSoup
-              -> Nếu source_type = file: đọc file (PDF/DOCX/EPUB/TXT)
-         -> nlp.py: summarize_text(text, method, ratio)
-              -> TextRank: thuật toán nội bộ không phụ thuộc NLP bên ngoài
-              -> Gemini: requests POST lên Gemini API
-         -> Development/test: chạy đồng bộ
-         -> Production: đưa vào Celery + Redis
-         -> Lưu Document + Summary vào database
-         -> Ghi WebhookDelivery cùng transaction nếu có endpoint đăng ký
-         -> Celery gửi sau commit; Beat quét outbox pending và phục hồi worker bị gián đoạn
-         -> Trả kết quả hoặc task_id về frontend
-         -> app.js cập nhật trạng thái kết quả
-```
+| Điểm vào | Chức năng |
+|---|---|
+| `manage.py` | Lệnh quản trị Django |
+| `backend/config/settings.py` | Cấu hình môi trường, database, cache/Celery và bảo mật |
+| `backend/config/urls.py` | Nối giao diện, admin, API v1, schema, docs và metrics |
+| `backend/summaries/urls.py` | Route trang, tóm tắt, lịch sử, webhook và health |
+| `backend/summaries/services.py` | Kiểm tra đầu vào và điều phối việc tạo tóm tắt |
+| `backend/summaries/readers.py` | Trích xuất tài liệu/URL và kiểm tra URL |
+| `backend/summaries/nlp.py` | TextRank và tích hợp Gemini |
+| `backend/summaries/tasks.py` | Tác vụ Celery và phục hồi webhook outbox |
+| `frontend/static/js/app.js` | Tương tác form, kiểm tra UX và hiển thị kết quả |
+| `scripts/run-dev.ps1` | Chạy Daphne HTTPS local trên Windows |
+| `docker-compose.yml` | Web production mẫu, Redis, Celery worker và Beat |
 
-Webhook dùng giao nhận at-least-once: retry có backoff, tối đa 5 lần và header `X-Webhook-Delivery` ổn định để bên nhận khử trùng lặp. Không thể bảo đảm exactly-once qua HTTP.
+## Công nghệ và kiểm tra
 
-### 1.1. Kiểm tra form trên giao diện
+- Python 3.10–3.13, Django 5.2.
+- HTML, CSS, JavaScript thuần; WhiteNoise phục vụ static files.
+- TextRank nội bộ; Gemini API tùy chọn.
+- SQLite local; MySQL/SQL Server tùy cấu hình.
+- Playwright/Chromium cho E2E; pytest cho backend.
+- GitHub Actions kiểm tra test nhiều phiên bản Python, MySQL, SQL Server, lint/type/security, E2E và Docker build.
 
-`frontend/static/js/app.js` kiểm tra theo nguồn đang chọn trước khi gửi request: văn bản sau trim phải có nội dung, URL phải có giá trị và chế độ tệp phải có tệp đã chọn. Lỗi hiển thị tại trường tương ứng; server tiếp tục xác thực độc lập qua `SummaryRequestForm` và `SummaryService` để bảo đảm an toàn khi JavaScript bị tắt hoặc bị giả mạo.
-
-Luồng bắt đầu ở trình duyệt: `form submit -> client validation -> POST nếu hợp lệ`. Client validation chỉ nhằm phản hồi sớm; backend luôn là nơi xác thực cuối cùng và không tin dữ liệu client.
-
-### 2. Xác thực
-
-```
-Django Authentication (session-based)
-  -> Login: authenticate() -> login()
-  -> Logout: logout()
-  -> Decorator: @login_required cho các view yêu cầu đăng nhập
-```
-
-### 3. Gemini API
-
-```
-nlp.py -> requests.post(
-    url = "https://generativelanguage.googleapis.com/v1beta/models/..."
-    headers = { "X-Goog-Api-Key": api_key }
-    json = { contents: [...] }
-)
-```
-
-## Công nghệ chính
-
-| Thành phần | Giải pháp |
-|-----------|-----------|
-| Web framework | Django 5.2 |
-| NLP (offline) | TextRank nội bộ trên thư viện chuẩn |
-| NLP (online) | Google Gemini API |
-| Database | SQLite mặc định; SQL Server/MySQL tùy chọn |
-| ASGI server | Daphne (HTTPS dev) |
-| Static files | whitenoise |
-| Frontend | HTML + CSS + Vanilla JS |
-| CI/CD | GitHub Actions (Python 3.10–3.13, Ruff, mypy, security, frontend, E2E, build) |
-| UI E2E | Playwright/Chromium trong `frontend/e2e/test_home.py` |
-| Management | python manage.py setup |
-
-## Database
-
-### SQL Server
-
-- **Engine**: `mssql` (gói `mssql-django`)
-- **Auth**: Windows Auth (`Trusted_Connection=yes`) hoặc SQL Auth (`sa` user)
-- **Driver**: ODBC Driver 18 for SQL Server
-- **Schema**: `backend/sql/schema_sqlserver.sql`
-- **Cấu hình**: biến môi trường `DB_ENGINE`, `DB_NAME`, `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_DRIVER`; mặc định là SQLite
-
-## HTTPS Dev
-
-Hệ thống sử dụng **Daphne** làm ASGI server cho HTTPS development:
-- Script: `scripts/run-ssl.ps1`
-- Port mặc định: 8443
-- Chứng chỉ self-signed (`backend/ssl/cert.pem`, `backend/ssl/key.pem`) tạo bằng `cryptography`
-- Static files được phục vụ qua **whitenoise** middleware
-
-## Bảo mật
-
-- **API key**: Lưu trong `.env`, gửi qua header (không lộ trong URL)
-- **XSS**: `html.escape()` nội dung trước khi highlight keyword
-- **CSRF**: Django CSRF middleware
-- **CSP**: Content-Security-Policy headers qua middleware custom
-- **File upload**: Validate loại file, xoá file khi xoá Document
-- **Rate limiting**: 5s giữa các request tóm tắt
-- **Validation**: client-side để tăng trải nghiệm; Django forms/services xác thực lại ở server
-- **Upload**: tối đa 10 MB; cho phép TXT/Markdown/DOCX/PDF/EPUB và kiểm tra nội dung/đuôi file
-
-## Management Commands
-
-| Lệnh | Mô tả |
-|------|-------|
-| `python manage.py setup` | Migrate DB + tạo superuser (nếu `--create-superuser`) |
-| `python manage.py migrate` | Áp migration |
-| `python manage.py collectstatic` | Gom file tĩnh |
-| `python -m pytest backend/summaries/tests.py -q` | Chạy backend tests |
-| `python -m pytest frontend/e2e/test_home.py -q` | Chạy Playwright E2E; cần server local đang chạy |
-| `python manage.py backup_db --include-media` | Backup database và media |
+Các lệnh kiểm thử và hướng dẫn chạy ứng dụng nằm trong [README](../README.md) và [hướng dẫn sử dụng](help.md). Quy trình triển khai chi tiết hơn ở [production runbook](production.md).

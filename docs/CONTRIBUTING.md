@@ -1,58 +1,66 @@
-# Hướng Dẫn Đóng Góp
+# Hướng dẫn đóng góp
 
-Cảm ơn bạn quan tâm đến việc đóng góp cho **SummarEase Django**! 🎉
+Cảm ơn bạn đã quan tâm đến SummarEase. Đây là dự án demo/học tập; ưu tiên thay đổi nhỏ, dễ hiểu và phù hợp với phạm vi hiện tại.
 
-## Thiết lập môi trường phát triển
+## Chuẩn bị môi trường
+
+Từ thư mục gốc repository:
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt -r requirements-dev.txt
+python -m pip install -r requirements.txt -r requirements-dev.txt
 python manage.py setup
-python manage.py runserver
 ```
 
-## Quy tắc khi đóng góp
+Có thể thay `3.12` bằng Python 3.10–3.13. Để chạy server, xem [README](../README.md) hoặc [hướng dẫn sử dụng](help.md). Không có tài khoản mặc định; đăng ký trên trang web hoặc chạy `python manage.py createsuperuser`.
 
-1. **Giữ phạm vi thay đổi nhỏ, rõ ràng** — mỗi PR chỉ nên giải quyết một vấn đề
-2. **Chạy kiểm tra trước khi gửi PR**
+## Trước khi gửi thay đổi
 
-   ```powershell
-   python manage.py check
-   python -m pytest backend/summaries/tests.py -q
-   ruff check backend manage.py
-   ruff format --check backend manage.py
-   mypy backend manage.py --ignore-missing-imports --follow-imports=skip
-   python manage.py check --deploy --fail-level ERROR
-   ```
+Chạy các kiểm tra phù hợp với phần đã sửa:
 
-3. **Chạy E2E khi thay đổi giao diện hoặc luồng người dùng**. Mở server ở terminal riêng rồi chạy:
+```bash
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python -m pytest backend/summaries/tests.py -q
+ruff check backend manage.py
+ruff format --check backend manage.py
+```
 
-   ```powershell
-   python manage.py migrate
-   python manage.py runserver 127.0.0.1:8000
-   $env:BASE_URL = "http://127.0.0.1:8000"
-   python -m pytest frontend/e2e/test_home.py -q
-   ```
+Nếu thay đổi giao diện hoặc luồng người dùng, cài Chromium một lần và chạy E2E với server đang hoạt động ở terminal khác:
 
-   Cài Chromium cho Playwright nếu môi trường chưa có: `playwright install chromium`.
+```bash
+python -m playwright install chromium
+```
 
-4. **Tự kiểm tra API bị ảnh hưởng** bằng Django tests hoặc collection trong `backend/api-tests/`.
-5. **Cập nhật tài liệu Markdown liên quan** nếu thay đổi hành vi, endpoint, cấu hình, kiểm thử hoặc quy trình triển khai.
+```powershell
+$env:BASE_URL = "http://127.0.0.1:8000"
+python -m pytest frontend/e2e/test_home.py -q
+```
 
-CI trên GitHub Actions kiểm tra Python 3.10–3.13, Django tests/coverage, Ruff, mypy, pip-audit, Playwright E2E, cú pháp JavaScript, manifest và build/deploy checks. Hãy chạy các kiểm tra liên quan trước khi mở PR.
+Bash dùng `export BASE_URL="http://127.0.0.1:8000"`. Trên Windows, test xuất PDF có thể bỏ qua nếu thiếu Pango; môi trường CI Linux cài runtime này.
 
-## Khi viết Pull Request
+Workflow CI là nguồn chuẩn cho các cờ Ruff/mypy và thứ tự kiểm tra. Hiện CI kiểm tra Python 3.10–3.13, backend tests/coverage, Ruff, mypy, pip-audit, Playwright E2E, kiểm tra tích hợp MySQL/SQL Server và Docker build. Không cần chạy database tích hợp hoặc Docker cục bộ nếu chưa cài các dịch vụ đó; hãy nêu rõ phần nào chưa được xác minh.
 
-- Mô tả rõ vấn đề đang giải quyết
-- Tóm tắt cách triển khai
-- Đính kèm ảnh chụp màn hình nếu có thay đổi giao diện
-- Nêu rõ rủi ro, giới hạn hiện tại hoặc việc cần làm tiếp
-- Nêu test đã chạy và kết quả; không ghi kết quả chưa được xác minh
+## Nguyên tắc thay đổi
 
-## Code style
+1. Giữ mỗi thay đổi tập trung vào một vấn đề; tránh thêm abstraction/dependency khi chưa có nhu cầu.
+2. Giữ kiểm tra quyền, CSRF và xác thực dữ liệu ở backend; kiểm tra JavaScript chỉ là hỗ trợ giao diện.
+3. Không commit khóa API, mật khẩu, cookie, `.env`, database/media hoặc chứng chỉ riêng.
+4. Cập nhật tài liệu Markdown liên quan khi thay đổi tính năng, endpoint, cấu hình hay quy trình chạy.
+5. Với endpoint hoặc database behavior mới, bổ sung test hồi quy phù hợp.
+6. Dùng commit Conventional Commits khi thuận tiện, ví dụ `fix: sửa lỗi xác thực URL`, `docs: cập nhật hướng dẫn chạy demo`.
 
-- Python: theo PEP 8 (tự động kiểm tra bằng Ruff)
-- CSS: 2 spaces indent, class-based naming
-- JavaScript: ES6+, camelCase
-- Template: Django template tags, 2 spaces indent
+## Pull request
+
+- Mô tả vấn đề và thay đổi bằng ngôn ngữ rõ ràng.
+- Nêu lệnh test đã chạy cùng kết quả; không ghi test chưa thực hiện là đạt.
+- Đính kèm ảnh khi thay đổi giao diện.
+- Nêu giới hạn còn lại, đặc biệt phụ thuộc môi trường như Gemini API, Pango, Docker hoặc database ngoài.
+
+## Quy ước mã nguồn
+
+- Python: PEP 8, kiểm tra bằng Ruff.
+- CSS: dùng quy ước hiện có trong `frontend/static/css/`.
+- JavaScript: ES6+, camelCase.
+- Template: Django template tags và quy ước hiện có trong `frontend/templates/`.

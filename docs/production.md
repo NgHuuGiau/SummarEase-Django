@@ -1,86 +1,92 @@
-# Runbook production
+# Ghi chú triển khai
 
-## 1. Cấu hình bắt buộc
+SummarEase hiện chủ yếu phục vụ demo/học tập. Có thể dùng SQLite và `runserver` cho local; nội dung dưới đây chỉ cần khi chạy Docker hoặc đưa ứng dụng ra mạng công khai. Đây không phải kiến trúc HA hay runbook được kiểm chứng trên hạ tầng cụ thể.
 
-Đặt các giá trị sau trong secret manager hoặc biến môi trường triển khai, không lưu vào Git:
+## 1. Docker Compose
 
-```env
+Compose hiện chạy bốn dịch vụ: web, Redis, Celery worker và Celery Beat. Database **không** được tạo trong Compose; phải cung cấp MySQL hoặc SQL Server có thể truy cập từ container. SQLite phù hợp cho phát triển/test đơn tiến trình, không dùng với cấu hình đa tiến trình này.
+
+Tạo `backend/.env` từ `backend/.env.example` và đặt tối thiểu các giá trị production:
+
+```dotenv
 DJANGO_DEBUG=False
-DJANGO_SECRET_KEY=<secret-ngau-nhien-it-nhat-50-ky-tu>
-API_ENCRYPTION_KEY=<fernet-key>
+DJANGO_SECRET_KEY=<chuỗi-ngẫu-nhiên-dài>
+API_ENCRYPTION_KEY=<khóa-Fernet-riêng>
 DJANGO_ALLOWED_HOSTS=app.example.com
-DB_ENGINE=sqlserver
-DB_DRIVER=ODBC Driver 18 for SQL Server
-REDIS_PASSWORD=<mat-khau-url-safe>
-LOG_FORMAT=json
-# TRUSTED_PROXY_IPS=<CIDR-cua-proxy-neu-co>
+DB_ENGINE=mysql
+DB_NAME=summarease_django
+DB_HOST=<hostname-database>
+DB_PORT=3306
+DB_USER=<tài-khoản>
+DB_PASSWORD=<mật-khẩu>
+REDIS_PASSWORD=<mật-khẩu-url-safe>
 ```
 
-Compose chạy Gunicorn, Celery worker và Celery Beat riêng, vì vậy chỉ chấp nhận MySQL hoặc SQL Server dùng chung; SQLite không được mount/persist trong cấu hình này. Celery Beat quét outbox webhook mỗi phút để khôi phục các lần enqueue thất bại hoặc worker bị gián đoạn. Docker image cài ODBC Driver 18 cho SQL Server; khi dùng SQL Server, giữ `DB_DRIVER=ODBC Driver 18 for SQL Server`. Redis nội bộ được bảo vệ bằng `REDIS_PASSWORD`; Compose tự tạo `REDIS_URL` có xác thực cho web, worker và Beat. Sinh mật khẩu URL-safe bằng `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Đặt `DB_HOST` tới database có thể truy cập từ container và `DJANGO_ALLOWED_HOSTS` là hostname thật (không dùng localhost). Chạy Compose bằng `docker compose --env-file backend/.env up --build` để Compose đọc các biến cấu hình.
+Nếu dùng SQL Server, đặt `DB_ENGINE=sqlserver`, `DB_PORT=1433` và `DB_DRIVER=ODBC Driver 18 for SQL Server` cùng thông tin xác thực tương ứng. Compose yêu cầu `DB_ENGINE`, `DJANGO_ALLOWED_HOSTS` và `REDIS_PASSWORD`. Tạo secret ngẫu nhiên, không dùng các giá trị ví dụ:
 
-Compose chưa cung cấp TLS termination. Đặt reverse proxy/load balancer HTTPS phía trước, chỉ cho proxy truy cập cổng ứng dụng `8000`, và khai báo IP/CIDR proxy trong `TRUSTED_PROXY_IPS`. Để trống biến này nếu ứng dụng không đứng sau proxy.
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
-Sinh khóa riêng bằng `python -c "import secrets; print(secrets.token_urlsafe(48))"` rồi lưu trong secret manager. `API_ENCRYPTION_KEY` phải được giữ ổn định và backup riêng: đổi khóa khi đã mã hóa API key người dùng sẽ khiến dữ liệu cũ không giải mã được. Thay khóa chỉ sau khi có kế hoạch giải mã/mã hóa lại dữ liệu và kiểm thử khôi phục.
+Dùng khóa Fernet hợp lệ riêng cho `API_ENCRYPTION_KEY` (tạo bằng `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`); không đổi khóa sau khi đã lưu Gemini key được mã hóa nếu chưa có kế hoạch mã hóa lại dữ liệu. Lưu secrets ngoài Git và giới hạn người được truy cập.
 
-## 2. Backup và khôi phục
+Khởi động:
 
-Tạo backup database và media ít nhất mỗi ngày:
+```bash
+docker compose --env-file backend/.env up --build
+```
+
+Ứng dụng được publish ở cổng 8000. Compose không cấu hình TLS và cũng không tự dựng MySQL/SQL Server. Trước khi public, đặt reverse proxy có TLS hợp lệ, giới hạn firewall để chỉ proxy tin cậy vào được cổng ứng dụng, cấu hình `TRUSTED_PROXY_IPS` theo địa chỉ proxy và giữ Redis/database trong mạng riêng. Không coi việc publish cổng 8000 mặc định là cấu hình an toàn cho Internet.
+
+## 2. Health check và tác vụ nền
+
+- `/health/` kiểm tra truy vấn database và khả năng ghi/xóa tệp thử trong media; HTTP 503 báo trạng thái degraded. Endpoint này không kiểm tra Gemini, Redis hay Celery.
+- `/metrics/` chỉ cho staff đọc trong production. Giới hạn truy cập mạng monitoring; bộ metrics trong ứng dụng không thay cho APM hoặc giám sát hạ tầng.
+- Webhook outbox được lưu trong database và Celery Beat quét delivery đang chờ mỗi phút. Retry có giới hạn; giao nhận là at-least-once. Bên nhận nên khử trùng lặp theo `X-Webhook-Delivery`.
+- Compose tự chạy migration khi khởi động web. Hãy backup trước khi nâng cấp schema và giữ image/version trước đó để có phương án rollback.
+- Cấu hình email SMTP chỉ khi cần gửi email thật; mặc định phát triển dùng console backend.
+
+## 3. Backup và khôi phục quy mô nhỏ
+
+Lệnh `backup_db` tạo bản dump JSON, manifest SHA-256 và có thể sao chép media. Đây là tiện ích đơn giản cho demo/ứng dụng nhỏ; checksum chỉ phát hiện hỏng ngoài ý muốn, không phải chữ ký chống sửa đổi hay giải pháp backup database production thay thế nhà cung cấp.
 
 ```bash
 python manage.py backup_db --dest /backups --include-media
+python manage.py verify_backup /backups/20260918_120000  # thay bằng thư mục vừa tạo
 ```
 
-Mỗi backup gồm `db.json`, media tùy chọn và `manifest.json` chứa checksum SHA-256. Sao chép đầy đủ thư mục theo timestamp ra nơi lưu trữ bên ngoài host/container; mã hóa backup khi lưu và giới hạn quyền truy cập. Checksum phát hiện hỏng dữ liệu ngoài ý muốn, không phải chữ ký chống sửa đổi có chủ đích. Kiểm tra tính toàn vẹn trước khi khôi phục; lệnh này không thay thế việc restore. Khôi phục hàng tháng trên database cô lập, rỗng:
+Lưu bản sao ngoài máy/container, giới hạn quyền truy cập và mã hóa theo chính sách dữ liệu. Để xác minh restore trên database thử nghiệm cô lập:
 
 ```bash
-BACKUP_DIR=/backups/20260917_120000
+BACKUP_DIR=/backups/20260918_120000  # thay bằng thư mục backup thực tế
 python manage.py verify_backup "$BACKUP_DIR"
+python manage.py migrate
 python manage.py loaddata "$BACKUP_DIR/db.json"
 ```
 
-Sau đó xác minh ứng dụng và đối chiếu media. Backup chưa từng restore thì chưa được xác minh.
+Chỉ restore vào schema đã migrate và database thử nghiệm rỗng/cô lập; không nạp lặp fixture lên dữ liệu đang dùng. Nếu manifest cho biết có media, chép thư mục `media/` từ backup vào `MEDIA_ROOT` tương ứng trước khi smoke test. Với dịch vụ production thực, ưu tiên backup native/snapshot của database engine và diễn tập khôi phục theo hạ tầng đang chạy.
 
-Nếu đã backup media, khôi phục thư mục đó vào `MEDIA_ROOT` trước khi smoke test:
+## 4. Kiểm tra trước khi triển khai
 
-```bash
-if [ -d "$BACKUP_DIR/media" ]; then
-  mkdir -p "$MEDIA_ROOT"
-  cp -a "$BACKUP_DIR/media/." "$MEDIA_ROOT/"
-fi
-```
-
-## 3. Health check và monitoring
-
-- Probe `/health/` để kiểm tra database và media.
-- Chỉ scrape `/metrics/` từ mạng monitoring; endpoint được bảo vệ trong production. `/health/` trả thông tin lỗi tổng quát; chi tiết nằm trong log.
-- Cảnh báo HTTP 5xx, latency, lỗi task Celery, độ dài hàng đợi, Redis, kết nối database, dung lượng đĩa và quota/lỗi Gemini.
-- Theo dõi webhook outbox ở trạng thái pending lâu bất thường hoặc failed; khi khôi phục từ sự cố, đối tác nên khử trùng lặp theo header `X-Webhook-Delivery` (giao nhận là at-least-once, không thể bảo đảm exactly-once qua HTTP).
-- Ứng dụng xuất structured JSON log ra stdout trong production; thu thập stdout từ web/worker vào hệ thống log tập trung, lưu version triển khai và `X-Request-ID` để truy vết.
-- Tạo cảnh báo tại nền tảng giám sát cho 5xx, p95 latency, health check thất bại, task Celery lỗi/tồn đọng, database/Redis không sẵn sàng, disk còn dưới 15% và lỗi/quota Gemini; định tuyến cảnh báo tới người trực vận hành. Các tích hợp này phụ thuộc nền tảng triển khai, chưa được tự động tạo bởi repository.
-- Webhook chỉ gửi tới địa chỉ công khai và không theo redirect; vẫn cấu hình egress firewall để chặn loopback, mạng riêng và metadata endpoint, phòng DNS rebinding.
-
-## 4. Điều kiện release
-
-Chạy trước khi deploy:
+Các lệnh kiểm tra repository:
 
 ```bash
 python -m pytest backend/summaries/tests.py -q
 ruff check backend manage.py
 ruff format --check backend manage.py
 python manage.py check --deploy --fail-level ERROR
-docker compose config --quiet
+docker compose --env-file backend/.env config --quiet
 ```
 
-Với Compose production, dùng `docker compose --env-file backend/.env config --quiet`. CI kiểm tra deploy settings, validate Compose và build Docker image; test backend cũng kiểm tra khôi phục fixture vào SQLite cô lập. Trước khi chạy production, vẫn cần diễn tập backup/restore trên đúng engine MySQL hoặc SQL Server đang dùng.
+CI kiểm tra Python 3.10–3.13, E2E, MySQL, SQL Server và Docker build. Việc đó không thay thế smoke test sau triển khai trên môi trường thật. Với một bản demo, kiểm tra đăng nhập, tạo tóm tắt TextRank, lịch sử, chia sẻ có hạn, upload, xuất file và health là đủ cơ bản. Kiểm tra PDF trên Windows cần Pango; CI Linux kiểm tra luồng này.
 
-CI chạy webhook/migration integration trên MySQL 8.4 và SQL Server 2022 với ODBC Driver 18, cùng E2E Playwright trên Chromium. Trước khi phát hành, vẫn diễn tập trên đúng phiên bản/driver production và thực hiện smoke test desktop/mobile. Xác minh upload các định dạng được hỗ trợ, tải file xuất, chia sẻ có thời hạn, đăng nhập, cài đặt, khôi phục mật khẩu và phân quyền. Không dùng dữ liệu hoặc API key thật trong test.
+## 5. Lưu ý bảo mật tối thiểu
 
-Chạy load test theo concurrency đỉnh dự kiến và review OWASP trước mỗi release public. Ghi lại kết quả và image/version dùng để rollback.
+- Đặt `DJANGO_DEBUG=False`, `DJANGO_SECRET_KEY` ngẫu nhiên và `DJANGO_ALLOWED_HOSTS` chỉ gồm host thực.
+- Bảo vệ `API_ENCRYPTION_KEY`, `DB_PASSWORD`, `REDIS_PASSWORD` và Gemini key; không commit `.env`.
+- Dùng TLS hợp lệ và cấu hình đúng proxy tin cậy; không tin header proxy từ client tùy ý.
+- Áp dụng egress firewall cho webhook/URL fetch vì kiểm tra SSRF ứng dụng chưa loại bỏ hoàn toàn DNS rebinding.
+- Thông báo rõ rằng chọn Gemini sẽ gửi nội dung tới Google; không dùng dữ liệu cá nhân/nhạy cảm cho demo.
+- Đặt backup và media ngoài container, kiểm tra quyền truy cập và thử restore trước khi lưu dữ liệu cần giữ.
 
-## 5. Khôi phục sự cố
-
-1. Ngừng nhận traffic hoặc rollback về image cuối cùng đã biết là ổn định.
-2. Lưu log và metrics trước khi restart worker.
-3. Chỉ restore database sau khi xác minh checksum trong manifest.
-4. Đối chiếu media với bản ghi database, sau đó chạy health check và smoke test.
-5. Rotate secret bị lộ và ghi nhận sự cố.
+Xem thêm [README](../README.md), [chính sách bảo mật](SECURITY.md) và [kiến trúc](architecture.md).
