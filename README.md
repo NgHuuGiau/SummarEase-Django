@@ -1,352 +1,203 @@
-﻿# 📝 SummarEase Django
+# SummarEase-Django
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10--3.13-3776AB?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white" alt="Django">
-  <img src="https://img.shields.io/badge/TextRank-Summary-00ADD8" alt="TextRank">
-  <img src="https://img.shields.io/badge/Gemini-AI-4285F4?logo=google-gemini&logoColor=white" alt="Gemini">
-  <img src="https://img.shields.io/badge/SQL_Server-CC2927?logo=microsoft-sql-server&logoColor=white" alt="SQL Server">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-</p>
+[![Python](https://img.shields.io/badge/Python-3.10%E2%80%933.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![CI](https://github.com/NgHuuGiau/SummarEase-Django/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/NgHuuGiau/SummarEase-Django/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/NgHuuGiau/SummarEase-Django/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/NgHuuGiau/SummarEase-Django/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**SummarEase Django** là ứng dụng web tóm tắt nội dung thông minh, hỗ trợ văn bản, URL và file PDF, DOCX, EPUB, TXT hoặc Markdown. Hệ thống cung cấp hai phương pháp tóm tắt: **TextRank** (chạy nội bộ) và **Gemini AI** (cần API key), cùng quản lý tài khoản, lịch sử, chia sẻ và xuất kết quả.
+> Ứng dụng web Django để tóm tắt văn bản, URL và tài liệu bằng TextRank tích hợp hoặc Gemini tùy chọn. Dự án phù hợp để trình diễn và học tập; có thể chạy cục bộ mà không cần khóa API.
 
----
+## Trạng thái dự án
 
-## 📋 Mục lục
+Snapshot kiểm thử ngày **18/09/2026**:
 
-- [Tính năng](#-tính-năng)
-- [Công nghệ sử dụng](#-công-nghệ-sử-dụng)
-- [Cấu trúc dự án](#-cấu-trúc-dự-án)
-- [Cài đặt nhanh](#-cài-đặt-nhanh)
-- [Hướng dẫn sử dụng](#-hướng-dẫn-sử-dụng)
-- [Chạy với Docker](#-chạy-với-docker)
-- [Kiểm thử](#-kiểm-thử)
-- [API Endpoints](#-api-endpoints)
-- [Đóng góp](#-đóng-góp)
-- [Giấy phép](#-giấy-phép)
+| Hạng mục | Trạng thái |
+|---|---|
+| Python | 3.10–3.13 trong CI |
+| Bộ tóm tắt | TextRank tích hợp; Gemini là tùy chọn |
+| Đầu vào | Văn bản, URL, PDF, DOCX, EPUB, TXT và Markdown |
+| Kiểm thử backend | 230 bài đạt; độ bao phủ 89,59% |
+| Kiểm thử giao diện E2E | 18 bài đạt trên CI |
+| Cơ sở dữ liệu / hạ tầng | SQLite cho phát triển; CI kiểm tra MySQL, SQL Server và Docker build |
 
----
+> Đây là kết quả của một lần kiểm tra, không phải cam kết trạng thái CI hiện tại. Huy hiệu CI/CodeQL phía trên phản ánh trạng thái mới nhất trên GitHub. Trên máy Windows, một số kiểm thử tạo PDF có thể bỏ qua nếu thiếu Pango; luồng PDF được kiểm tra trên môi trường Linux của CI.
 
-## 🚀 Tính năng
+## Tính năng chính
 
-| Tính năng | Mô tả |
-|-----------|-------|
-| **📄 Tóm tắt văn bản** | Nhập trực tiếp nội dung cần tóm tắt |
-| **🔗 Tóm tắt URL** | Trích xuất và tóm tắt nội dung trang web |
-| **📁 Tải file lên** | Hỗ trợ PDF, DOCX, EPUB, TXT, Markdown (`.md`, `.markdown`); giới hạn 10 MB |
-| **🧠 TextRank** | Thuật toán xếp hạng câu cổ điển, chạy nội bộ không cần API |
-| **🤖 Gemini AI** | Tóm tắt thông minh bằng Google Gemini |
-| **📊 Tuỳ chỉnh tỷ lệ** | Chọn mức rút gọn từ 5%–80% |
-| **👤 Quản lý tài khoản** | Đăng ký, đăng nhập, phân quyền |
-| **📜 Lịch sử tóm tắt** | Lưu và xem lại các bản tóm tắt đã tạo |
-| **📤 Chia sẻ và xuất file** | Tạo liên kết chia sẻ có thời hạn; xuất Markdown, DOCX hoặc PDF |
-| **🌓 Giao diện tối/sáng** | Theme mặc định theo hệ thống, có thể chuyển đổi |
-| **✅ Kiểm tra dữ liệu đầu vào** | Báo lỗi ngay trên giao diện; backend vẫn kiểm tra lại trước khi xử lý |
-| **🔒 Bảo mật** | API key được mã hoá, XSS-safe, rate limiting |
+- Tóm tắt bằng TextRank nội bộ, không cần gửi nội dung ra dịch vụ ngoài hoặc cấu hình API key.
+- Có thể chọn Gemini khi đã cấu hình khóa API.
+- Nhận văn bản, URL và tệp PDF, DOCX, EPUB, TXT, Markdown; giới hạn tải lên mặc định là 10 MB.
+- Tài khoản, lịch sử, tìm kiếm, chia sẻ kết quả bằng liên kết có thời hạn.
+- Xuất kết quả thành Markdown, DOCX hoặc PDF.
+- Tóm tắt theo lô, webhook có hàng đợi sự kiện bền vững, Celery/Redis tùy chọn.
+- Giao diện sáng/tối, trang kiểm tra sức khỏe, trang quản trị và tài liệu API.
 
----
-
-## 🛠 Công nghệ sử dụng
-
-### Ngôn ngữ & Framework
-
-| Công nghệ | Phiên bản | Mục đích |
-|-----------|-----------|----------|
-| Python | 3.10–3.13 | Ngôn ngữ lập trình |
-| Django | 5.2 | Web framework |
-| HTML5 / CSS3 | — | Giao diện người dùng |
-| JavaScript | Vanilla | Tương tác frontend |
-
-### Thư viện chính
-
-| Thư viện | Phiên bản | Mục đích |
-|----------|-----------|----------|
-| Python chuẩn | — | Tính điểm câu cho TextRank nội bộ |
-| `PyMuPDF` | 1.28.0 | Đọc file PDF |
-| `python-docx` | 1.1.0 | Đọc file DOCX |
-| `ebooklib` | 0.19 | Đọc file EPUB |
-| `beautifulsoup4` | 4.13.4 | Trích xuất nội dung HTML/URL |
-| `requests` | 2.33.0 | Gọi API Gemini & tải URL |
-| `chardet` | 5.2.0 | Phát hiện mã hoá file TXT |
-| `mssql-django` | 1.7.4 | Kết nối SQL Server tùy chọn |
-| `daphne` | 4.2.3 | ASGI server (HTTPS dev) |
-| `whitenoise` | 6.12.0 | Phục vụ file tĩnh |
-| `cryptography` | 50.0.1 | Tạo chứng chỉ SSL |
-| `pytest` / `pytest-django` | — | Kiểm thử tự động |
-
-### Cơ sở dữ liệu
-
-- **SQLite** — mặc định cho development/test
-- **SQL Server** — tùy chọn cho production (`mssql-django` + pyodbc)
-- **MySQL** — tùy chọn (`PyMySQL`)
-
----
-
-## 📁 Cấu trúc dự án
-
-```
-SummarEase-Django/
-├── .github/workflows/       # CI/CD pipeline (GitHub Actions)
-│   └── ci.yml               #   Lint, typecheck, security, test 3.10–3.13, E2E, frontend, build
-├── backend/                 # Mã nguồn chính (Django)
-│   ├── config/              #   Settings, URLs, WSGI/ASGI
-│   │   ├── settings.py      #     Cấu hình Django (DB, whitenoise, CSP)
-│   │   ├── urls.py          #     URL routing chính
-│   │   ├── wsgi.py          #     WSGI entry point
-│   │   ├── asgi.py          #     ASGI entry point (Daphne)
-│   │   ├── csp.py           #     CSP middleware
-│   │   ├── request_id.py    #     Request ID middleware
-│   │   ├── logging_fmt.py   #     JSON formatter cho structured logging
-│   │   └── _setup.py        #     Chung cho WSGI/ASGI
-│   ├── summaries/           #   Django app chính
-│   │   ├── models.py        #     Document, Summary, Tag, UserProfile, UserSetting
-│   │   ├── views.py         #     View logic (health, home, login lockout, create_summary...)
-│   │   ├── nlp.py           #     Xử lý NLP, TextRank (lru_cache), Gemini retry
-│   │   ├── forms.py         #     Django forms
-│   │   ├── admin.py         #     Django Admin config
-│   │   ├── checks.py        #     System check API_ENCRYPTION_KEY prod (W001)
-│   │   ├── readers.py       #     Đọc PDF/DOCX/EPUB/TXT + SSRF hop validation
-│   │   ├── signing.py       #     Mã hoá API key
-│   │   ├── urls.py          #     URL routing (login lockout, password reset, health, security.txt)
-│   │   ├── tests.py         #     Backend tests
-│   │   ├── stopwords.txt    #     Stopwords tiếng Việt
-│   │   ├── management/
-│   │   │   └── commands/
-│   │   │       ├── setup.py     #   migrate + superuser
-│   │   │       ├── backup_db.py #   backup dumpdata (+ media)
-│   │   │       └── verify_backup.py # kiểm tra checksum backup
-│   │   └── migrations/      #     DB migrations
-│   ├── api-tests/           #   Bruno API test collection
-│   ├── media/               #   File upload (gitignored)
-│   ├── sql/
-│   │   └── schema_sqlserver.sql # Schema SQL Server
-│   ├── ssl/                 #   Chứng chỉ SSL tự ký (gitignored)
-│   │   ├── cert.pem         #     Certificate
-│   │   └── key.pem          #     Private key
-│   ├── staticfiles/         #   Đích collectstatic (.gitkeep được theo dõi; file sinh ra bị ignore)
-│   ├── .env                 #   Biến môi trường (local)
-│   ├── .env.example         #   Mẫu biến môi trường
-│   └── conftest.py          #   Pytest config
-├── Dockerfile               # Production image (python:3.12-slim, non-root summarizease, HEALTHCHECK)
-├── docker-compose.yml       # Compose: web, Redis, Celery worker và Beat
-├── docs/                    # Tài liệu
-│   ├── architecture.md      #   Kiến trúc hệ thống
-│   ├── help.md              #   Hướng dẫn chi tiết
-│   ├── CONTRIBUTING.md      #   Hướng dẫn đóng góp
-│   ├── SECURITY.md          #   Chính sách bảo mật
-│   └── production.md        #   Production runbook
-├── frontend/                # Giao diện người dùng
-│   ├── e2e/                 #   Playwright E2E tests (guest + authenticated flows)
-│   ├── static/css/          #   Stylesheets (tokens-base, layout-buttons, form-area, history, pages-footer, responsive, admin.css)
-│   ├── static/js/app.js     #   JavaScript
-│   └── templates/           #   HTML templates
-│       ├── 404.html         #     Lỗi 404
-│       ├── 500.html         #     Lỗi 500
-│       ├── admin/           #     Admin custom
-│       └── summaries/       #     App templates (home, login, register, history_*, settings, password_reset_*)
-├── scripts/                 # Scripts dev
-│   ├── run-dev.bat          #   Script chạy dev HTTPS (Windows)
-│   ├── run-dev.ps1          #   Script chạy dev HTTPS (Daphne, port 8000)
-│   ├── run-ssl.ps1          #   Script chạy dev HTTPS (PowerShell/Daphne)
-│   └── gen-cert.py          #   Tự sinh chứng chỉ SSL self-signed
-├── .dockerignore
-├── .gitignore
-├── LICENSE
-├── manage.py                # Django CLI entry point
-├── pyproject.toml           # Cấu hình ruff, pytest, coverage
-└── requirements.txt         # Dependencies
-```
-
----
-
-## ⚡ Cài đặt nhanh
+## Chạy nhanh
 
 ### Yêu cầu
 
-- Python 3.10–3.13
-- pip
-- SQLite (mặc định cho development)
-- SQL Server + ODBC Driver 18 (tùy chọn cho production; đã có trong Docker image)
+- Python 3.10 trở lên (CI kiểm thử Python 3.10–3.13).
+- Git.
+- Không cần Docker, Redis hay khóa Gemini để chạy chế độ cơ bản.
 
-### Các bước
+### Cài đặt trên Windows
 
 ```powershell
-# 1. Clone repo
 git clone https://github.com/NgHuuGiau/SummarEase-Django.git
 cd SummarEase-Django
-
-# 2. Tạo môi trường ảo + cài dependencies
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-
-# 3. Nếu dùng SQL Server, tạo database và chạy schema tương ứng.
-#    Development mặc định dùng SQLite, không cần bước này.
-
-# 4. MỘT LỆNH -> migrate + chạy server
-.\scripts\run-dev.bat
-```
-
-Hoặc chạy từng bước:
-```powershell
-python manage.py setup                    # migrate (không tạo superuser)
-python manage.py setup --create-superuser # migrate + tạo admin
-.\scripts\run-dev.ps1                     # daphne HTTPS trên cổng 8000
-```
-
-- Không có superuser mặc định; dùng `python manage.py createsuperuser`
-- Web: **https://127.0.0.1:8000/** (tự sinh chứng chỉ SSL nếu chưa có)
-- Admin: **https://127.0.0.1:8000/admin/**
-
-### Cấu hình Gemini (tuỳ chọn)
-
-Thêm vào `backend/.env`:
-```env
-GEMINI_API_KEY=your_google_api_key
-```
-
----
-
-## 🎯 Hướng dẫn sử dụng
-
-1. **Đăng ký** tài khoản mới hoặc **đăng nhập**
-2. Chọn nguồn dữ liệu: `Văn bản`, `File` hoặc `URL`
-3. Chọn phương pháp tóm tắt: `TextRank` hoặc `Gemini` (Gemini cần API key hệ thống hoặc cá nhân)
-4. Điều chỉnh tỷ lệ rút gọn (5%–80%)
-5. Nhấn **Tóm tắt** để nhận kết quả
-6. Sao chép kết quả, mở chi tiết, xuất Markdown/DOCX/PDF hoặc tạo liên kết chia sẻ có thời hạn
-7. Xem lại các bản đã lưu trong mục **Lịch sử**
-
-### Kịch bản demo nhanh (2–3 phút)
-
-Đăng ký tài khoản, dán một đoạn văn tiếng Việt vào trang chủ và chọn **TextRank** để demo không cần API key. Sau khi tạo tóm tắt, mở **Lịch sử**, vào chi tiết, thử chia sẻ liên kết rồi tải Markdown hoặc Word. Gemini là tuỳ chọn; chỉ bật khi đã cấu hình API key.
-
-### Xuất PDF trên Windows
-
-WeasyPrint cần thư viện Pango của hệ điều hành. Docker image đã cài runtime cần thiết; trên Ubuntu/WSL, cài bằng `sudo apt-get install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core`. Nếu chạy Python trực tiếp trên Windows, hãy cài Pango theo [hướng dẫn chính thức của WeasyPrint](https://doc.courtbouillon.org/weasyprint/latest/first_steps.html#windows).
-
----
-
-## 🔐 Chạy HTTPS
-
-Mặc định `run-dev.ps1` đã chạy Daphne + HTTPS trên cổng 8000. Muốn chạy ở cổng khác:
-
-```powershell
-.\scripts\run-ssl.ps1              # Mặc định port 8443
-.\scripts\run-ssl.ps1 -Port 8443   # Tùy chỉnh port
-```
-
-Server chạy tại **https://localhost:8443/** (hoặc port tùy chọn).
-
-> Sử dụng **Daphne** ASGI server + chứng chỉ self-signed (tự sinh bằng `scripts/gen-cert.py`, lưu tại `backend/ssl/`) + whitenoise.
-
----
-
-## 🧪 Kiểm thử
-
-### Backend
-
-```powershell
-python -m pytest backend/summaries/tests.py -q
-```
-
-### Giao diện E2E
-
-Khởi động server ở một terminal, sau đó chạy Playwright ở terminal khác:
-
-```powershell
-python manage.py migrate
+python -m pip install -r requirements.txt
+python manage.py setup
 python manage.py runserver 127.0.0.1:8000
+```
+
+Mở <http://127.0.0.1:8000/>. Nếu máy chỉ cài phiên bản Python khác trong dải được hỗ trợ, thay `3.12` bằng phiên bản tương ứng.
+
+### Linux / macOS
+
+```bash
+git clone https://github.com/NgHuuGiau/SummarEase-Django.git
+cd SummarEase-Django
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python manage.py setup
+python manage.py runserver 127.0.0.1:8000
+```
+
+Lệnh `setup` áp dụng migration cần thiết. Ứng dụng **không tạo sẵn tài khoản**; hãy đăng ký trên giao diện hoặc tự tạo tài khoản quản trị:
+
+```bash
+python manage.py createsuperuser
+```
+
+### Chạy HTTPS phát triển trên Windows
+
+Có thể dùng script tiện ích thay cho `runserver`:
+
+```powershell
+.\scripts\run-dev.ps1
+```
+
+Script chuẩn bị môi trường `.env` nếu chưa có, áp dụng migration, tạo chứng chỉ tự ký và chạy Daphne qua HTTPS. Nó chọn một cổng khả dụng trong dải 8000–8019; hãy mở đúng URL được in ra trong terminal và chấp nhận cảnh báo chứng chỉ tự ký khi phát triển cục bộ.
+
+## Thử nhanh luồng demo
+
+1. Đăng ký tài khoản và đăng nhập.
+2. Dán một đoạn văn bản hoặc URL, chọn TextRank rồi tạo bản tóm tắt.
+3. Mở lịch sử để xem lại, chia sẻ kết quả hoặc tải xuống Markdown/DOCX.
+4. Thử tải PDF/DOCX nếu muốn trình diễn xử lý tài liệu.
+
+Luồng cơ bản dùng TextRank nên không cần cấu hình Gemini. Nếu chọn Gemini, thêm khóa vào `backend/.env`:
+
+```dotenv
+GEMINI_API_KEY=your_api_key
+```
+
+> Khi dùng Gemini, nội dung được chọn để tóm tắt sẽ được gửi tới Google theo chính sách của dịch vụ. Không đưa khóa thật vào Git; xem [hướng dẫn bảo mật](docs/SECURITY.md) và [triển khai](docs/production.md).
+
+## Luồng xử lý
+
+```text
+Trình duyệt
+    │ văn bản / URL / tệp
+    ▼
+Django: xác thực, kiểm tra đầu vào và trích xuất nội dung
+    │
+    ├── TextRank tích hợp
+    └── Gemini (nếu người dùng chọn và đã cấu hình khóa)
+    │
+    ▼
+Lưu kết quả và lịch sử ──► xem / chia sẻ / xuất tệp
+    │
+    └── tác vụ nền, Redis/Celery và webhook (khi được bật/cấu hình)
+```
+
+SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấu hình triển khai có thể dùng MySQL hoặc SQL Server. Docker Compose cung cấp ứng dụng, Redis, Celery worker và Celery beat; cơ sở dữ liệu được cấu hình bên ngoài, không phải một container DB mặc định trong Compose.
+
+## Điểm vào và cấu trúc dự án
+
+| Thành phần | Vị trí |
+|---|---|
+| Lệnh quản lý Django | `manage.py` |
+| Cấu hình ứng dụng | `backend/config/` |
+| Tính năng tóm tắt, API và kiểm thử | `backend/summaries/` |
+| Giao diện, CSS và JavaScript | `frontend/` |
+| Kiểm thử trình duyệt Playwright | `frontend/e2e/` |
+| Script chạy HTTPS phát triển trên Windows | `scripts/run-dev.ps1` |
+| Cấu hình CI và CodeQL | `.github/workflows/` |
+| Docker và dịch vụ nền | `Dockerfile`, `docker-compose.yml` |
+| Tài liệu dự án | `docs/` |
+
+Các lệnh quản lý dự án bổ sung nằm trong `backend/summaries/management/commands/`. Xem sơ đồ kiến trúc chi tiết tại [docs/architecture.md](docs/architecture.md).
+
+## Kiểm thử và kiểm tra chất lượng
+
+Cài thêm công cụ phát triển:
+
+```bash
+python -m pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Các kiểm tra cơ bản:
+
+```bash
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python -m pytest backend/summaries/tests.py -q
+ruff check backend manage.py
+ruff format --check backend manage.py
+```
+
+### Kiểm thử giao diện E2E
+
+Cài Chromium một lần:
+
+```bash
+python -m playwright install chromium
+```
+
+Khởi chạy ứng dụng ở terminal thứ nhất, rồi chạy trong terminal thứ hai:
+
+```powershell
 $env:BASE_URL = "http://127.0.0.1:8000"
 python -m pytest frontend/e2e/test_home.py -q
 ```
 
-E2E bao phủ trang khách, chuyển nguồn, tỷ lệ, theme, đăng nhập/đăng ký và luồng tài khoản đã xác thực gồm tạo tóm tắt, tìm kiếm lịch sử, upload tệp TXT thật, chia sẻ, tải Markdown/Word/PDF, kiểm tra phân quyền và xóa. Kiểm tra PDF tự bỏ qua nếu máy chạy test chưa có runtime Pango; Docker và CI cài runtime này để xác nhận đầy đủ. E2E tạo user riêng cho mỗi lần chạy.
+Trên Bash, dùng `export BASE_URL="http://127.0.0.1:8000"` thay cho cú pháp PowerShell. Ma trận CI và các bước kiểm tra đầy đủ được định nghĩa tại [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-CI kiểm tra backend trên Python 3.10–3.13, Ruff, mypy, pip-audit, E2E Playwright, cú pháp JavaScript, manifest frontend và build/deploy checks. Kết quả gần nhất có thể xem trong GitHub Actions; không cố định số test trong tài liệu vì suite thay đổi theo mã nguồn.
+## Docker
 
-Chạy theo nhóm:
+Docker Compose dành cho kiểm tra/triển khai có cấu hình môi trường. Tạo `backend/.env` theo [`backend/.env.example`](backend/.env.example), cấu hình cơ sở dữ liệu và các bí mật cần thiết, sau đó chạy:
 
-```powershell
-python -m pytest backend/summaries/tests.py -k Nlp      # test NLP
-python -m pytest backend/summaries/tests.py -k Summary  # luồng tóm tắt
-python -m pytest backend/summaries/tests.py -k Security # bảo mật
-python -m pytest backend/summaries/tests.py -k Error    # trang lỗi 404/500
-```
-
-**Phạm vi backend test:**
-
-| Phạm vi | Nội dung |
-|---------|----------|
-| NLP | Tách câu, nhận diện ngôn ngữ, từ khóa, tiêu đề, highlight an toàn và trường hợp biên |
-| Xác thực và phân quyền | Đăng ký/đăng nhập/đăng xuất, admin, lịch sử theo chủ sở hữu |
-| Tóm tắt và cấu hình | TextRank, Gemini (mock), tỷ lệ, rate limit, lỗi và lưu lịch sử |
-| Nguồn đầu vào | Văn bản, URL có kiểm tra SSRF, upload và trích xuất TXT/DOCX/PDF/EPUB |
-| Bảo mật và vận hành | CSP/headers, CSRF, token chia sẻ, health, backup, lỗi 404/500 |
-
----
-
-## 🐳 Chạy với Docker
-
-```powershell
-# Chuẩn bị: backend/.env có secret production, DB_ENGINE=mysql hoặc sqlserver,
-# DB_HOST trỏ tới database có thể truy cập từ container và host công khai.
+```bash
 docker compose --env-file backend/.env up --build
-# Mở http://localhost:8000/health/ để kiểm (trả {"status":"ok","database":"ok","media":"ok"})
-docker compose logs -f web
-docker compose down
 ```
 
-Dockerfile: `python:3.12-slim`, user `summarizease` (non-root), HEALTHCHECK gọi `GET /health/`, COLLECTSTATIC lúc build.  
-Compose: `restart: unless-stopped`, volume `media_data`, Redis có health check; web, Celery worker và Celery Beat dùng chung MySQL/SQL Server ngoài container. Outbox webhook lưu bền trong database, thử gửi lại nền và gắn `X-Webhook-Delivery` để phía nhận khử trùng lặp.
+Compose không tự cung cấp TLS hoặc máy chủ MySQL/SQL Server. Khi triển khai, cần cấu hình reverse proxy/TLS, cơ sở dữ liệu, Redis và proxy tin cậy phù hợp với hạ tầng thực tế. Xem [hướng dẫn production](docs/production.md) trước khi đưa lên máy chủ công khai.
 
-> Biến môi trường lấy từ `backend/.env`. Đổi `DJANGO_SECRET_KEY`, `API_ENCRYPTION_KEY` trong production. Xem `.env.example`.
+## API và trang tiện ích
 
-### Checklist production
+| Đường dẫn | Mục đích |
+|---|---|
+| `/api/v1/` | Các endpoint API phiên bản 1 |
+| `/api/schema/` | Lược đồ OpenAPI |
+| `/api/docs/`, `/api/redoc/` | Tài liệu API tương tác |
+| `/health/` | Kiểm tra tình trạng ứng dụng |
+| `/metrics/` | Chỉ số ứng dụng (cần cấu hình bảo vệ phù hợp khi triển khai) |
+| `/admin/` | Trang quản trị Django |
 
-Xem [docs/production.md](docs/production.md) trước khi public hệ thống. Tối thiểu cần:
+## Tài liệu
 
-- Dùng database production có backup ngoài container và kiểm tra restore định kỳ.
-- Đặt `DJANGO_SECRET_KEY`, `API_ENCRYPTION_KEY`, `DJANGO_ALLOWED_HOSTS` bằng secret manager.
-- Chạy Redis trong private network, không expose port ra Internet.
-- Thiết lập monitoring/alert cho web, database, Redis, Celery, disk và Gemini quota.
-- Chạy load test và security review trước mỗi release lớn.
-
----
-
-## 🌐 API Endpoints
-
-| Endpoint | Phương thức | Mô tả |
-|----------|------------|-------|
-| `/` | GET | Trang chủ |
-| `/login/` | GET/POST | Đăng nhập |
-| `/register/` | GET/POST | Đăng ký |
-| `/logout/` | POST | Đăng xuất |
-| `/settings/` | GET/POST | Cài đặt (API key) |
-| `/history/` | GET | Lịch sử tóm tắt |
-| `/history/<id>/` | GET | Chi tiết bản tóm tắt |
-| `/history/<id>/delete/` | POST | Xoá bản tóm tắt |
-| `/api/summaries/create/` | POST | Tạo bản tóm tắt mới |
-| `/api/v1/summaries/create/` | POST | API versioned tạo tóm tắt |
-| `/api/summaries/status/<task_id>/` | GET | Kiểm tra trạng thái task |
-| `/api/summaries/batch/zip/` | POST | Tóm tắt nhiều file ZIP |
-| `/api/summaries/batch/urls/` | POST | Tóm tắt nhiều URL |
-| `/history/<id>/export/<format>/` | GET | Export PDF/DOCX/Markdown |
-| `/history/<id>/share/` | POST | Tạo link chia sẻ 1–30 ngày |
-| `/share/<token>/` | GET | Xem summary được chia sẻ |
-| `/webhooks/` | GET/POST | Quản lý webhook |
-| `/metrics/` | GET | Prometheus metrics |
-| `/api/schema/` | GET | OpenAPI schema |
-| `/api/docs/` | GET | Swagger UI |
-| `/admin/` | GET | Trang quản trị Django |
+- [Trợ giúp sử dụng](docs/help.md)
+- [Kiến trúc hệ thống](docs/architecture.md)
+- [Hướng dẫn triển khai production](docs/production.md)
+- [Đóng góp và phát triển](docs/CONTRIBUTING.md)
+- [Chính sách bảo mật](docs/SECURITY.md)
+- [Giấy phép MIT](LICENSE)
 
 ---
 
-## 👥 Đóng góp
-
-Xem [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) để biết chi tiết.
-
-## 📄 Giấy phép
-
-Dự án được phân phối dưới giấy phép MIT. Xem [LICENSE](LICENSE) để biết thêm chi tiết.
+Ứng dụng mẫu phục vụ học tập và trình diễn. Trước khi dùng dữ liệu nhạy cảm hoặc triển khai công khai, hãy rà soát cấu hình bảo mật, lưu trữ, sao lưu và quyền riêng tư theo môi trường thực tế.
