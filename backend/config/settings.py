@@ -122,9 +122,12 @@ if db_engine == "mysql":
         }
     }
 elif db_engine == "sqlserver":
+    trust_server_certificate = os.getenv("DB_TRUST_SERVER_CERTIFICATE", "false").lower() == "true"
     db_options = {
         "driver": os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server"),
-        "extra_params": "TrustServerCertificate=yes;Encrypt=yes",
+        "extra_params": (
+            f"TrustServerCertificate={'yes' if trust_server_certificate else 'no'};Encrypt=yes"
+        ),
     }
     if os.getenv("DB_USE_WINDOWS_AUTH", "").lower() == "true":
         db_options["extra_params"] += ";Trusted_Connection=yes"

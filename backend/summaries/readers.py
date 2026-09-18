@@ -24,6 +24,11 @@ REQUEST_TIMEOUT = 25
 MAX_RESPONSE_BYTES = 20 * 1024 * 1024
 MAX_URL_LENGTH = 2048
 
+
+class TransientNetworkError(ValueError):
+    """Sanitized network failure that can be retried by background tasks."""
+
+
 # ── SSRF protection ─────────────────────────────────
 _BLOCKED_NETWORKS = [
     ipaddress.ip_network("127.0.0.0/8"),
@@ -219,11 +224,13 @@ def extract_text_from_url(url: str) -> str:
                 },
             )
         except requests.exceptions.Timeout:
-            raise ValueError("Không thể tải URL: yêu cầu đã hết thời gian chờ.") from None
-        except requests.exceptions.ConnectionError as exc:
-            raise ValueError(
+            raise TransientNetworkError(
+                "Không thể tải URL: yêu cầu đã hết thời gian chờ."
+            ) from None
+        except requests.exceptions.ConnectionError:
+            raise TransientNetworkError(
                 "Không thể kết nối tới URL. Kiểm tra địa chỉ hoặc kết nối mạng."
-            ) from exc
+            ) from None
 
         if response is not None and response.status_code in (301, 302, 303, 307, 308):
             redirect_url = response.headers.get("Location", "")

@@ -28,8 +28,12 @@ class SettingsForm(forms.Form):
         required=False,
         max_length=255,
         label="Gemini API Key",
-        help_text="API key cá nhân (để trống nếu dùng key hệ thống)",
-        widget=forms.PasswordInput(render_value=True),
+        help_text="Nhập key mới để thay thế; để trống sẽ giữ nguyên key hiện tại.",
+        widget=forms.PasswordInput(render_value=False),
+    )
+    clear_gemini_api_key = forms.BooleanField(
+        required=False,
+        label="Xóa key cá nhân và dùng key hệ thống (nếu có)",
     )
 
     def clean_default_summary_ratio(self):
@@ -51,7 +55,7 @@ class SummaryRequestForm(forms.Form):
 
     source_type = forms.ChoiceField(choices=SOURCE_CHOICES)
     method = forms.ChoiceField(choices=METHOD_CHOICES)
-    text = forms.CharField(required=False, widget=forms.Textarea)
+    text = forms.CharField(required=False, max_length=50_000, widget=forms.Textarea)
     source_url = forms.URLField(required=False, assume_scheme="https")
     upload = forms.FileField(required=False)
     ratio = forms.FloatField(min_value=0.0, max_value=1.0, required=False)

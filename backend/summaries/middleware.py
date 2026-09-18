@@ -6,6 +6,23 @@ from django.http import JsonResponse
 from django.utils.deprecation import MiddlewareMixin
 
 
+def get_client_ip(request):
+    remote_addr = request.META.get("REMOTE_ADDR", "unknown")
+    if not RateLimitMiddleware._is_trusted_proxy(remote_addr):
+        return remote_addr
+
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    for candidate in reversed(forwarded_for.split(",")):
+        candidate = candidate.strip()
+        try:
+            address = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if not RateLimitMiddleware._is_trusted_proxy(str(address)):
+            return str(address)
+    return remote_addr
+
+
 class RateLimitMiddleware(MiddlewareMixin):
     """Simple IP-based rate limiter using cache."""
 
@@ -22,6 +39,8 @@ class RateLimitMiddleware(MiddlewareMixin):
 
     def _should_limit(self, request):
         path = request.path
+        if path.startswith(("/api/v1/summaries/status/", "/api/summaries/status/")):
+            return False
         return path.startswith("/api/") or path == "/create-summary/"
 
     def _check_limit(self, request):
@@ -29,7 +48,8 @@ class RateLimitMiddleware(MiddlewareMixin):
 
         ip = self._get_client_ip(request)
         path = request.path
-        key = f"ratelimit:{ip}:{path}"
+        user_id = getattr(getattr(request, "user", None), "pk", None) or "anonymous"
+        key = f"ratelimit:{ip}:{user_id}:{path}"
         limit_seconds = getattr(settings, "RATE_LIMIT_SECONDS", 5)
 
         if limit_seconds <= 0:
@@ -49,20 +69,7 @@ class RateLimitMiddleware(MiddlewareMixin):
         return None
 
     def _get_client_ip(self, request):
-        remote_addr = request.META.get("REMOTE_ADDR", "unknown")
-        if not self._is_trusted_proxy(remote_addr):
-            return remote_addr
-
-        forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
-        for candidate in reversed(forwarded_for.split(",")):
-            candidate = candidate.strip()
-            try:
-                address = ipaddress.ip_address(candidate)
-            except ValueError:
-                continue
-            if not self._is_trusted_proxy(str(address)):
-                return str(address)
-        return remote_addr
+        return get_client_ip(request)
 
     @staticmethod
     def _is_trusted_proxy(address):

@@ -1,6 +1,7 @@
 """Prometheus metrics for SummarEase."""
 
 import os
+import time
 
 from django.conf import settings
 from django.http import HttpResponse
@@ -43,18 +44,6 @@ gemini_api_calls = Counter(
     ["status"],
 )
 
-cache_hits = Counter(
-    "cache_hits_total",
-    "Total cache hits",
-    ["cache_type"],
-)
-
-cache_misses = Counter(
-    "cache_misses_total",
-    "Total cache misses",
-    ["cache_type"],
-)
-
 
 def metrics_view(request):
     """Prometheus /metrics endpoint."""
@@ -73,9 +62,14 @@ class PrometheusMiddleware:
         endpoint = request.path
         if not settings.DEBUG and os.getenv("DJANGO_TEST") != "1":
             endpoint = getattr(request.resolver_match, "route", None) or "unmatched"
-        active_requests.labels(method=request.method, endpoint=endpoint).inc()
-        response = self.get_response(request)
-        active_requests.labels(method=request.method, endpoint=endpoint).dec()
+        labels = {"method": request.method, "endpoint": endpoint}
+        active_requests.labels(**labels).inc()
+        started = time.perf_counter()
+        try:
+            response = self.get_response(request)
+        finally:
+            active_requests.labels(**labels).dec()
+            request_latency.labels(**labels).observe(time.perf_counter() - started)
 
         request_count.labels(
             method=request.method,

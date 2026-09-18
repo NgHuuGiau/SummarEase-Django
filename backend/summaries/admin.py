@@ -14,8 +14,12 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(UserSetting)
 class UserSettingAdmin(admin.ModelAdmin):
-    list_display = ("user", "default_summary_ratio", "language_preference", "gemini_api_key")
+    list_display = ("user", "default_summary_ratio", "language_preference", "has_gemini_key")
     search_fields = ("user__username",)
+
+    @admin.display(boolean=True, description="Đã cấu hình Gemini")
+    def has_gemini_key(self, obj):
+        return bool(obj.gemini_api_key)
 
 
 class SummarySentenceInline(admin.TabularInline):

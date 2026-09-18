@@ -13,7 +13,6 @@ from typing import cast
 from django.conf import settings
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from django.urls import reverse
 from django.utils import timezone
 
 from .models import Summary
@@ -79,15 +78,6 @@ def verify_share_token(token: str) -> dict | None:
         return None
 
     return payload
-
-
-def get_share_url(summary: Summary, request=None, expiry_days: int = DEFAULT_EXPIRY_DAYS) -> str:
-    """Generate full shareable URL for a summary."""
-    token = generate_share_token(summary, expiry_days)
-    path = reverse("shared_summary", kwargs={"token": token})
-    if request:
-        return request.build_absolute_uri(path)
-    return path
 
 
 def get_shared_summary(request, token: str) -> Summary:

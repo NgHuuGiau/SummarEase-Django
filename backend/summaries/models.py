@@ -156,20 +156,20 @@ class Summary(models.Model):
     @classmethod
     def search(cls, user, query: str, language: str = "vietnamese"):
         """Full-text search summaries for a user (PostgreSQL only)."""
+        summaries = cls.objects.all()
+        if user is not None:
+            summaries = summaries.filter(user=user)
         if not HAS_POSTGRES_SEARCH or connection.vendor != "postgresql":
             # SQLite fallback: simple icontains search
-            return (
-                cls.objects.filter(user=user)
-                .filter(models.Q(title__icontains=query) | models.Q(summary_text__icontains=query))
-                .order_by("-created_at")
-            )
+            return summaries.filter(
+                models.Q(title__icontains=query) | models.Q(summary_text__icontains=query)
+            ).order_by("-created_at")
 
         from django.contrib.postgres.search import SearchQuery, SearchRank
 
         search_query = SearchQuery(query, config=language)
         return (
-            cls.objects.filter(user=user)
-            .annotate(rank=SearchRank("search_vector", search_query))
+            summaries.annotate(rank=SearchRank("search_vector", search_query))
             .filter(rank__gte=0.1)
             .order_by("-rank", "-created_at")
         )

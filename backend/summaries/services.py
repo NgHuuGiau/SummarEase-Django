@@ -51,6 +51,12 @@ class SummaryService:
             text = text.strip()
             if not text:
                 errors["text"] = ["Nhập văn bản cần tóm tắt."]
+            elif len(text) > 50_000:
+                return {
+                    "ok": False,
+                    "message": "Văn bản vượt quá giới hạn 50.000 ký tự.",
+                    "status": 400,
+                }
         elif source_type == "url":
             if not source_url:
                 errors["source_url"] = ["Nhập URL hợp lệ."]
