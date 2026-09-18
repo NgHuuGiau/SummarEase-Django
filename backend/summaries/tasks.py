@@ -10,14 +10,16 @@ from pathlib import Path
 from celery import shared_task
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import InterfaceError, OperationalError, transaction
 from django.db.models import F
 from django.utils import timezone
 
-from .models import Document, Summary, SummarySentence, Tag, _cleanup_uploaded_file
-from .nlp import gemini_summarize, textrank_summarize
+from .metrics import summary_created, summary_failed
+from .models import _cleanup_uploaded_file
+from .nlp import TextTooLargeError, gemini_summarize, textrank_summarize
 from .nlp_utils import detect_language
-from .readers import extract_text
+from .persistence import persist_summary
+from .readers import TransientNetworkError, extract_text
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +130,7 @@ def _schedule_file_cleanup(file_path: str) -> None:
         transaction.on_commit(lambda: _cleanup_uploaded_file(file_path))
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=30, autoretry_for=(Exception,))
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
 def process_summary_task(
     self,
     user_id: int,
@@ -150,14 +152,31 @@ def process_summary_task(
         ratio,
     )
 
+    stored_file_name = file_path
     try:
         user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
+        _schedule_file_cleanup(stored_file_name)
         return {"ok": False, "message": "Người dùng không tồn tại."}
+    except (InterfaceError, OperationalError) as exc:
+        if self.request.retries < self.max_retries:
+            logger.warning(
+                "Temporary database error; retrying summary task: user=%d attempt=%d/%d",
+                user_id,
+                self.request.retries + 1,
+                self.max_retries,
+            )
+            raise self.retry(exc=exc) from exc
+        summary_failed.labels(method=method, error_type=type(exc).__name__).inc()
+        logger.error("Summary task exhausted database retries: user=%d", user_id)
+        _schedule_file_cleanup(stored_file_name)
+        return {
+            "ok": False,
+            "message": "Dịch vụ dữ liệu tạm thời không khả dụng. Vui lòng thử lại sau.",
+        }
 
     source_name = ""
     original_text = ""
-    stored_file_name = ""
     uploaded_file_path = ""
 
     try:
@@ -186,41 +205,19 @@ def process_summary_task(
         else:
             result = textrank_summarize(original_text, ratio=ratio, language=language)
 
-        title = result["title"][:255]
-
-        with transaction.atomic():
-            document = Document.objects.create(
-                user=user,
-                source_type=source_type,
-                title=title,
-                source_name=source_name[:255],
-                uploaded_file=stored_file_name,
-                content=original_text,
-            )
-            summary = Summary.objects.create(
-                document=document,
-                user=user,
-                title=title,
-                method=method,
-                language=result["language"],
-                ratio=ratio,
-                summary_text=result["summary"],
-            )
-            tag_names = list(dict.fromkeys(kw[:100] for kw in result["keywords"]))
-            if tag_names:
-                all_tags = []
-                for name in tag_names:
-                    tag, _ = Tag.objects.get_or_create(name=name)
-                    all_tags.append(tag)
-                summary.tags.add(*all_tags)
-            SummarySentence.objects.bulk_create(
-                [
-                    SummarySentence(summary=summary, sentence_text=sentence, sentence_index=index)
-                    for index, sentence in enumerate(result["sentences"], start=1)
-                ]
-            )
+        summary = persist_summary(
+            user,
+            source_type,
+            source_name,
+            original_text,
+            method,
+            ratio,
+            result,
+            uploaded_file=stored_file_name,
+        )
 
         elapsed = time.time() - start_time
+        summary_created.labels(method=method, source_type=source_type).inc()
         logger.info(
             "process_summary_task done: user=%d, summary_id=%d, elapsed=%.2fs",
             user_id,
@@ -246,7 +243,38 @@ def process_summary_task(
             },
         }
 
-    except Exception:  # noqa: BLE001
+    except (
+        InterfaceError,
+        OperationalError,
+        TransientNetworkError,
+    ) as exc:
+        if self.request.retries < self.max_retries:
+            logger.warning(
+                "Temporary dependency error; retrying summary task: user=%d attempt=%d/%d error=%s",
+                user_id,
+                self.request.retries + 1,
+                self.max_retries,
+                type(exc).__name__,
+            )
+            raise self.retry(exc=exc) from exc
+        summary_failed.labels(method=method, error_type=type(exc).__name__).inc()
+        logger.error(
+            "Summary task exhausted transient retries: user=%d error=%s",
+            user_id,
+            type(exc).__name__,
+        )
+        _schedule_file_cleanup(stored_file_name)
+        return {
+            "ok": False,
+            "message": "Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.",
+        }
+    except Exception as exc:  # noqa: BLE001
+        summary_failed.labels(method=method, error_type=type(exc).__name__).inc()
         logger.exception("process_summary_task failed: user=%d", user_id)
         _schedule_file_cleanup(stored_file_name)
-        return {"ok": False, "message": "Không thể xử lý yêu cầu. Vui lòng thử lại sau."}
+        message = (
+            str(exc)
+            if isinstance(exc, TextTooLargeError)
+            else "Không thể xử lý yêu cầu. Vui lòng thử lại sau."
+        )
+        return {"ok": False, "message": message}

@@ -21,7 +21,8 @@ from django.views.decorators.http import require_POST
 from .batch import create_batch_from_urls, create_batch_from_zip
 from .exports import export_summary
 from .forms import LoginForm, RegisterForm, SettingsForm, SummaryRequestForm
-from .models import Summary
+from .middleware import get_client_ip
+from .models import Document, Summary
 from .sharing import generate_share_token, get_shared_summary
 from .webhooks import WebhookRegistration, validate_webhook_url
 
@@ -72,11 +73,6 @@ def health(request: HttpRequest) -> HttpResponse:
 
 
 def home(request: HttpRequest) -> HttpResponse:
-    recent_public = list(
-        Summary.objects.select_related("document", "user")
-        .only("title", "method", "language", "created_at", "document__title", "user__username")
-        .all()[:9]
-    )
     user_history: list[Summary] = []
     initial_ratio = 0.2
     if request.user.is_authenticated:
@@ -97,7 +93,6 @@ def home(request: HttpRequest) -> HttpResponse:
         "summaries/home.html",
         {
             "form": form,
-            "recent_public": recent_public,
             "user_history": user_history,
             "gemini_available": home_gemini_available(request.user),
         },
@@ -134,15 +129,16 @@ class LoginPageView(LoginView):
     max_failed_attempts = 5
     lockout_seconds = 15 * 60
 
-    def _lock_key(self, username: str) -> str:
-        return f"login-fail:{username.lower()}"
+    def _lock_key(self, username: str, remote_addr: str) -> str:
+        return f"login-fail:{username.lower()}:{remote_addr}"
 
-    def _is_locked(self, username: str) -> bool:
-        return cache.get(self._lock_key(username), 0) >= self.max_failed_attempts
+    def _is_locked(self, username: str, remote_addr: str) -> bool:
+        return cache.get(self._lock_key(username, remote_addr), 0) >= self.max_failed_attempts
 
     def post(self, request, *args, **kwargs):
         username = self.request.POST.get("username", "")
-        if username and self._is_locked(username):
+        remote_addr = get_client_ip(self.request)
+        if username and self._is_locked(username, remote_addr):
             form = self.get_form()
             form.add_error(
                 None,
@@ -156,8 +152,9 @@ class LoginPageView(LoginView):
 
     def form_invalid(self, form):
         username = form.cleaned_data.get("username", "")
-        if username and not self._is_locked(username):
-            key = self._lock_key(username)
+        remote_addr = get_client_ip(self.request)
+        if username and not self._is_locked(username, remote_addr):
+            key = self._lock_key(username, remote_addr)
             attempts = cache.get(key, 0) + 1
             cache.set(key, attempts, timeout=self.lockout_seconds)
         return super().form_invalid(form)
@@ -165,7 +162,7 @@ class LoginPageView(LoginView):
     def form_valid(self, form):
         username = form.cleaned_data.get("username", "")
         if username:
-            cache.delete(self._lock_key(username))
+            cache.delete(self._lock_key(username, get_client_ip(self.request)))
         return super().form_valid(form)
 
 
@@ -173,7 +170,17 @@ class HistoryListView(LoginRequiredMixin, View):
     template_name = "summaries/history_list.html"
 
     def get(self, request: HttpRequest) -> HttpResponse:
-        base = Summary.objects.select_related("document", "user").only(
+        # Search query
+        search_query = request.GET.get("q", "").strip()
+        if search_query:
+            search_user = None if request.user.is_staff else request.user
+            base = Summary.search(search_user, search_query)
+        else:
+            base = Summary.objects.all()
+            if not request.user.is_staff:
+                base = base.filter(user=request.user)
+
+        base = base.select_related("document", "user").only(
             "title",
             "method",
             "language",
@@ -183,13 +190,6 @@ class HistoryListView(LoginRequiredMixin, View):
             "document__source_type",
             "user__username",
         )
-        if not request.user.is_staff:
-            base = base.filter(user=request.user)
-
-        # Search query
-        search_query = request.GET.get("q", "").strip()
-        if search_query:
-            base = Summary.search(request.user, search_query)
 
         paginator = Paginator(base, PAGE_SIZE)
         page_number = request.GET.get("page", 1)
@@ -226,10 +226,16 @@ def settings_view(request: HttpRequest) -> HttpResponse:
         if form.is_valid():
             setting.default_summary_ratio = form.cleaned_data["default_summary_ratio"]
             api_key = form.cleaned_data.get("gemini_api_key", "").strip()
-            from .signing import encrypt_value
+            update_fields = ["default_summary_ratio"]
+            if api_key:
+                from .signing import encrypt_value
 
-            setting.gemini_api_key = encrypt_value(api_key) if api_key else ""
-            setting.save(update_fields=["default_summary_ratio", "gemini_api_key"])
+                setting.gemini_api_key = encrypt_value(api_key)
+                update_fields.append("gemini_api_key")
+            elif form.cleaned_data["clear_gemini_api_key"]:
+                setting.gemini_api_key = ""
+                update_fields.append("gemini_api_key")
+            setting.save(update_fields=update_fields)
             messages.success(request, "Đã lưu cài đặt.")
             return redirect("settings")
     else:
@@ -259,7 +265,10 @@ def delete_summary(request: HttpRequest, pk: int) -> HttpResponse:
         summary = get_object_or_404(Summary, pk=pk)
     else:
         summary = get_object_or_404(Summary, pk=pk, user=request.user)
+    document = summary.document
     summary.delete()
+    if not document.summaries.exists():
+        document.delete()
     messages.success(request, "Đã xóa bản tóm tắt.")
     return redirect("history")
 
@@ -472,6 +481,14 @@ def webhook_test(request: HttpRequest, pk: int) -> JsonResponse:
     # Create a dummy summary for test
     test_summary = Summary(
         id=0,
+        document=Document(
+            user=request.user,
+            source_type=Document.SOURCE_TEXT,
+            title="Test Webhook",
+            source_name="Test",
+            content="Đây là bản tóm tắt test để kiểm tra webhook.",
+        ),
+        user=request.user,
         title="Test Webhook",
         method="textrank",
         language="vietnamese",
@@ -479,22 +496,6 @@ def webhook_test(request: HttpRequest, pk: int) -> JsonResponse:
         summary_text="Đây là bản tóm tắt test để kiểm tra webhook.",
         created_at=timezone.now(),
     )
-    test_summary.document = type(
-        "obj",
-        (object,),
-        {
-            "source_type": "text",
-            "source_name": "Test",
-        },
-    )()
-    test_summary.tags = type(
-        "obj",
-        (object,),
-        {
-            "values_list": lambda *a, **k: iter([]),
-        },
-    )()
-    test_summary.user = request.user
 
     payload = _build_webhook_payload(test_summary, "summary.completed")
     success = _deliver_webhook(webhook, payload)

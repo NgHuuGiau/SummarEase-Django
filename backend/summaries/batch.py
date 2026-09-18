@@ -4,16 +4,15 @@ from __future__ import annotations
 
 import logging
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction
 
-from .models import Document, Summary, SummarySentence, Tag
 from .nlp import gemini_summarize, textrank_summarize
 from .nlp_utils import detect_language
+from .persistence import persist_summary
 from .readers import extract_text
 
 logger = logging.getLogger(__name__)
@@ -44,7 +43,15 @@ def create_batch_from_zip(
             for name in zip_ref.namelist():
                 if name.endswith("/") or name.startswith("__MACOSX"):
                     continue
-                ext = Path(name).suffix.lower()
+                archive_path = PurePosixPath(name.replace("\\", "/"))
+                if (
+                    archive_path.is_absolute()
+                    or ".." in archive_path.parts
+                    or any(":" in part for part in archive_path.parts)
+                ):
+                    errors.append(f"{name}: đường dẫn không hợp lệ")
+                    continue
+                ext = Path(archive_path.name).suffix.lower()
                 if ext not in ALLOWED_EXTS:
                     errors.append(f"{name}: định dạng không hỗ trợ ({ext})")
                     continue
@@ -71,8 +78,10 @@ def create_batch_from_zip(
 
             for name in file_list:
                 try:
-                    zip_ref.extract(name, temp_dir)
-                    file_path = temp_dir / name
+                    file_path = Path(zip_ref.extract(name, temp_dir)).resolve()
+                    if not file_path.is_relative_to(temp_dir.resolve()):
+                        errors.append(f"{name}: đường dẫn không hợp lệ")
+                        continue
 
                     # Check file size
                     if file_path.stat().st_size > 10 * 1024 * 1024:
@@ -94,39 +103,9 @@ def create_batch_from_zip(
                     else:
                         result = textrank_summarize(original_text, ratio=ratio, language=language)
 
-                    title = result["title"][:255]
-
-                    with transaction.atomic():
-                        document = Document.objects.create(
-                            user=user,
-                            source_type="file",
-                            title=title,
-                            source_name=name[:255],
-                            uploaded_file=str(file_path.relative_to(settings.MEDIA_ROOT)),
-                            content=original_text,
-                        )
-                        summary = Summary.objects.create(
-                            document=document,
-                            user=user,
-                            title=title,
-                            method=method,
-                            language=result["language"],
-                            ratio=ratio,
-                            summary_text=result["summary"],
-                        )
-                        tag_names = list(dict.fromkeys(kw[:100] for kw in result["keywords"]))
-                        if tag_names:
-                            all_tags = []
-                            for tn in tag_names:
-                                tag, _ = Tag.objects.get_or_create(name=tn)
-                                all_tags.append(tag)
-                            summary.tags.add(*all_tags)
-                        SummarySentence.objects.bulk_create(
-                            [
-                                SummarySentence(summary=summary, sentence_text=s, sentence_index=i)
-                                for i, s in enumerate(result["sentences"], 1)
-                            ]
-                        )
+                    summary = persist_summary(
+                        user, "file", name, original_text, method, ratio, result
+                    )
 
                     results.append(
                         {
@@ -198,38 +177,7 @@ def create_batch_from_urls(
             else:
                 result = textrank_summarize(original_text, ratio=ratio, language=language)
 
-            title = result["title"][:255]
-
-            with transaction.atomic():
-                document = Document.objects.create(
-                    user=user,
-                    source_type="url",
-                    title=title,
-                    source_name=url[:255],
-                    content=original_text,
-                )
-                summary = Summary.objects.create(
-                    document=document,
-                    user=user,
-                    title=title,
-                    method=method,
-                    language=result["language"],
-                    ratio=ratio,
-                    summary_text=result["summary"],
-                )
-                tag_names = list(dict.fromkeys(kw[:100] for kw in result["keywords"]))
-                if tag_names:
-                    all_tags = []
-                    for tn in tag_names:
-                        tag, _ = Tag.objects.get_or_create(name=tn)
-                        all_tags.append(tag)
-                    summary.tags.add(*all_tags)
-                SummarySentence.objects.bulk_create(
-                    [
-                        SummarySentence(summary=summary, sentence_text=s, sentence_index=i)
-                        for i, s in enumerate(result["sentences"], 1)
-                    ]
-                )
+            summary = persist_summary(user, "url", url, original_text, method, ratio, result)
 
             results.append(
                 {

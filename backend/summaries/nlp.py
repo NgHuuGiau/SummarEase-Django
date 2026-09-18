@@ -12,14 +12,24 @@ from typing import Any
 
 from django.conf import settings
 
+from .metrics import gemini_api_calls
 from .nlp_utils import (
     build_summary_result,
     load_stop_words,
     split_sentences,
     truncate_text,
 )
+from .readers import TransientNetworkError
 
 logger = logging.getLogger(__name__)
+
+MAX_TEXTRANK_CHARACTERS = 50_000
+MAX_TEXTRANK_SENTENCES = 250
+
+
+class TextTooLargeError(ValueError):
+    """Raised when TextRank input exceeds safe processing limits."""
+
 
 GEMINI_RETRY_MAX = 3
 
@@ -71,6 +81,14 @@ def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english")
     normalized = normalize_text(text)
     if not normalized:
         raise ValueError("Nội dung văn bản đang rỗng.")
+    if len(normalized) > MAX_TEXTRANK_CHARACTERS:
+        raise TextTooLargeError(
+            f"Văn bản vượt quá giới hạn {MAX_TEXTRANK_CHARACTERS:,} ký tự cho TextRank."
+        )
+    if len(split_sentences(normalized)) > MAX_TEXTRANK_SENTENCES:
+        raise TextTooLargeError(
+            f"Văn bản có quá nhiều câu cho TextRank (tối đa {MAX_TEXTRANK_SENTENCES} câu)."
+        )
 
     # Cache by hash of content to avoid memory bloat from large text keys
     return _textrank_cached(_cache_key(normalized, ratio, language), normalized, ratio, language)
@@ -94,18 +112,26 @@ def _textrank_cached(
         {word for word in sentence.lower().split() if word not in stop_words}
         for sentence in sentences
     ]
-    scores = [1.0] * total_sentences
-    for _ in range(20):
-        updated = []
-        for index, current in enumerate(words):
-            score = 0.15
+    similarities = []
+    for index, current in enumerate(words):
+        neighbors = []
+        if current:
             for other, candidate in enumerate(words):
-                if index == other or not current or not candidate:
+                if index == other or not candidate:
                     continue
                 overlap = len(current & candidate)
                 if overlap:
                     denominator = math.log(len(current) + 1) + math.log(len(candidate) + 1)
-                    score += 0.85 * overlap / denominator * scores[other]
+                    neighbors.append((other, 0.85 * overlap / denominator))
+        similarities.append(neighbors)
+
+    scores = [1.0] * total_sentences
+    for _ in range(20):
+        updated = []
+        for neighbors in similarities:
+            score = 0.15
+            for other, similarity in neighbors:
+                score += similarity * scores[other]
             updated.append(score)
         scores = updated
 
@@ -163,21 +189,27 @@ def gemini_summarize(
         try:
             response = session.post(url, headers=headers, json=payload, timeout=60)
         except requests.exceptions.Timeout:
+            gemini_api_calls.labels(status="timeout").inc()
             logger.error(
                 "Gemini API timeout after 60s (attempt %d/%d)",
                 attempt + 1,
                 GEMINI_RETRY_MAX,
             )
-            raise ValueError(
+            raise TransientNetworkError(
                 "Gemini API không phản hồi sau 60 giây. Vui lòng thử lại sau."
             ) from None
         except requests.exceptions.ConnectionError:
+            gemini_api_calls.labels(status="connection_error").inc()
             logger.error(
                 "Gemini API connection error (attempt %d/%d)",
                 attempt + 1,
                 GEMINI_RETRY_MAX,
             )
-            raise ValueError("Không thể kết nối tới Gemini API. Kiểm tra kết nối mạng.") from None
+            raise TransientNetworkError(
+                "Không thể kết nối tới Gemini API. Kiểm tra kết nối mạng."
+            ) from None
+
+        gemini_api_calls.labels(status=str(response.status_code)).inc()
 
         if response.status_code == 403:
             logger.error("Gemini API 403: invalid or inactive API key")
