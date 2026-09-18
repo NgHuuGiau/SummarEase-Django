@@ -23,4 +23,4 @@ pythonpath = ["backend"]
 
 [tool.coverage.run]
 source = ["."]
-omit = ["*/migrations/*", "*/tests/*"]
+omit = ["*/migrations/*", "*/tests/*", "*/tests.py", "*/test_*.py", "*/conftest.py"]

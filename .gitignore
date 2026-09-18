@@ -4,7 +4,6 @@ __pycache__/
 *.sqlite3
 *.log
 *.pot
-*.pyc
 
 .env
 backend/.env
@@ -13,7 +12,6 @@ backend/media/
 backend/staticfiles/*
 !backend/staticfiles/.gitkeep
 backend/ssl/
-backend/sql/*.sqlite3
 
 .pytest_cache/
 .mypy_cache/
@@ -22,6 +20,7 @@ backend/sql/*.sqlite3
 htmlcov/
 coverage.xml
 test-results-*.xml
+test-results.xml
 *.sarif
 pip-audit-results.json
 safety-results.json
