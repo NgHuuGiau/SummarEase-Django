@@ -85,6 +85,8 @@ Script thay thế `scripts/run-ssl.ps1` dùng cổng 8443 mặc định và nh�
 5. Mở **Cài đặt** để đổi tỷ lệ mặc định hoặc cấu hình Gemini cá nhân.
 
 Định dạng tải lên gồm TXT, Markdown, DOCX, PDF và EPUB; giới hạn thông thường là 10 MB mỗi tệp. Tóm tắt URL kiểm tra đích mạng và có giới hạn kích thước phản hồi. Chỉ nhập URL công khai mà bạn được phép truy cập.
+TextRank giới hạn 50.000 ký tự và tối đa 250 câu để tránh tác vụ quá nặng.
+PWA chỉ lưu tài nguyên tĩnh để tải nhanh; cần kết nối mạng để đăng nhập và sử dụng các chức năng.
 
 ## Endpoint chính
 
@@ -98,7 +100,7 @@ Các route trong bảng dưới đây là đường dẫn tương đối với h
 | `/api/v1/summaries/create/` | POST | Route tạo tóm tắt phiên bản 1 |
 | `/api/summaries/status/<task_id>/` | GET | Kiểm tra tác vụ; chỉ chủ sở hữu tác vụ |
 | `/api/v1/summaries/status/<task_id>/` | GET | Route trạng thái phiên bản 1 |
-| `/api/summaries/batch/zip/`, `/api/summaries/batch/urls/` | POST | Xử lý theo lô; cần đăng nhập và CSRF |
+| `/api/summaries/batch/zip/`, `/api/summaries/batch/urls/` | POST | Xử lý tuần tự theo lô; cần đăng nhập và CSRF; phù hợp demo nhỏ |
 | `/history/<id>/export/<format>/` | GET | Xuất Markdown, DOCX hoặc PDF; cần quyền với bản tóm tắt |
 | `/history/<id>/share/` | POST | Tạo liên kết chia sẻ; cần đăng nhập và CSRF |
 | `/share/<token>/` | GET | Xem bản tóm tắt được chia sẻ bằng token |
@@ -123,7 +125,7 @@ python -m playwright install chromium
 Chạy backend tests:
 
 ```bash
-python -m pytest backend/summaries/tests.py -q
+python -m pytest backend/summaries/tests/ -q
 ```
 
 E2E cần ứng dụng đang chạy ở terminal khác:

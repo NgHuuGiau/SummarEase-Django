@@ -17,21 +17,22 @@ Snapshot kiểm thử ngày **18/09/2026**:
 | Python | 3.10–3.13 trong CI |
 | Bộ tóm tắt | TextRank tích hợp; Gemini là tùy chọn |
 | Đầu vào | Văn bản, URL, PDF, DOCX, EPUB, TXT và Markdown |
-| Kiểm thử backend | 230 bài đạt; độ bao phủ 89,59% |
-| Kiểm thử giao diện E2E | 18 bài đạt trên CI |
+| Kiểm thử backend | 239 bài đạt; độ bao phủ khoảng 82% (không tính tệp kiểm thử) |
+| Kiểm thử giao diện E2E | 19 bài đạt cục bộ trên Chromium |
 | Cơ sở dữ liệu / hạ tầng | SQLite cho phát triển; CI kiểm tra MySQL, SQL Server và Docker build |
 
-> Đây là kết quả của một lần kiểm tra, không phải cam kết trạng thái CI hiện tại. Huy hiệu CI/CodeQL phía trên phản ánh trạng thái mới nhất trên GitHub. Trên máy Windows, một số kiểm thử tạo PDF có thể bỏ qua nếu thiếu Pango; luồng PDF được kiểm tra trên môi trường Linux của CI.
+> Đây là kết quả kiểm thử cục bộ ngày 18/09/2026, không phải cam kết trạng thái CI hiện tại. Huy hiệu CI/CodeQL phía trên phản ánh trạng thái mới nhất trên GitHub. Trên máy Windows, một số kiểm thử tạo PDF có thể bỏ qua nếu thiếu Pango; luồng PDF được kiểm tra trên môi trường Linux của CI.
 
 ## Tính năng chính
 
 - Tóm tắt bằng TextRank nội bộ, không cần gửi nội dung ra dịch vụ ngoài hoặc cấu hình API key.
 - Có thể chọn Gemini khi đã cấu hình khóa API.
-- Nhận văn bản, URL và tệp PDF, DOCX, EPUB, TXT, Markdown; giới hạn tải lên mặc định là 10 MB.
+- Nhận văn bản, URL và tệp PDF, DOCX, EPUB, TXT, Markdown; tệp tải lên tối đa 10 MB, TextRank tối đa 50.000 ký tự/250 câu.
 - Tài khoản, lịch sử, tìm kiếm, chia sẻ kết quả bằng liên kết có thời hạn.
 - Xuất kết quả thành Markdown, DOCX hoặc PDF.
 - Tóm tắt theo lô, webhook có hàng đợi sự kiện bền vững, Celery/Redis tùy chọn.
 - Giao diện sáng/tối, trang kiểm tra sức khỏe, trang quản trị và tài liệu API.
+- PWA cache tài nguyên tĩnh công khai; không cache trang đăng nhập, lịch sử hoặc API và không hỗ trợ gửi tóm tắt offline.
 
 ## Chạy nhanh
 
@@ -49,6 +50,7 @@ cd SummarEase-Django
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
 python manage.py setup
 python manage.py runserver 127.0.0.1:8000
 ```
@@ -63,6 +65,7 @@ cd SummarEase-Django
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+[ -f backend/.env ] || cp backend/.env.example backend/.env
 python manage.py setup
 python manage.py runserver 127.0.0.1:8000
 ```
@@ -123,11 +126,13 @@ SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấ
 |---|---|
 | Lệnh quản lý Django | `manage.py` |
 | Cấu hình ứng dụng | `backend/config/` |
-| Tính năng tóm tắt, API và kiểm thử | `backend/summaries/` |
+| Tính năng tóm tắt và API | `backend/summaries/` |
+| Kiểm thử backend theo domain | `backend/summaries/tests/` |
 | Giao diện, CSS và JavaScript | `frontend/` |
 | Kiểm thử trình duyệt Playwright | `frontend/e2e/` |
 | Script chạy HTTPS phát triển trên Windows | `scripts/run-dev.ps1` |
 | Cấu hình CI và CodeQL | `.github/workflows/` |
+| Cấu hình pre-commit | `.pre-commit-config.yaml` |
 | Docker và dịch vụ nền | `Dockerfile`, `docker-compose.yml` |
 | Tài liệu dự án | `docs/` |
 
@@ -146,7 +151,7 @@ Các kiểm tra cơ bản:
 ```bash
 python manage.py check
 python manage.py makemigrations --check --dry-run
-python -m pytest backend/summaries/tests.py -q
+python -m pytest backend/summaries/tests/ -q
 ruff check backend manage.py
 ruff format --check backend manage.py
 ```

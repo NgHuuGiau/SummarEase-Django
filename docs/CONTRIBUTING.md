@@ -22,7 +22,7 @@ Chạy các kiểm tra phù hợp với phần đã sửa:
 ```bash
 python manage.py check
 python manage.py makemigrations --check --dry-run
-python -m pytest backend/summaries/tests.py -q
+python -m pytest backend/summaries/tests/ -q
 ruff check backend manage.py
 ruff format --check backend manage.py
 ```

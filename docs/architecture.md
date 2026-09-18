@@ -63,7 +63,8 @@ Khi bản tóm tắt phát sinh sự kiện webhook, bản ghi outbox được g
 SummarEase-Django/
 ├── backend/
 │   ├── config/                 # Settings, URLs, WSGI/ASGI, middleware
-│   ├── summaries/              # Django app, API, NLP, tasks, migrations, tests
+│   ├── summaries/              # Django app, API, NLP, tasks, migrations
+│   │   └── tests/              # Kiểm thử backend theo domain
 │   ├── sql/                    # SQLite mặc định và schema SQL Server tham khảo
 │   ├── .env.example            # Mẫu cấu hình
 │   └── conftest.py             # Cấu hình pytest

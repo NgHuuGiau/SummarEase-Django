@@ -22,7 +22,7 @@ DB_PASSWORD=<mật-khẩu>
 REDIS_PASSWORD=<mật-khẩu-url-safe>
 ```
 
-Nếu dùng SQL Server, đặt `DB_ENGINE=sqlserver`, `DB_PORT=1433` và `DB_DRIVER=ODBC Driver 18 for SQL Server` cùng thông tin xác thực tương ứng. Compose yêu cầu `DB_ENGINE`, `DJANGO_ALLOWED_HOSTS` và `REDIS_PASSWORD`. Tạo secret ngẫu nhiên, không dùng các giá trị ví dụ:
+Nếu dùng SQL Server, đặt `DB_ENGINE=sqlserver`, `DB_PORT=1433` và `DB_DRIVER=ODBC Driver 18 for SQL Server` cùng thông tin xác thực tương ứng. Mặc định ứng dụng xác thực chứng chỉ máy chủ (`TrustServerCertificate=no`); chỉ đặt `DB_TRUST_SERVER_CERTIFICATE=true` cho môi trường tin cậy dùng chứng chỉ tự ký. Compose yêu cầu `DB_ENGINE`, `DJANGO_ALLOWED_HOSTS` và `REDIS_PASSWORD`. Tạo secret ngẫu nhiên, không dùng các giá trị ví dụ:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"
@@ -42,6 +42,7 @@ docker compose --env-file backend/.env up --build
 
 - `/health/` kiểm tra truy vấn database và khả năng ghi/xóa tệp thử trong media; HTTP 503 báo trạng thái degraded. Endpoint này không kiểm tra Gemini, Redis hay Celery.
 - `/metrics/` chỉ cho staff đọc trong production. Giới hạn truy cập mạng monitoring; bộ metrics trong ứng dụng không thay cho APM hoặc giám sát hạ tầng.
+- Service Worker chỉ cache tài nguyên tĩnh công khai; trang đăng nhập, lịch sử và API không được lưu offline. Đây không phải chế độ offline đầy đủ.
 - Webhook outbox được lưu trong database và Celery Beat quét delivery đang chờ mỗi phút. Retry có giới hạn; giao nhận là at-least-once. Bên nhận nên khử trùng lặp theo `X-Webhook-Delivery`.
 - Compose tự chạy migration khi khởi động web. Hãy backup trước khi nâng cấp schema và giữ image/version trước đó để có phương án rollback.
 - Cấu hình email SMTP chỉ khi cần gửi email thật; mặc định phát triển dùng console backend.
@@ -71,7 +72,7 @@ Chỉ restore vào schema đã migrate và database thử nghiệm rỗng/cô l�
 Các lệnh kiểm tra repository:
 
 ```bash
-python -m pytest backend/summaries/tests.py -q
+python -m pytest backend/summaries/tests/ -q
 ruff check backend manage.py
 ruff format --check backend manage.py
 python manage.py check --deploy --fail-level ERROR
