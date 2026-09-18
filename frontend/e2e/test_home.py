@@ -3,7 +3,8 @@ import re
 from uuid import uuid4
 
 import pytest
-from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, expect
+from playwright.sync_api import Page, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from summaries.exports import _check_weasyprint
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
@@ -30,8 +31,34 @@ class TestHomePage:
         # Feature pills
         expect(page.locator(".feature-pills .pill")).to_have_count(3)
 
+    def test_service_worker_caches_only_public_static_assets(self, page: Page, base_url: str):
+        page.goto(base_url)
+        page.wait_for_function(
+            """async () => {
+                const keys = (await caches.keys()).filter(key => key.startsWith('summarease-'));
+                const entries = await Promise.all(keys.map(async key =>
+                    (await caches.open(key)).keys()
+                ));
+                return entries.some(requests => requests.length > 0);
+            }""",
+            timeout=10000,
+        )
+        cached_urls = page.evaluate(
+            """async () => {
+                const keys = (await caches.keys()).filter(key => key.startsWith('summarease-'));
+                const entries = await Promise.all(keys.map(async key =>
+                    (await caches.open(key)).keys()
+                ));
+                return entries.flat().map(request => new URL(request.url).pathname);
+            }"""
+        )
+        assert cached_urls
+        assert all(path.startswith("/static/") for path in cached_urls)
+
     @pytest.mark.parametrize("width,height", [(375, 812), (768, 1024), (1280, 800)])
-    def test_home_layout_fits_common_viewports(self, page: Page, base_url: str, width: int, height: int):
+    def test_home_layout_fits_common_viewports(
+        self, page: Page, base_url: str, width: int, height: int
+    ):
         page.set_viewport_size({"width": width, "height": height})
         page.goto(base_url)
         expect(page.locator("main")).to_be_visible()
@@ -204,7 +231,7 @@ class TestAuthentication:
                 "buffer": (
                     "Tệp tải lên cần được đọc và tóm tắt chính xác. "
                     "Kiểm thử bao phủ trọn luồng chọn tệp, xử lý và xuất dữ liệu."
-                ).encode("utf-8"),
+                ).encode(),
             }
         )
         # The API intentionally rate-limits requests from one IP for five seconds.
@@ -218,7 +245,9 @@ class TestAuthentication:
         page.locator(".export-trigger").click()
         expect(page.locator(".export-item").first).to_be_visible()
         with page.expect_download() as download_info:
-            with page.expect_response(lambda response: "/export/md/" in response.url) as export_info:
+            with page.expect_response(
+                lambda response: "/export/md/" in response.url
+            ) as export_info:
                 page.locator(".export-item", has_text="Markdown").click()
         download = download_info.value
         export_response = export_info.value
@@ -240,7 +269,7 @@ class TestAuthentication:
             page.locator(".export-trigger").click()
             try:
                 with page.expect_response(
-                    lambda response: f"/export/{extension}/" in response.url
+                    lambda response, extension=extension: f"/export/{extension}/" in response.url
                 ) as format_export:
                     with page.expect_download(timeout=10000) as format_download:
                         page.locator(".export-item", has_text=label).click()
@@ -360,10 +389,9 @@ class TestAccessibility:
         expect(page.locator("main")).to_be_visible()
         expect(page.locator("main h1").first).to_be_visible()
         assert page.locator("html").get_attribute("lang")
-        unnamed = page.locator(
-            "button:visible:not([aria-label]):not([title])"
-        ).evaluate_all(
-            "buttons => buttons.filter(button => !button.innerText.trim()).map(button => button.outerHTML)"
+        unnamed = page.locator("button:visible:not([aria-label]):not([title])").evaluate_all(
+            "buttons => buttons.filter(button => !button.innerText.trim())"
+            ".map(button => button.outerHTML)"
         )
         assert not unnamed, f"Visible buttons missing accessible names: {unnamed}"
 
@@ -380,6 +408,17 @@ class TestAccessibility:
         # Source selector buttons should be focusable
         focused = page.evaluate("document.activeElement.tagName")
         assert focused in ["BUTTON", "A", "INPUT"]
+
+    def test_segmented_choices_expose_pressed_button_state(self, page: Page, base_url: str):
+        page.goto(base_url)
+        source_group = page.get_by_role("group", name="Chọn nguồn dữ liệu")
+        source_button = source_group.get_by_role("button", name=re.compile("Tệp tin"))
+
+        expect(source_button).to_have_attribute("aria-pressed", "false")
+        source_button.focus()
+        page.keyboard.press("Space")
+        expect(source_button).to_have_attribute("aria-pressed", "true")
+        expect(page.locator('[data-source="text"]')).to_have_attribute("aria-pressed", "false")
 
 
 class TestHealthEndpoint:

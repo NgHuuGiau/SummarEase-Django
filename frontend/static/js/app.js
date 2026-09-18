@@ -33,7 +33,7 @@
     const ratioInput = document.querySelector("#ratio_input");
     const ratioValue = document.querySelector("#ratio_value");
 
-    let pollInterval = null;
+        let pollTimeout = null;
 
     const errorMap = {
         text: document.querySelector("#error-text"),
@@ -86,10 +86,10 @@
                 }
                 buttons.forEach(function (b) {
                     b.classList.remove("is-active");
-                    b.setAttribute("aria-selected", "false");
+                    b.setAttribute("aria-pressed", "false");
                 });
                 btn.classList.add("is-active");
-                btn.setAttribute("aria-selected", "true");
+                btn.setAttribute("aria-pressed", "true");
                 if (input) {
                     input.value = btn.dataset.source || btn.dataset.method;
                 }
@@ -126,26 +126,44 @@
     }
 
     function startPolling(taskId) {
-        if (pollInterval) clearInterval(pollInterval);
+        if (pollTimeout) clearTimeout(pollTimeout);
         let progress = 0;
-        pollInterval = setInterval(async function () {
+        const poll = async function (delay = 2000) {
+            pollTimeout = setTimeout(async function () {
             try {
                 const response = await fetch("/api/v1/summaries/status/" + taskId + "/", {
                     headers: { "X-Requested-With": "XMLHttpRequest" },
                 });
+                if (response.status === 429) {
+                    const retryAfter = Number(response.headers.get("Retry-After")) || 5;
+                    poll(retryAfter * 1000);
+                    return;
+                }
+                if (!response.ok) {
+                    poll(5000);
+                    return;
+                }
                 const payload = await response.json();
                 if (payload.status === "done") {
-                    clearInterval(pollInterval);
-                    pollInterval = null;
+                    clearTimeout(pollTimeout);
+                    pollTimeout = null;
+                    if (payload.data && payload.data.ok === false) {
+                        setLoading(false);
+                        updateProgress(0, payload.data.message || "Không thể xử lý yêu cầu.");
+                        return;
+                    }
                     handleResult(payload.data);
                 } else {
                     progress = Math.min(progress + 10, 90);
                     updateProgress(progress, "Đang xử lý... " + progress + "%");
+                    poll();
                 }
             } catch (e) {
-                // ignore, will retry
+                poll(5000);
             }
-        }, 1000);
+            }, delay);
+        };
+        poll(0);
     }
 
     function handleResult(data) {

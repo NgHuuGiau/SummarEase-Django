@@ -23,7 +23,7 @@ def base_url():
 def ensure_server_running(base_url):
     """Ensure the Django server is running before tests."""
     max_retries = 30
-    for i in range(max_retries):
+    for _ in range(max_retries):
         try:
             resp = requests.get(f"{base_url}/health/", timeout=2)
             if resp.status_code in (200, 503):

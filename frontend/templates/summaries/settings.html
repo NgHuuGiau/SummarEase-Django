@@ -61,6 +61,12 @@
                 {% if form.gemini_api_key.errors %}
                     <span class="field-error">{{ form.gemini_api_key.errors.0 }}</span>
                 {% endif %}
+                {% if setting.gemini_api_key %}
+                    <label class="checkbox-label" for="{{ form.clear_gemini_api_key.id_for_label }}">
+                        {{ form.clear_gemini_api_key }}
+                        <span>{{ form.clear_gemini_api_key.label }}</span>
+                    </label>
+                {% endif %}
             </div>
 
             <div class="info-callout">

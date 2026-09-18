@@ -130,6 +130,7 @@ document.querySelectorAll(".webhook-test").forEach(function (btn) {
     btn.addEventListener("click", function () {
         const pk = btn.dataset.pk;
         const originalText = btn.textContent;
+        const csrfToken = document.querySelector(".webhook-form [name=csrfmiddlewaretoken]")?.value;
         btn.disabled = true;
         btn.textContent = "Đang gửi...";
 
@@ -138,6 +139,7 @@ document.querySelectorAll(".webhook-test").forEach(function (btn) {
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
                 "X-Requested-With": "XMLHttpRequest",
+                "X-CSRFToken": csrfToken,
             },
         })
         .then(function (response) { return response.json(); })

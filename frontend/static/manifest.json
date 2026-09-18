@@ -11,52 +11,10 @@
   "lang": "vi",
   "icons": [
     {
-      "src": "/static/icons/icon-72.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/static/icons/icon-96.png",
-      "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/static/icons/icon-128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/static/icons/icon-144.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/static/icons/icon-152.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/static/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/static/icons/icon-384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/static/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "src": "/static/icons/summarease.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
   "categories": ["productivity", "utilities"],
@@ -65,31 +23,13 @@
       "name": "Tạo tóm tắt mới",
       "short_name": "Tóm tắt",
       "description": "Tạo bản tóm tắt văn bản mới",
-      "url": "/",
-      "icons": [{ "src": "/static/icons/shortcut-summarize.png", "sizes": "192x192" }]
+      "url": "/"
     },
     {
       "name": "Lịch sử",
       "short_name": "Lịch sử",
       "description": "Xem lịch sử tóm tắt đã lưu",
-      "url": "/history/",
-      "icons": [{ "src": "/static/icons/shortcut-history.png", "sizes": "192x192" }]
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/static/screenshots/home.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Trang chủ SummarEase"
-    },
-    {
-      "src": "/static/screenshots/workspace.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Khung làm việc tóm tắt"
+      "url": "/history/"
     }
   ]
 }

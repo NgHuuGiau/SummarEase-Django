@@ -15,7 +15,7 @@
                 Biến tài liệu dài thành <span class="gradient-text">bản tóm tắt súc tích</span>, chuẩn xác.
             </h1>
             <p class="hero-subtitle">
-                Tự động trích xuất ý chính từ văn bản, tệp tài liệu hoặc bài báo mạng. Tối ưu cho Tiếng Việt và hơn 50 ngôn ngữ.
+                Tự động trích xuất ý chính từ văn bản, tệp tài liệu hoặc bài báo mạng. Tối ưu cho tiếng Việt và tiếng Anh.
             </p>
 
             <div class="hero-meta-bar">
@@ -65,14 +65,14 @@
             <!-- Source Type Switcher -->
             <div class="source-selector">
                 <label class="control-label">Nguồn dữ liệu</label>
-                <div class="segmented-control" role="tablist" aria-label="Chọn nguồn dữ liệu">
-                    <button type="button" class="seg-btn is-active" data-source="text" role="tab" aria-selected="true">
+                <div class="segmented-control" role="group" aria-label="Chọn nguồn dữ liệu">
+                    <button type="button" class="seg-btn is-active" data-source="text" aria-pressed="true">
                         <span class="seg-icon">✍️</span> Văn bản
                     </button>
-                    <button type="button" class="seg-btn" data-source="file" role="tab" aria-selected="false">
+                    <button type="button" class="seg-btn" data-source="file" aria-pressed="false">
                         <span class="seg-icon">📁</span> Tệp tin
                     </button>
-                    <button type="button" class="seg-btn" data-source="url" role="tab" aria-selected="false">
+                    <button type="button" class="seg-btn" data-source="url" aria-pressed="false">
                         <span class="seg-icon">🔗</span> Đường dẫn URL
                     </button>
                 </div>
@@ -84,16 +84,16 @@
                 <!-- Method Selection -->
                 <div class="config-item">
                     <label class="control-label">Phương pháp xử lý</label>
-                    <div class="segmented-control compact" role="tablist" aria-label="Chọn phương pháp">
-                        <button type="button" class="seg-btn is-active" data-method="textrank" role="tab" aria-selected="true">
+                    <div class="segmented-control compact" role="group" aria-label="Chọn phương pháp">
+                        <button type="button" class="seg-btn is-active" data-method="textrank" aria-pressed="true">
                             <span>🧠 TextRank</span>
                         </button>
                         {% if gemini_available %}
-                            <button type="button" class="seg-btn" data-method="gemini" role="tab" aria-selected="false">
+                            <button type="button" class="seg-btn" data-method="gemini" aria-pressed="false">
                                 <span>✨ Gemini AI</span>
                             </button>
                         {% else %}
-                            <button type="button" class="seg-btn is-disabled" data-method="gemini" role="tab" aria-selected="false" title="Cần cấu hình Gemini API key trong Cài đặt">
+                            <button type="button" class="seg-btn is-disabled" data-method="gemini" aria-pressed="false" title="Cần cấu hình Gemini API key trong Cài đặt" disabled>
                                 <span>✨ Gemini AI</span>
                             </button>
                         {% endif %}
@@ -173,7 +173,7 @@
                     </button>
                     <div class="progress-wrapper is-hidden" id="progress-wrapper">
                         <div class="progress-bar" id="progress-bar"><div class="progress-fill"></div></div>
-                        <span class="progress-text" id="progress-text">Đang khởi tạo...</span>
+                        <span class="progress-text" id="progress-text" role="status" aria-live="polite" aria-atomic="true">Đang khởi tạo...</span>
                     </div>
                 {% else %}
                     <a class="button-primary wide lg" href="{% url 'login' %}">
@@ -181,7 +181,7 @@
                     </a>
                     <p class="auth-hint">Chưa có tài khoản? <a href="{% url 'register' %}">Đăng ký miễn phí</a> trong 30 giây.</p>
                 {% endif %}
-                <p id="form-message" class="form-message"></p>
+                <p id="form-message" class="form-message" role="status" aria-live="polite" aria-atomic="true"></p>
             </div>
         </form>
 
