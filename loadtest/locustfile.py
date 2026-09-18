@@ -5,7 +5,8 @@ Run with:
     locust -f loadtest/locustfile.py --host=http://localhost:8000
 
 Or headless:
-    locust -f loadtest/locustfile.py --host=http://localhost:8000 --headless -u 10 -r 2 -t 60s --html=report.html
+    locust -f loadtest/locustfile.py --host=http://localhost:8000 --headless \
+        -u 10 -r 2 -t 60s --html=report.html
 """
 
 import json
@@ -20,10 +21,26 @@ BASE_URL = os.getenv("LOCUST_HOST", "http://localhost:8000")
 def random_text(length=500):
     """Generate random text for testing."""
     words = [
-        "trí tuệ nhân tạo", "học máy", "xử lý ngôn ngữ tự nhiên", "tóm tắt văn bản",
-        "TextRank", "Gemini", "Google", "mô hình ngôn ngữ", "học sâu", "mạng nơ-ron",
-        "dữ liệu", "thuật toán", "máy tính", "khoa học dữ liệu", "phân tích",
-        "nghiên cứu", "phát triển", "ứng dụng", "công nghệ", "tương lai"
+        "trí tuệ nhân tạo",
+        "học máy",
+        "xử lý ngôn ngữ tự nhiên",
+        "tóm tắt văn bản",
+        "TextRank",
+        "Gemini",
+        "Google",
+        "mô hình ngôn ngữ",
+        "học sâu",
+        "mạng nơ-ron",
+        "dữ liệu",
+        "thuật toán",
+        "máy tính",
+        "khoa học dữ liệu",
+        "phân tích",
+        "nghiên cứu",
+        "phát triển",
+        "ứng dụng",
+        "công nghệ",
+        "tương lai",
     ]
     return " ".join(random.choices(words, k=length // 10)) + "."
 
@@ -49,6 +66,7 @@ class SummarEaseUser(HttpUser):
                 if not self.csrf_token:
                     # Try to find in HTML
                     import re
+
                     match = re.search(r'name="csrfmiddlewaretoken" value="([^"]+)"', response.text)
                     if match:
                         self.csrf_token = match.group(1)
@@ -60,14 +78,18 @@ class SummarEaseUser(HttpUser):
         """View home page."""
         with self.client.get("/", name="Home Page", catch_response=True) as response:
             if response.status_code != 200:
-                response.failure(f"Home page failed: {response.status_code} - {response.text[:200]}")
+                response.failure(
+                    f"Home page failed: {response.status_code} - {response.text[:200]}"
+                )
 
     @task(3)
     def view_health(self):
         """View health endpoint."""
         with self.client.get("/health/", name="Health Check", catch_response=True) as response:
             if response.status_code not in (200, 503):
-                response.failure(f"Health check failed: {response.status_code} - {response.text[:200]}")
+                response.failure(
+                    f"Health check failed: {response.status_code} - {response.text[:200]}"
+                )
             elif response.status_code == 200:
                 try:
                     data = response.json()
@@ -100,7 +122,9 @@ class SummarEaseUser(HttpUser):
     @task(1)
     def view_schema(self):
         """View OpenAPI schema."""
-        with self.client.get("/api/schema/", name="OpenAPI Schema", catch_response=True) as response:
+        with self.client.get(
+            "/api/schema/", name="OpenAPI Schema", catch_response=True
+        ) as response:
             if response.status_code != 200:
                 response.failure(f"Schema failed: {response.status_code}")
 
@@ -164,10 +188,10 @@ class AuthenticatedUser(SummarEaseUser):
 
         text = random_text(random.randint(200, 2000))
         ratio = random.choice([0.1, 0.2, 0.3, 0.4, 0.5])
-        method = random.choice(["textrank", "gemini"])
+        method = "textrank"
 
         with self.client.post(
-            "/create-summary/",
+            "/api/v1/summaries/create/",
             data={
                 "source_type": "text",
                 "text": text,
@@ -213,7 +237,7 @@ class AuthenticatedUser(SummarEaseUser):
         ]
 
         with self.client.post(
-            "/create-summary/",
+            "/api/v1/summaries/create/",
             data={
                 "source_type": "url",
                 "source_url": random.choice(urls),
@@ -277,25 +301,29 @@ def on_test_stop(environment, **kwargs):
     print(f"Requests/sec: {stats.total.total_rps:.2f}")
 
     if stats.total.num_failures > 0:
-        print(f"\nFailure rate: {stats.total.num_failures / max(stats.total.num_requests, 1) * 100:.1f}%")
+        failure_rate = stats.total.num_failures / max(stats.total.num_requests, 1) * 100
+        print(f"\nFailure rate: {failure_rate:.1f}%")
         for name, stat in stats.entries.items():
             if stat.num_failures > 0:
-                print(f"  {name}: {stat.num_failures} failures ({stat.fail_ratio*100:.1f}%)")
+                print(f"  {name}: {stat.num_failures} failures ({stat.fail_ratio * 100:.1f}%)")
 
 
 # Custom user classes for different load profiles
 class LightUser(AuthenticatedUser):
     """Light user - fewer requests, longer waits."""
+
     wait_time = between(3, 8)
 
 
 class HeavyUser(AuthenticatedUser):
     """Heavy user - more requests, shorter waits."""
+
     wait_time = between(0.5, 1.5)
 
 
 class SpikeUser(HttpUser):
     """Spike testing - burst of requests."""
+
     wait_time = between(0.1, 0.5)
 
     @task

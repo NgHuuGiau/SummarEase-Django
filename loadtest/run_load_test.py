@@ -22,7 +22,15 @@ SCENARIOS = {
 }
 
 
-def run_locust(scenario: str, host: str, headless: bool, html_report: str = None, users: int = None, spawn_rate: int = None, duration: str = None):
+def run_locust(
+    scenario: str,
+    host: str,
+    headless: bool,
+    html_report: str = None,
+    users: int = None,
+    spawn_rate: int = None,
+    duration: str = None,
+):
     """Run locust with given parameters."""
     config = SCENARIOS.get(scenario, {})
     users = users or config.get("users", 10)

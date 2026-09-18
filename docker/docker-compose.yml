@@ -12,8 +12,12 @@ services:
       - ../backend/.env
     volumes:
       - ..:/app
+    command: >
+      sh -c "python manage.py migrate &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   db:
     build:
@@ -27,8 +31,12 @@ services:
       MYSQL_DATABASE: summarease_django
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
     volumes:
-      - ../backend/sql/schema_sqlserver.sql:/docker-entrypoint-initdb.d/1_schema.sql
       - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 volumes:
   db_data:
