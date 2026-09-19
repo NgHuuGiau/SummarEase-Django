@@ -542,6 +542,7 @@ class SettingsFlowTests(TestCase):
             {
                 "default_summary_ratio": 0.2,
                 "gemini_api_key": "",
+                "clear_gemini_api_key": "on",
             },
         )
         self.assertEqual(UserSetting.objects.get(user=self.user).gemini_api_key, "")

@@ -149,7 +149,7 @@ jobs:
           PYTHONPATH: backend
           DJANGO_ALLOWED_HOSTS: '*'
         run: |
-          python -m pytest backend/summaries/tests/ -q \
+          python -m pytest backend/summaries/tests.py -q \
             --cov-config=pyproject.toml --cov=backend \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
@@ -219,7 +219,7 @@ jobs:
         run: |
           python manage.py check
           python manage.py makemigrations --check --dry-run
-          python -m pytest backend/summaries/tests/ -q -k WebhookSecurityTests --tb=short
+          python -m pytest backend/summaries/tests.py -q -k WebhookSecurityTests --tb=short
 
   sqlserver_integration:
     name: SQL Server Integration
@@ -295,7 +295,7 @@ jobs:
         run: |
           python manage.py check
           python manage.py makemigrations --check --dry-run
-          python -m pytest backend/summaries/tests/ -q -k WebhookSecurityTests --tb=short
+          python -m pytest backend/summaries/tests.py -q -k WebhookSecurityTests --tb=short
 
   frontend_lint:
     name: Frontend Lint
