@@ -369,15 +369,7 @@ jobs:
           done
 
       - name: Run E2E tests
-        run: python -m pytest frontend/e2e/test_home.py -v --tb=short --junitxml=test-results-e2e.xml
-
-      - name: Publish E2E results
-        uses: dorny/test-reporter@v2
-        if: always()
-        with:
-          name: E2E Results
-          path: test-results-e2e.xml
-          reporter: java-junit
+        run: python -m pytest frontend/e2e/test_home.py -v --tb=short
 
       # TEMPORARY: exfiltrate the failure text to a tracking issue because
       # unauthenticated API clients cannot download Actions logs.
