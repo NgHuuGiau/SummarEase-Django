@@ -33,6 +33,16 @@ class TestHomePage:
 
     def test_service_worker_caches_only_public_static_assets(self, page: Page, base_url: str):
         page.goto(base_url)
+        # The worker is registered from /static/sw.js so its scope is /static/.
+        # Wait for activation first (proves the worker is alive), then wait for
+        # cache entries (install fetches can lag activation on slow runners).
+        page.wait_for_function(
+            """async () => {
+                const reg = await navigator.serviceWorker.getRegistration('/static/');
+                return reg && reg.active && reg.active.state === 'activated';
+            }""",
+            timeout=20000,
+        )
         page.wait_for_function(
             """async () => {
                 const keys = (await caches.keys()).filter(key => key.startsWith('summarease-'));
@@ -41,7 +51,7 @@ class TestHomePage:
                 ));
                 return entries.some(requests => requests.length > 0);
             }""",
-            timeout=10000,
+            timeout=30000,
         )
         cached_urls = page.evaluate(
             """async () => {
@@ -52,27 +62,7 @@ class TestHomePage:
                 return entries.flat().map(request => new URL(request.url).pathname);
             }"""
         )
-        # TEMP-DIAG: capture browser SW state when cache is unexpectedly empty
-        # (CI-only flake investigation; will be reverted after root cause fix).
-        if not cached_urls:
-            state = page.evaluate(
-                """async () => {
-                    const keys = await caches.keys();
-                    let reg_state = 'none';
-                    try {
-                        const reg = await navigator.serviceWorker.getRegistration();
-                        reg_state = reg && reg.active ? reg.active.state
-                            : reg && reg.installing ? 'installing'
-                            : reg && reg.waiting ? 'waiting' : 'no-worker';
-                    } catch (e) { reg_state = 'ERR:' + e; }
-                    return {
-                        all_keys: keys,
-                        controller: !!navigator.serviceWorker.controller,
-                        reg_state: reg_state,
-                    };
-                }"""
-            )
-            raise AssertionError(f"empty SW cache, browser state: {state!r}")
+        assert cached_urls
         assert all(path.startswith("/static/") for path in cached_urls)
 
     @pytest.mark.parametrize("width,height", [(375, 812), (768, 1024), (1280, 800)])
