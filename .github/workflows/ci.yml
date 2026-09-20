@@ -346,13 +346,23 @@ jobs:
           sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core
           pip install -r requirements.txt -r requirements-dev.txt
           pip install pytest-playwright
-          playwright install chromium
+          playwright install --with-deps chromium
 
       - name: Start Django server
         run: |
           python manage.py migrate --noinput
           python manage.py runserver 127.0.0.1:8000 &
-          sleep 5
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/health/ > /dev/null; then
+              echo "Server is up"
+              break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "::error::Django server did not become ready in time"
+              exit 1
+            fi
+            sleep 2
+          done
 
       - name: Run E2E tests
         run: python -m pytest frontend/e2e/test_home.py -v --tb=short
