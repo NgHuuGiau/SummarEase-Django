@@ -23,8 +23,6 @@
     const submitBtn = document.querySelector("#submit-btn");
     const btnText = submitBtn && submitBtn.querySelector(".btn-text");
     const btnSpinner = submitBtn && submitBtn.querySelector(".btn-spinner");
-    const progressBar = document.querySelector("#progress-bar");
-    const progressText = document.querySelector("#progress-text");
     const root = document.documentElement;
     const themeToggle = document.querySelector("[data-theme-toggle]");
     const themeLabel = document.querySelector("[data-theme-label]");
@@ -33,7 +31,18 @@
     const ratioInput = document.querySelector("#ratio_input");
     const ratioValue = document.querySelector("#ratio_value");
 
-        let pollTimeout = null;
+    let pollTimeout = null;
+    let pollController = null;
+    let pollAttempts = 0;
+    const MAX_POLL_ATTEMPTS = 60;
+
+    function esc(value) {
+        return String(value == null ? "" : value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
 
     const errorMap = {
         text: document.querySelector("#error-text"),
@@ -127,12 +136,27 @@
 
     function startPolling(taskId) {
         if (pollTimeout) clearTimeout(pollTimeout);
+        if (pollController) pollController.abort();
+        pollController = new AbortController();
+        pollAttempts = 0;
         let progress = 0;
         const poll = async function (delay = 2000) {
             pollTimeout = setTimeout(async function () {
+            pollAttempts += 1;
+            if (pollAttempts > MAX_POLL_ATTEMPTS) {
+                pollTimeout = null;
+                setLoading(false);
+                updateProgress(0, "Hết thời gian chờ. Vui lòng thử lại.");
+                if (message) {
+                    message.textContent = "Tác vụ quá lâu. Hãy kiểm tra lịch sử sau.";
+                    message.style.color = "var(--danger)";
+                }
+                return;
+            }
             try {
                 const response = await fetch("/api/v1/summaries/status/" + taskId + "/", {
                     headers: { "X-Requested-With": "XMLHttpRequest" },
+                    signal: pollController.signal,
                 });
                 if (response.status === 429) {
                     const retryAfter = Number(response.headers.get("Retry-After")) || 5;
@@ -159,6 +183,7 @@
                     poll();
                 }
             } catch (e) {
+                if (e && e.name === "AbortError") return;
                 poll(5000);
             }
             }, delay);
@@ -170,13 +195,13 @@
         if (resultTitle) resultTitle.textContent = data.title;
         if (resultDesc) resultDesc.textContent = "Đã xử lý lúc " + data.created_at;
         if (resultMeta) {
-            resultMeta.innerHTML = "<span class=\"badge textrank\">" + data.method + "</span>" +
-                "<span class=\"badge source-badge\">" + data.language + "</span>" +
+            resultMeta.innerHTML = "<span class=\"badge textrank\">" + esc(data.method) + "</span>" +
+                "<span class=\"badge source-badge\">" + esc(data.language) + "</span>" +
                 "<span class=\"badge-ratio\">Tỉ lệ " + Math.round(Number(data.ratio) * 100) + "%</span>";
         }
         if (resultKeywords && data.keywords) {
             resultKeywords.innerHTML = data.keywords.map(function (kw) {
-                return "<span class=\"keyword-chip\"># " + kw + "</span>";
+                return "<span class=\"keyword-chip\"># " + esc(kw) + "</span>";
             }).join("");
         }
         if (summaryEmpty) summaryEmpty.classList.add("is-hidden");
@@ -331,5 +356,10 @@
     if (form) {
         form.addEventListener("submit", submitSummary);
     }
+
+    window.addEventListener("pagehide", function () {
+        if (pollTimeout) clearTimeout(pollTimeout);
+        if (pollController) pollController.abort();
+    });
 })();
 

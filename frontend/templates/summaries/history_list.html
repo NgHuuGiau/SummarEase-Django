@@ -27,7 +27,8 @@
         <form method="get" class="search-form" action="{% url 'history' %}">
             <div class="search-input-wrap">
                 <span class="search-icon">🔍</span>
-                <input type="search" name="q" value="{{ search_query }}" placeholder="Tìm kiếm trong tiêu đề, nội dung, từ khóa..." class="search-input" autocomplete="off">
+                <label for="history-search" class="visually-hidden">Tìm kiếm lịch sử</label>
+                <input type="search" id="history-search" name="q" value="{{ search_query }}" placeholder="Tìm kiếm trong tiêu đề, nội dung, từ khóa..." class="search-input" autocomplete="off" aria-label="Tìm kiếm lịch sử">
                 {% if search_query %}
                     <a href="{% url 'history' %}" class="search-clear" title="Xóa tìm kiếm">✕</a>
                 {% endif %}

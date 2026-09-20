@@ -109,11 +109,6 @@
                     </div>
                     <div class="slider-wrapper">
                         <input type="range" id="ratio_slider" min="5" max="80" step="5" value="{% widthratio form.initial.ratio|default:0.2 1 100 %}">
-                        <div class="slider-ticks">
-                            <span>Ngắn (10%)</span>
-                            <span>Trung bình (30%)</span>
-                            <span>Chi tiết (60%)</span>
-                        </div>
                         <input type="hidden" name="ratio" id="ratio_input" value="{{ form.initial.ratio|default:0.2 }}">
                     </div>
                 </div>
@@ -134,13 +129,13 @@
                 </div>
 
                 <div id="file-wrap" class="field-container is-hidden">
-                    <label class="control-label">Tải lên tệp tài liệu</label>
+                    <label class="control-label" for="file-input">Tải lên tệp tài liệu</label>
                     <div class="file-dropzone">
-                        <input type="file" id="file-input" name="upload" accept=".txt,.md,.markdown,.docx,.pdf,.epub">
+                        <input type="file" id="file-input" name="upload" accept=".txt,.md,.markdown,.docx,.pdf,.epub" aria-describedby="file-hint">
                         <div class="dropzone-content">
                             <span class="dropzone-icon">📥</span>
                             <strong>Chọn tệp hoặc kéo thả vào đây</strong>
-                            <p>Hỗ trợ định dạng .PDF, .DOCX, .TXT, .EPUB, .MD</p>
+                            <p id="file-hint">Hỗ trợ định dạng .PDF, .DOCX, .TXT, .EPUB, .MD</p>
                         </div>
                     </div>
                     <span class="field-error" id="error-upload"></span>
@@ -196,7 +191,7 @@
                     </div>
                 </div>
                 <div class="result-toolbar">
-                    <button type="button" id="copy-btn" class="button-secondary slim is-hidden" data-copy-target="summary-output" title="Sao chép nội dung">
+                    <button type="button" id="copy-btn" class="button-secondary slim is-hidden" title="Sao chép nội dung">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>

@@ -37,10 +37,13 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.open(STATIC_CACHE).then(async (cache) => {
-      const cached = await cache.match(event.request);
+      // Match/put by origin+pathname: pages request versioned URLs (?v=...),
+      // the cache stores a single copy per asset.
+      const cacheKey = url.origin + url.pathname;
+      const cached = await cache.match(cacheKey);
       if (cached) return cached;
       const response = await fetch(event.request);
-      if (response.ok) await cache.put(event.request, response.clone());
+      if (response.ok) await cache.put(cacheKey, response.clone());
       return response;
     })
   );

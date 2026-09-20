@@ -352,10 +352,6 @@ input[type="range"]::-moz-range-thumb {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
-.slider-ticks {
-    display: none;
-}
-
 /* Method Hint Card */
 .method-hint-card {
     display: flex;
@@ -776,5 +772,58 @@ mark {
 .muted {
     color: var(--muted);
     font-size: 0.8rem;
+}
+
+/* ==========================================================================
+   Error pages (404/500) - used by templates/404.html, templates/500.html
+   ========================================================================== */
+.error-card {
+    text-align: center;
+    padding: var(--space-8) var(--space-6);
+}
+.error-code {
+    font-size: 6rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: var(--space-4);
+    letter-spacing: -0.02em;
+}
+.error-code.brand { color: var(--brand); }
+.error-code.danger { color: var(--danger); }
+.error-message {
+    font-size: 1.125rem;
+    color: var(--muted);
+    margin-bottom: var(--space-6);
+}
+
+/* ==========================================================================
+   Disabled state for buttons/inputs (used by app.js for Gemini button)
+   ========================================================================== */
+.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ==========================================================================
+   Shadow XL (referenced in history.css for share modal)
+   ========================================================================== */
+:root {
+    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* ==========================================================================
+   Screen-reader only utility (for accessible labels)
+   ========================================================================== */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
