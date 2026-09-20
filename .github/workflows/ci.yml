@@ -327,6 +327,7 @@ jobs:
     env:
       SQLITE_DB_PATH: /tmp/summarease-e2e.sqlite3
       MEDIA_ROOT: /tmp/summarease-e2e-media
+      BASE_URL: http://127.0.0.1:8000
     steps:
       - name: Checkout
         uses: actions/checkout@v4
