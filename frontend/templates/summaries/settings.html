@@ -15,7 +15,7 @@
             </div>
         </div>
 
-        <form method="post" class="settings-form">
+        <form method="post" class="settings-form" action="{% url 'settings' %}">
             {% csrf_token %}
             
             {% if form.non_field_errors %}

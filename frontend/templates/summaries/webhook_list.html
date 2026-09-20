@@ -27,7 +27,7 @@
         {% endif %}
 
         <!-- Add Webhook Form -->
-        <form method="post" class="webhook-form">
+        <form method="post" class="webhook-form" action="{% url 'webhook_list' %}">
             {% csrf_token %}
             <div class="form-group">
                 <label for="url" class="control-label">URL Endpoint</label>
