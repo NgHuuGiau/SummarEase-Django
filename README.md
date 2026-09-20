@@ -127,7 +127,7 @@ SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấ
 | Lệnh quản lý Django | `manage.py` |
 | Cấu hình ứng dụng | `backend/config/` |
 | Tính năng tóm tắt và API | `backend/summaries/` |
-| Kiểm thử backend theo domain | `backend/summaries/tests/` |
+| Kiểm thử backend theo domain | `backend/summaries/tests.py` |
 | Giao diện, CSS và JavaScript | `frontend/` |
 | Kiểm thử trình duyệt Playwright | `frontend/e2e/` |
 | Script chạy HTTPS phát triển trên Windows | `scripts/run-dev.ps1` |
@@ -151,7 +151,7 @@ Các kiểm tra cơ bản:
 ```bash
 python manage.py check
 python manage.py makemigrations --check --dry-run
-python -m pytest backend/summaries/tests/ -q
+python -m pytest backend/summaries/tests.py -q
 ruff check backend manage.py
 ruff format --check backend manage.py
 ```

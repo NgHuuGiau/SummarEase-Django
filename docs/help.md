@@ -125,7 +125,7 @@ python -m playwright install chromium
 Chạy backend tests:
 
 ```bash
-python -m pytest backend/summaries/tests/ -q
+python -m pytest backend/summaries/tests.py -q
 ```
 
 E2E cần ứng dụng đang chạy ở terminal khác:
@@ -162,3 +162,12 @@ Mặc định email phát triển được ghi ra console. Để gửi thật, c
 ### Không xuất được PDF trên Windows
 
 WeasyPrint cần Pango và các thư viện hệ điều hành. Cài theo [hướng dẫn Windows của WeasyPrint](https://doc.courtbouillon.org/weasyprint/latest/first_steps.html#windows), hoặc thử trên Linux/WSL/Docker.
+
+Cách đã kiểm chứng (không cần quyền admin): tải `gtk3-runtime-*-ts-win64.exe` từ [GTK-for-Windows-Runtime-Environment-Installer](https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases), cài silent vào thư mục người dùng rồi trỏ WeasyPrint tới đó:
+
+```powershell
+.\gtk3-runtime-*-ts-win64.exe /S /D="$env:LOCALAPPDATA\SummarEase\gtk3-ts"
+[Environment]::SetEnvironmentVariable("WEASYPRINT_DLL_DIRECTORIES", "$env:LOCALAPPDATA\SummarEase\gtk3-ts\bin", "User")
+```
+
+Mở terminal mới và kiểm tra: `python -c "import weasyprint; print('OK')"`.

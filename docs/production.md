@@ -72,7 +72,7 @@ Chỉ restore vào schema đã migrate và database thử nghiệm rỗng/cô l�
 Các lệnh kiểm tra repository:
 
 ```bash
-python -m pytest backend/summaries/tests/ -q
+python -m pytest backend/summaries/tests.py -q
 ruff check backend manage.py
 ruff format --check backend manage.py
 python manage.py check --deploy --fail-level ERROR
