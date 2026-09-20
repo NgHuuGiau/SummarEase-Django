@@ -326,7 +326,6 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-      issues: write
     env:
       SQLITE_DB_PATH: /tmp/summarease-e2e.sqlite3
       MEDIA_ROOT: /tmp/summarease-e2e-media
@@ -370,26 +369,6 @@ jobs:
 
       - name: Run E2E tests
         run: python -m pytest frontend/e2e/test_home.py -v --tb=short
-
-      # TEMPORARY: exfiltrate the failure text to a tracking issue because
-      # unauthenticated API clients cannot download Actions logs.
-      # REMOVE this step once E2E is green (and delete the diagnostic issues).
-      - name: Diagnose E2E failure (TEMPORARY)
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          {
-            echo "### Environment"
-            python --version
-            pip show playwright pytest-playwright 2>/dev/null | grep -E "^(Name|Version)"
-            ls ~/.cache/ms-playwright 2>/dev/null || echo "NO ms-playwright dir"
-            echo "### Full-suite failures"
-            python -m pytest frontend/e2e/test_home.py -q --tb=line 2>&1 | tail -40
-          } > /tmp/e2e-diag.txt 2>&1 || true
-          gh issue create \
-            --title "[ci-diag] E2E failure ${GITHUB_SHA:0:7} run ${GITHUB_RUN_ID}" \
-            --body-file /tmp/e2e-diag.txt || true
 
   build:
     name: Build Verification
