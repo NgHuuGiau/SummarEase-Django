@@ -392,8 +392,8 @@ jobs:
             python --version
             pip show playwright pytest-playwright 2>/dev/null | grep -E "^(Name|Version)"
             ls ~/.cache/ms-playwright 2>/dev/null || echo "NO ms-playwright dir"
-            echo "### Single-test traceback"
-            python -m pytest "frontend/e2e/test_home.py::TestHomePage::test_home_page_loads" -q --tb=long 2>&1 | tail -60
+            echo "### Full-suite failures"
+            python -m pytest frontend/e2e/test_home.py -q --tb=line 2>&1 | tail -40
           } > /tmp/e2e-diag.txt 2>&1 || true
           gh issue create \
             --title "[ci-diag] E2E failure ${GITHUB_SHA:0:7} run ${GITHUB_RUN_ID}" \
