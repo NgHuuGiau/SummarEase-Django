@@ -25,6 +25,8 @@ class CSPMiddleware:
             f"img-src {image_sources}; "
             f"connect-src 'self' https://generativelanguage.googleapis.com; "
             f"base-uri 'self'; "
+            f"object-src 'none'; "
+            f"frame-ancestors 'self'; "
             f"form-action 'self'"
         )
         return response
