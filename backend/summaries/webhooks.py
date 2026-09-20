@@ -179,9 +179,14 @@ def _build_webhook_payload(summary: Summary, event: str) -> WebhookPayload:
     )
 
 
+def _canonical_payload(payload: dict) -> bytes:
+    """Serialize a payload deterministically for signing and delivery."""
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
+
+
 def _sign_payload(payload: dict, secret: str) -> str:
     """Generate HMAC signature for payload."""
-    payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
+    payload_bytes = _canonical_payload(payload)
     return hmac.new(secret.encode(), payload_bytes, hashlib.sha256).hexdigest()
 
 
@@ -202,7 +207,7 @@ def _deliver_webhook(
 ) -> bool:
     """Deliver webhook with retries. Returns True if successful."""
     payload_dict = payload.to_dict()
-    payload_bytes = json.dumps(payload_dict, separators=(",", ":"), ensure_ascii=False).encode()
+    payload_bytes = _canonical_payload(payload_dict)
     signature = _sign_payload(payload_dict, webhook.secret)
 
     headers = {

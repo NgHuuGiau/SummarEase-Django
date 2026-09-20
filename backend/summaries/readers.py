@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".docx", ".pdf", ".epub"}
-MAX_GEMINI_CHARS = 50000
 MAX_REDIRECTS = 5
 REQUEST_TIMEOUT = 25
 MAX_RESPONSE_BYTES = 20 * 1024 * 1024

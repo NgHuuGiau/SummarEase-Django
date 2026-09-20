@@ -7,7 +7,6 @@ import json
 import logging
 import math
 import time as time_module
-from functools import lru_cache
 from typing import Any
 
 from django.conf import settings
@@ -75,6 +74,12 @@ def _cache_key(text: str, ratio: float, language: str) -> str:
     return h[:32]
 
 
+# Bounded FIFO cache keyed by content hash: unlike lru_cache on the full
+# text, entries hold only the hash key plus the computed result.
+_TEXTRANK_CACHE_MAX = 128
+_textrank_cache: dict[str, dict[str, Any]] = {}
+
+
 def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english") -> dict[str, Any]:
     from .nlp_utils import normalize_text
 
@@ -91,12 +96,17 @@ def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english")
         )
 
     # Cache by hash of content to avoid memory bloat from large text keys
-    return _textrank_cached(_cache_key(normalized, ratio, language), normalized, ratio, language)
+    key = _cache_key(normalized, ratio, language)
+    cached = _textrank_cache.get(key)
+    if cached is None:
+        cached = _textrank_compute(normalized, ratio, language)
+        if len(_textrank_cache) >= _TEXTRANK_CACHE_MAX:
+            _textrank_cache.pop(next(iter(_textrank_cache)))
+        _textrank_cache[key] = cached
+    return cached
 
 
-@lru_cache(maxsize=128)
-def _textrank_cached(
-    cache_key: str,
+def _textrank_compute(
     normalized: str,
     ratio: float,
     language: str,

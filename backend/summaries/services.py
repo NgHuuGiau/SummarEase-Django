@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from .models import _cleanup_uploaded_file
-from .signing import decrypt_value
+from .signing import resolve_user_api_key
 from .tasks import process_summary_task
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -97,9 +97,7 @@ class SummaryService:
         # Validate Gemini API key
         if method == "gemini":
             system_key = getattr(settings, "GEMINI_API_KEY", "")
-            user_key = ""
-            if hasattr(self.user, "setting") and self.user.setting.gemini_api_key:
-                user_key = decrypt_value(self.user.setting.gemini_api_key)
+            user_key = resolve_user_api_key(self.user)
             if not system_key and not user_key:
                 msg = (
                     "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."
@@ -140,6 +138,7 @@ class SummaryService:
         try:
             task = process_summary_task.delay(**task_args)
         except CeleryError:
+            self.cleanup_file(task_args.get("file_path", ""))
             return {
                 "ok": False,
                 "message": "Dịch vụ xử lý nền hiện không khả dụng. Vui lòng thử lại sau.",

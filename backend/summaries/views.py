@@ -22,12 +22,12 @@ from .batch import create_batch_from_urls, create_batch_from_zip
 from .exports import export_summary
 from .forms import LoginForm, RegisterForm, SettingsForm, SummaryRequestForm
 from .middleware import get_client_ip
-from .models import Document, Summary
+from .models import Document, Summary, UserSetting
 from .sharing import generate_share_token, get_shared_summary
+from .signing import resolve_user_api_key
 from .webhooks import WebhookRegistration, validate_webhook_url
 
 PAGE_SIZE = 12
-MAX_FILE_SIZE = 10 * 1024 * 1024
 logger = logging.getLogger(__name__)
 
 
@@ -219,7 +219,7 @@ class HistoryDetailView(LoginRequiredMixin, View):
 
 @login_required
 def settings_view(request: HttpRequest) -> HttpResponse:
-    setting, _ = request.user.setting.__class__.objects.get_or_create(user=request.user)
+    setting, _ = UserSetting.objects.get_or_create(user=request.user)
 
     if request.method == "POST":
         form = SettingsForm(request.POST)
@@ -321,7 +321,10 @@ def export_summary_view(request: HttpRequest, pk: int, format: str) -> HttpRespo
 @require_POST
 def batch_summarize_zip(request: HttpRequest) -> JsonResponse:
     """Process multiple files from a ZIP archive."""
-    form = SummaryRequestForm(request.POST, request.FILES)
+    files = request.FILES.copy()
+    if "upload" not in files and files.get("zip_file"):
+        files["upload"] = files["zip_file"]
+    form = SummaryRequestForm(request.POST, files)
     if not form.is_valid():
         return JsonResponse({"ok": False, "errors": _serialize_form_errors(form)}, status=400)
 
@@ -335,11 +338,7 @@ def batch_summarize_zip(request: HttpRequest) -> JsonResponse:
         )
 
     if method == "gemini":
-        user_api_key = ""
-        if hasattr(request.user, "setting") and request.user.setting.gemini_api_key:
-            from .signing import decrypt_value
-
-            user_api_key = decrypt_value(request.user.setting.gemini_api_key)
+        user_api_key = resolve_user_api_key(request.user)
         if not user_api_key and not getattr(settings, "GEMINI_API_KEY", ""):
             msg = "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."
             return JsonResponse({"ok": False, "message": msg}, status=400)
@@ -372,11 +371,7 @@ def batch_summarize_urls(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"ok": False, "message": "Method hoặc ratio không hợp lệ."}, status=400)
 
     if method == "gemini":
-        user_api_key = ""
-        if hasattr(request.user, "setting") and request.user.setting.gemini_api_key:
-            from .signing import decrypt_value
-
-            user_api_key = decrypt_value(request.user.setting.gemini_api_key)
+        user_api_key = resolve_user_api_key(request.user)
         if not user_api_key and not getattr(settings, "GEMINI_API_KEY", ""):
             msg = "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."
             return JsonResponse({"ok": False, "message": msg}, status=400)

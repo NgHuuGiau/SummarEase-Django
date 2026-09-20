@@ -37,3 +37,10 @@ def decrypt_value(encrypted: str) -> str:
         return _get_fernet().decrypt(encrypted.encode()).decode()
     except InvalidToken:
         return encrypted
+
+
+def resolve_user_api_key(user) -> str:
+    """Return the user's decrypted personal Gemini key, or "" when unset."""
+    if hasattr(user, "setting") and user.setting.gemini_api_key:
+        return decrypt_value(user.setting.gemini_api_key)
+    return ""

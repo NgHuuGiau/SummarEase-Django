@@ -44,8 +44,6 @@ class RateLimitMiddleware(MiddlewareMixin):
         return path.startswith("/api/") or path == "/create-summary/"
 
     def _check_limit(self, request):
-        from django.conf import settings
-
         ip = self._get_client_ip(request)
         path = request.path
         user_id = getattr(getattr(request, "user", None), "pk", None) or "anonymous"
@@ -75,9 +73,13 @@ class RateLimitMiddleware(MiddlewareMixin):
     def _is_trusted_proxy(address):
         try:
             parsed_address = ipaddress.ip_address(address)
-            return any(
-                parsed_address in ipaddress.ip_network(network, strict=False)
-                for network in settings.TRUSTED_PROXY_IPS
-            )
         except ValueError:
             return False
+        for network in settings.TRUSTED_PROXY_IPS:
+            try:
+                parsed_network = ipaddress.ip_network(network, strict=False)
+            except ValueError:
+                continue
+            if parsed_address in parsed_network:
+                return True
+        return False

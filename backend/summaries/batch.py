@@ -10,9 +10,7 @@ from uuid import uuid4
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from .nlp import gemini_summarize, textrank_summarize
-from .nlp_utils import detect_language
-from .persistence import persist_summary
+from .persistence import summarize_and_persist
 from .readers import extract_text
 
 logger = logging.getLogger(__name__)
@@ -95,16 +93,14 @@ def create_batch_from_zip(
                         continue
 
                     # Create summary using existing task (synchronously for batch)
-                    language = detect_language(original_text)
-                    if method == "gemini":
-                        result = gemini_summarize(
-                            original_text, ratio=ratio, language=language, user_api_key=user_api_key
-                        )
-                    else:
-                        result = textrank_summarize(original_text, ratio=ratio, language=language)
-
-                    summary = persist_summary(
-                        user, "file", name, original_text, method, ratio, result
+                    summary, result = summarize_and_persist(
+                        user,
+                        "file",
+                        name,
+                        original_text,
+                        method,
+                        ratio,
+                        user_api_key=user_api_key,
                     )
 
                     results.append(
@@ -169,15 +165,9 @@ def create_batch_from_urls(
                 errors.append("Không trích xuất được nội dung từ URL đã cung cấp.")
                 continue
 
-            language = detect_language(original_text)
-            if method == "gemini":
-                result = gemini_summarize(
-                    original_text, ratio=ratio, language=language, user_api_key=user_api_key
-                )
-            else:
-                result = textrank_summarize(original_text, ratio=ratio, language=language)
-
-            summary = persist_summary(user, "url", url, original_text, method, ratio, result)
+            summary, result = summarize_and_persist(
+                user, "url", url, original_text, method, ratio, user_api_key=user_api_key
+            )
 
             results.append(
                 {

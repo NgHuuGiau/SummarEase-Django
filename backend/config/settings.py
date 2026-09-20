@@ -129,27 +129,19 @@ elif db_engine == "sqlserver":
             f"TrustServerCertificate={'yes' if trust_server_certificate else 'no'};Encrypt=yes"
         ),
     }
+    db_config = {
+        "ENGINE": "mssql",
+        "NAME": os.getenv("DB_NAME", "SummarEase_Django"),
+        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+        "PORT": os.getenv("DB_PORT", "1433"),
+        "CONN_MAX_AGE": 3600,
+        "OPTIONS": db_options,
+    }
     if os.getenv("DB_USE_WINDOWS_AUTH", "").lower() == "true":
         db_options["extra_params"] += ";Trusted_Connection=yes"
-        db_config = {
-            "ENGINE": "mssql",
-            "NAME": os.getenv("DB_NAME", "SummarEase_Django"),
-            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
-            "PORT": os.getenv("DB_PORT", "1433"),
-            "CONN_MAX_AGE": 3600,
-            "OPTIONS": db_options,
-        }
     else:
-        db_config = {
-            "ENGINE": "mssql",
-            "NAME": os.getenv("DB_NAME", "SummarEase_Django"),
-            "USER": os.getenv("DB_USER", "sa"),
-            "PASSWORD": os.getenv("DB_PASSWORD", ""),
-            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
-            "PORT": os.getenv("DB_PORT", "1433"),
-            "CONN_MAX_AGE": 3600,
-            "OPTIONS": db_options,
-        }
+        db_config["USER"] = os.getenv("DB_USER", "sa")
+        db_config["PASSWORD"] = os.getenv("DB_PASSWORD", "")
     DATABASES = {"default": db_config}
 else:
     DATABASES = {

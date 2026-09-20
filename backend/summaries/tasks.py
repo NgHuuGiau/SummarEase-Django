@@ -16,16 +16,13 @@ from django.utils import timezone
 
 from .metrics import summary_created, summary_failed
 from .models import _cleanup_uploaded_file
-from .nlp import TextTooLargeError, gemini_summarize, textrank_summarize
-from .nlp_utils import detect_language
-from .persistence import persist_summary
+from .nlp import TextTooLargeError
+from .persistence import summarize_and_persist
 from .readers import TransientNetworkError, extract_text
 
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
-
-MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
 @shared_task
@@ -197,22 +194,14 @@ def process_summary_task(
         if not original_text.strip():
             raise ValueError("Không thể trích xuất nội dung từ nguồn đã chọn.")
 
-        language = detect_language(original_text)
-        if method == "gemini":
-            result = gemini_summarize(
-                original_text, ratio=ratio, language=language, user_api_key=user_api_key
-            )
-        else:
-            result = textrank_summarize(original_text, ratio=ratio, language=language)
-
-        summary = persist_summary(
+        summary, result = summarize_and_persist(
             user,
             source_type,
             source_name,
             original_text,
             method,
             ratio,
-            result,
+            user_api_key=user_api_key,
             uploaded_file=stored_file_name,
         )
 

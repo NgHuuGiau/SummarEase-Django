@@ -71,17 +71,6 @@ ENGLISH_HINTS = {
 STOP_WORDS_PATH = Path(__file__).resolve().parent / "stopwords.txt"
 
 
-class RegexTokenizer:
-    def to_sentences(self, text: str) -> list[str]:
-        return split_sentences(text)
-
-    def to_words(self, sentence: str) -> list[str]:
-        return split_words(sentence)
-
-
-_TOKENIZER = RegexTokenizer()
-
-
 def normalize_text(text: str) -> str:
     text = re.sub(r"[\r\n]+", " ", text)
     text = re.sub(r"[ \t]+", " ", text)
