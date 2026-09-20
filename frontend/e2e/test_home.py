@@ -52,7 +52,27 @@ class TestHomePage:
                 return entries.flat().map(request => new URL(request.url).pathname);
             }"""
         )
-        assert cached_urls
+        # TEMP-DIAG: capture browser SW state when cache is unexpectedly empty
+        # (CI-only flake investigation; will be reverted after root cause fix).
+        if not cached_urls:
+            state = page.evaluate(
+                """async () => {
+                    const keys = await caches.keys();
+                    let reg_state = 'none';
+                    try {
+                        const reg = await navigator.serviceWorker.getRegistration();
+                        reg_state = reg && reg.active ? reg.active.state
+                            : reg && reg.installing ? 'installing'
+                            : reg && reg.waiting ? 'waiting' : 'no-worker';
+                    } catch (e) { reg_state = 'ERR:' + e; }
+                    return {
+                        all_keys: keys,
+                        controller: !!navigator.serviceWorker.controller,
+                        reg_state: reg_state,
+                    };
+                }"""
+            )
+            raise AssertionError(f"empty SW cache, browser state: {state!r}")
         assert all(path.startswith("/static/") for path in cached_urls)
 
     @pytest.mark.parametrize("width,height", [(375, 812), (768, 1024), (1280, 800)])
