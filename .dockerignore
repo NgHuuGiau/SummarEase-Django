@@ -19,5 +19,3 @@ docs/
 scripts/
 *.md
 LICENSE
-docker/Dockerfile-mysql
-docker/docker-compose.yml

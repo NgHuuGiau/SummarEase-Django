@@ -1,0 +1,144 @@
+# Development override - thêm DB local cho phát triển
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: summarease_postgres
+    environment:
+      POSTGRES_DB: summarease
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d summarease"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    container_name: summarease_mysql
+    environment:
+      MYSQL_DATABASE: summarease
+      MYSQL_USER: summarease
+      MYSQL_PASSWORD: summarease
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: summarease_redis
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - "devpassword"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=devpassword redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build: .
+    container_name: summarease_web
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env.example
+    environment:
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
+      DB_ENGINE: postgres
+      DB_NAME: summarease
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: "redis://:devpassword@redis:6379/0"
+      GEMINI_API_KEY: ""  # Thêm key thật nếu cần test Gemini
+    volumes:
+      - media_data:/app/backend/media
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+    command: >
+      sh -c "python manage.py setup &&
+             python manage.py runserver 0.0.0.0:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery:
+    build: .
+    container_name: summarease_celery
+    env_file:
+      - backend/.env.example
+    environment:
+      DJANGO_DEBUG: "True"
+      DB_ENGINE: postgres
+      DB_NAME: summarease
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: "redis://:devpassword@redis:6379/0"
+    volumes:
+      - media_data:/app/backend/media
+      - ./backend:/app/backend
+    command: celery -A config worker -l INFO --concurrency=2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-beat:
+    build: .
+    container_name: summarease_beat
+    env_file:
+      - backend/.env.example
+    environment:
+      DJANGO_DEBUG: "True"
+      DB_ENGINE: postgres
+      DB_NAME: summarease
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_URL: "redis://:devpassword@redis:6379/0"
+    volumes:
+      - ./backend:/app/backend
+    command: celery -A config beat -l INFO --schedule /tmp/celerybeat-schedule
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  media_data:
+  postgres_data:
+  mysql_data:
+  redis_data:
