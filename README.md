@@ -17,8 +17,8 @@ Snapshot kiểm thử ngày **18/09/2026**:
 | Python | 3.10–3.13 trong CI |
 | Bộ tóm tắt | TextRank tích hợp; Gemini là tùy chọn |
 | Đầu vào | Văn bản, URL, PDF, DOCX, EPUB, TXT và Markdown |
-| Kiểm thử backend | 239 bài đạt; độ bao phủ khoảng 82% (không tính tệp kiểm thử) |
-| Kiểm thử giao diện E2E | 19 bài đạt cục bộ trên Chromium |
+| Kiểm thử backend | 304 bài đạt; độ bao phủ 91,5% (không tính tệp kiểm thử) |
+| Kiểm thử giao diện E2E | 20 bài đạt cục bộ trên Chromium |
 | Cơ sở dữ liệu / hạ tầng | SQLite cho phát triển; CI kiểm tra MySQL, SQL Server và Docker build |
 
 > Đây là kết quả kiểm thử cục bộ ngày 18/09/2026, không phải cam kết trạng thái CI hiện tại. Huy hiệu CI/CodeQL phía trên phản ánh trạng thái mới nhất trên GitHub. Trên máy Windows, một số kiểm thử tạo PDF có thể bỏ qua nếu thiếu Pango; luồng PDF được kiểm tra trên môi trường Linux của CI.
@@ -118,7 +118,7 @@ Lưu kết quả và lịch sử ──► xem / chia sẻ / xuất tệp
     └── tác vụ nền, Redis/Celery và webhook (khi được bật/cấu hình)
 ```
 
-SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấu hình triển khai có thể dùng MySQL hoặc SQL Server. Docker Compose cung cấp ứng dụng, Redis, Celery worker và Celery beat; cơ sở dữ liệu được cấu hình bên ngoài, không phải một container DB mặc định trong Compose.
+SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấu hình triển khai có thể dùng MySQL, SQL Server hoặc Postgres (Postgres là tuỳ chọn và bật full-text search thật; xem [kiến trúc](docs/architecture.md)). Docker Compose cung cấp ứng dụng, Redis, Celery worker và Celery beat; cơ sở dữ liệu được cấu hình bên ngoài, không phải một container DB mặc định trong Compose.
 
 ## Điểm vào và cấu trúc dự án
 
@@ -127,7 +127,7 @@ SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấ
 | Lệnh quản lý Django | `manage.py` |
 | Cấu hình ứng dụng | `backend/config/` |
 | Tính năng tóm tắt và API | `backend/summaries/` |
-| Kiểm thử backend theo domain | `backend/summaries/tests.py` |
+| Kiểm thử backend theo domain | `backend/summaries/test_*.py` |
 | Giao diện, CSS và JavaScript | `frontend/` |
 | Kiểm thử trình duyệt Playwright | `frontend/e2e/` |
 | Script chạy HTTPS phát triển trên Windows | `scripts/run-dev.ps1` |
@@ -151,9 +151,10 @@ Các kiểm tra cơ bản:
 ```bash
 python manage.py check
 python manage.py makemigrations --check --dry-run
-python -m pytest backend/summaries/tests.py -q
+python -m pytest backend -q
 ruff check backend manage.py
 ruff format --check backend manage.py
+mypy
 ```
 
 ### Kiểm thử giao diện E2E
@@ -202,6 +203,18 @@ Compose không tự cung cấp TLS hoặc máy chủ MySQL/SQL Server. Khi tri�
 - [Đóng góp và phát triển](docs/CONTRIBUTING.md)
 - [Chính sách bảo mật](docs/SECURITY.md)
 - [Giấy phép MIT](LICENSE)
+
+## Hạn chế & Kết quả kiểm thử bổ sung
+
+| Chủ đề | File / Link | Mô tả |
+|---|---|---|
+| Load test (Locust) | `loadtest-report.html` | 1.848 requests, 6.18 req/s, p95 10ms, failure 1.73% |
+| Benchmark TextRank vs Gemini | `loadtest/benchmark.py` | ROUGE-1/2/L, latency, memory trên 15 mẫu VN |
+| Security audit | `docs/production.md` §8 | pip-audit: 0 CVE Critical/High; CodeQL: 0 findings |
+| Grafana dashboard | `monitoring/grafana-dashboard.json` | 10 panels: error rate, latency p50/95/99, request rate, Celery queue, webhook, system, cache |
+| SBOM (CycloneDX) | `sbom.json` | 378 components, full license/hash |
+| ERD & Data Dictionary | `docs/architecture.md` | Mermaid ERD + 8 tables x 40+ columns |
+| Demo data seeding | `manage.py seed_demo` | Tạo user demo + 3 doc + 3 summary + 12 tags |
 
 ---
 

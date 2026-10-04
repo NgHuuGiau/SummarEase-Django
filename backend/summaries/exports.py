@@ -55,7 +55,9 @@ def export_markdown(summary) -> HttpResponse:
 {chr(10).join(f"{i}. {s.sentence_text}" for i, s in enumerate(summary.sentences.all(), 1))}
 """
     response = HttpResponse(md_content, content_type="text/markdown; charset=utf-8")
-    response["Content-Disposition"] = content_disposition_header(True, f"{summary.title[:50]}.md")
+    response["Content-Disposition"] = (
+        content_disposition_header(True, f"{summary.title[:50]}.md") or ""
+    )
     return response
 
 
@@ -105,7 +107,9 @@ def export_docx(summary) -> HttpResponse:
         buffer.getvalue(),
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
-    response["Content-Disposition"] = content_disposition_header(True, f"{summary.title[:50]}.docx")
+    response["Content-Disposition"] = (
+        content_disposition_header(True, f"{summary.title[:50]}.docx") or ""
+    )
     return response
 
 
@@ -130,7 +134,9 @@ def export_pdf(summary) -> HttpResponse:
     pdf_file.seek(0)
 
     response = HttpResponse(pdf_file.getvalue(), content_type="application/pdf")
-    response["Content-Disposition"] = content_disposition_header(True, f"{summary.title[:50]}.pdf")
+    response["Content-Disposition"] = (
+        content_disposition_header(True, f"{summary.title[:50]}.pdf") or ""
+    )
     return response
 
 

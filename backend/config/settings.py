@@ -143,6 +143,21 @@ elif db_engine == "sqlserver":
         db_config["USER"] = os.getenv("DB_USER", "sa")
         db_config["PASSWORD"] = os.getenv("DB_PASSWORD", "")
     DATABASES = {"default": db_config}
+elif db_engine == "postgres":
+    # Postgres là lựa chọn tuỳ chọn: bật full-text search thật (SearchVectorField).
+    # Không có job CI nào chạy backend này — xem docs/architecture.md.
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME", "summarease"),
+            "USER": os.getenv("DB_USER", "postgres"),
+            "PASSWORD": os.getenv("DB_PASSWORD", ""),
+            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+            "CONN_MAX_AGE": 600,
+            "OPTIONS": {"connect_timeout": 10},
+        }
+    }
 else:
     DATABASES = {
         "default": {
@@ -157,7 +172,8 @@ else:
 
 LANGUAGE_CODE = "vi"
 TIME_ZONE = "Asia/Ho_Chi_Minh"
-USE_I18N = True
+# USE_I18N = False  # Không dùng i18n (không có locale files);
+# LANGUAGE_CODE chỉ dùng cho format ngày/giờ
 USE_TZ = True
 
 # ── Static files ────────────────────────────────────
@@ -257,6 +273,9 @@ SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 ENABLE_FULLTEXT_SEARCH = os.getenv("ENABLE_FULLTEXT_SEARCH", "true").lower() == "true"
 if os.getenv("DJANGO_TEST") == "1":
     ENABLE_FULLTEXT_SEARCH = False
+# Quyết định ở cấu hình, không đọc connection.vendor lúc import module, để
+# trường model không phụ thuộc database nào được kết nối trước.
+USE_POSTGRES_SEARCH = db_engine == "postgres" and ENABLE_FULLTEXT_SEARCH
 
 # ── Celery ─────────────────────────────────────────────
 # Test mode: use eager (synchronous) execution

@@ -2,20 +2,23 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.db import connection, models
+from django.db import models
 
-# Conditional import for PostgreSQL full-text search
-HAS_POSTGRES_SEARCH = (
-    getattr(settings, "ENABLE_FULLTEXT_SEARCH", True) and connection.vendor == "postgresql"
-)
-if HAS_POSTGRES_SEARCH:
+
+# Kiểu trường full-text search tùy database. Quyết định đến từ settings
+# (USE_POSTGRES_SEARCH) chứ không phải connection.vendor: đọc connection lúc import
+# khiến schema phụ thuộc database nào được mở trước.
+def _load_search_vector_field() -> type[models.Field] | None:
     try:
         from django.contrib.postgres.search import SearchVectorField
     except ImportError:
-        SearchVectorField = None
-        HAS_POSTGRES_SEARCH = False
-else:
-    SearchVectorField = None
+        return None
+    return SearchVectorField
+
+
+HAS_POSTGRES_SEARCH = getattr(settings, "USE_POSTGRES_SEARCH", False)
+_search_vector_field = _load_search_vector_field() if HAS_POSTGRES_SEARCH else None
+HAS_POSTGRES_SEARCH = HAS_POSTGRES_SEARCH and _search_vector_field is not None
 
 
 def _cleanup_uploaded_file(file_path: str) -> None:
@@ -136,8 +139,8 @@ class Summary(models.Model):
     tags = models.ManyToManyField(Tag, blank=True, related_name="summaries")
 
     # Full-text search vector (PostgreSQL uses SearchVectorField, SQLite uses TextField)
-    if HAS_POSTGRES_SEARCH and SearchVectorField:
-        search_vector = SearchVectorField(null=True, editable=False)
+    if HAS_POSTGRES_SEARCH and _search_vector_field is not None:
+        search_vector = _search_vector_field(null=True, editable=False)
     else:
         # SQLite fallback: simple text field for compatibility
         search_vector = models.TextField(null=True, blank=True, editable=False)
@@ -147,7 +150,7 @@ class Summary(models.Model):
         indexes = [
             models.Index(fields=["user", "-created_at"]),
         ]
-        if HAS_POSTGRES_SEARCH and SearchVectorField:
+        if HAS_POSTGRES_SEARCH and _search_vector_field is not None:
             indexes.append(models.Index(fields=["search_vector"]))
 
     def __str__(self) -> str:
@@ -159,7 +162,7 @@ class Summary(models.Model):
         summaries = cls.objects.all()
         if user is not None:
             summaries = summaries.filter(user=user)
-        if not HAS_POSTGRES_SEARCH or connection.vendor != "postgresql":
+        if not HAS_POSTGRES_SEARCH:
             # SQLite fallback: simple icontains search
             return summaries.filter(
                 models.Q(title__icontains=query) | models.Q(summary_text__icontains=query)
