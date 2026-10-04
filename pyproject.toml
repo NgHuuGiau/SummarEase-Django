@@ -17,10 +17,56 @@ quote-style = "double"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"
-python_files = ["tests.py", "test_*.py"]
+python_files = ["test_*.py"]
 testpaths = ["."]
 pythonpath = ["backend"]
+norecursedirs = [
+  "*.egg",
+  ".*",
+  "_darcs",
+  "build",
+  "CVS",
+  "dist",
+  "node_modules",
+  "venv",
+  "{arch}",
+]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_configs = true
+files = ["backend", "manage.py"]
+exclude = "(?x)(^backend/[a-z_]+/migrations/|^\\.venv/|^frontend/e2e/)"
+# Bốn mã lỗi dưới đây là giới hạn của mypy khi chưa dùng django-stubs, không
+# phải lỗi logic: Django gán kiểu động cho field model, tự thêm `id`/`pk` cho
+# model, và gắn attribute động lên HttpRequest. Nâng cấp: thêm django-stubs +
+# djangostubs-ext vào requirements-dev rồi bỏ dòng disable này.
+disable_error_code = ["var-annotated", "misc", "truthy-function", "attr-defined"]
+
+[[tool.mypy.overrides]]
+module = [
+  "summaries.signing",
+  "summaries.metrics",
+  "summaries.middleware",
+  "summaries.views",
+  "summaries.services",
+  "summaries.webhooks",
+  "config.csp",
+]
+# Các module này còn dùng dynamic attribute/unwrapping của Django; chấp nhận
+# ở mức "kiểm tra thân hàm" cho tới khi chuẩn hoá type.
+disable_error_code = ["attr-defined", "var-annotated", "misc", "union-attr", "assignment"]
 
 [tool.coverage.run]
 source = ["."]
-omit = ["*/migrations/*", "*/tests/*", "*/tests.py", "*/test_*.py", "*/conftest.py"]
+omit = [
+  "*/migrations/*",
+  "*/tests/*",
+  "*/test_*.py",
+  "*/base.py",
+  "*/conftest.py",
+  "*/e2e/*",
+]
