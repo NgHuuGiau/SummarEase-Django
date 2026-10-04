@@ -67,15 +67,7 @@ jobs:
           pip install mypy
 
       - name: Run mypy
-        run: >-
-          mypy backend manage.py --ignore-missing-imports --no-error-summary
-          --follow-imports=skip
-          --disable-error-code attr-defined
-          --disable-error-code var-annotated
-          --disable-error-code misc
-          --disable-error-code truthy-function
-          --disable-error-code assignment
-          --disable-error-code union-attr
+        run: mypy --no-error-summary
 
   security:
     name: Security Scan (pip-audit)
@@ -149,7 +141,7 @@ jobs:
           PYTHONPATH: backend
           DJANGO_ALLOWED_HOSTS: '*'
         run: |
-          python -m pytest backend/summaries/tests.py -q \
+          python -m pytest backend -q \
             --cov-config=pyproject.toml --cov=backend \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
@@ -219,39 +211,36 @@ jobs:
         run: |
           python manage.py check
           python manage.py makemigrations --check --dry-run
-          python -m pytest backend/summaries/tests.py -q -k WebhookSecurityTests --tb=short
+          python -m pytest backend -q -k WebhookSecurityTests --tb=short
 
-  sqlserver_integration:
-    name: SQL Server Integration
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
+  postgresql_integration:
+    name: PostgreSQL Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-latest
+      postgres:
+        image: postgres:16
         env:
-          ACCEPT_EULA: Y
-          MSSQL_SA_PASSWORD: "Ci_only_Passw0rd!2026"
+          POSTGRES_DB: summarease
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-password
         ports:
-          - 1433:1433
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready --host=127.0.0.1 --username=postgres --dbname=summarease"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     env:
-      DB_ENGINE: sqlserver
-      DB_NAME: SummarEase_CI
-      DB_USER: sa
-      DB_PASSWORD: "Ci_only_Passw0rd!2026"
+      DB_ENGINE: postgres
+      DB_NAME: summarease
+      DB_USER: postgres
+      DB_PASSWORD: ci-postgres-password
       DB_HOST: 127.0.0.1
-      DB_PORT: '1433'
-      DB_DRIVER: ODBC Driver 18 for SQL Server
-      DB_TRUST_SERVER_CERTIFICATE: 'true'
+      DB_PORT: '5432'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install Microsoft ODBC Driver 18
-        run: |
-          curl -fsSLo /tmp/packages-microsoft-prod.deb https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
-          sudo dpkg -i /tmp/packages-microsoft-prod.deb
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -265,37 +254,30 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Wait for SQL Server and create test database
-        run: |
-          python - <<'PY'
-          import time
-          import pyodbc
-
-          connection_string = (
-              "DRIVER={ODBC Driver 18 for SQL Server};"
-              "SERVER=127.0.0.1,1433;UID=sa;PWD=Ci_only_Passw0rd!2026;"
-              "Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=5"
-          )
-          for attempt in range(90):
-              try:
-                  connection = pyodbc.connect(connection_string, autocommit=True)
-                  break
-              except pyodbc.Error:
-                  if attempt == 89:
-                      raise
-                  time.sleep(2)
-          cursor = connection.cursor()
-          cursor.execute("IF DB_ID(N'SummarEase_CI') IS NULL CREATE DATABASE [SummarEase_CI]")
-          connection.close()
-          PY
-
-      - name: Check migrations and webhook integration on SQL Server
+      - name: Check migrations and webhook integration on PostgreSQL
         env:
           PYTHONPATH: backend
         run: |
           python manage.py check
           python manage.py makemigrations --check --dry-run
-          python -m pytest backend/summaries/tests.py -q -k WebhookSecurityTests --tb=short
+          python -m pytest backend -q -k WebhookSecurityTests --tb=short
+
+      - name: Benchmark TextRank on PostgreSQL
+        env:
+          PYTHONPATH: backend
+        run: |
+          pip install rouge-score==0.1.2
+          python manage.py evaluate --ratio 0.3 --output benchmark-pg.json
+          echo "### PostgreSQL Benchmark Results" >> "$GITHUB_STEP_SUMMARY"
+          cat benchmark-pg.json | python -c "
+import json, sys
+d = json.load(sys.stdin)
+print('| Method | ROUGE-1 | ROUGE-2 | ROUGE-L | Latency (ms) |')
+print('|---|---:|---:|---:|---:|')
+for k, v in d['results'].items():
+    if 'rouge' in v:
+        print(f\"| {k} | {v['rouge']['rouge1']:.3f} | {v['rouge']['rouge2']:.3f} | {v['rouge']['rougeL']:.3f} | {v.get('avg_latency_ms', 'N/A')} |\")
+          "
 
   frontend_lint:
     name: Frontend Lint
@@ -442,7 +424,7 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, typecheck, security, test, mysql_integration, sqlserver_integration, e2e, frontend_lint, build]
+    needs: [lint, typecheck, security, test, mysql_integration, postgresql_integration, e2e, frontend_lint, build]
     steps:
       - name: Collect results
         run: |
@@ -455,7 +437,7 @@ jobs:
           echo "| Security Scan | ${{ needs.security.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Django Tests | ${{ needs.test.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| MySQL Integration | ${{ needs.mysql_integration.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| SQL Server Integration | ${{ needs.sqlserver_integration.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PostgreSQL Integration | ${{ needs.postgresql_integration.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| E2E Tests | ${{ needs.e2e.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Frontend Lint | ${{ needs.frontend_lint.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build Verification | ${{ needs.build.result }} |" >> "$GITHUB_STEP_SUMMARY"
