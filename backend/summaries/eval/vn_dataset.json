@@ -1,0 +1,77 @@
+[
+  {
+    "id": "vn_01",
+    "source": "Django là một khung làm việc web cấp cao viết bằng Python, khuyến khích phát triển nhanh chóng và thiết kế sạch sẽ, thực tế. Được xây dựng bởi các nhà phát triển có kinh nghiệm, Django lo gánh nặng của việc phát triển web để bạn có thể tập trung vào viết ứng dụng của mình mà không cần phát minh lại bánh xe. Nó miễn phí và nguồn mở.",
+    "reference": "Django là framework web Python cấp cao, hỗ trợ phát triển nhanh, thiết kế sạch, miễn phí và mã nguồn mở."
+  },
+  {
+    "id": "vn_02",
+    "source": "TextRank là thuật toán xếp hạng dựa trên đồ thị dùng cho tóm tắt văn bản. Nó xây dựng đồ thị các câu, trong đó mỗi câu là một nút, và cạnh giữa các nút đại diện cho độ tương đồng. Thuật toán sau đó áp dụng PageRank để tính điểm quan trọng cho mỗi câu. Các câu có điểm cao nhất được chọn để tạo bản tóm tắt. TextRank không cần dữ liệu huấn luyện và chạy nhanh.",
+    "reference": "TextRank dùng đồ thị và PageRank để xếp hạng câu theo độ quan trọng, không cần huấn luyện, chạy nhanh."
+  },
+  {
+    "id": "vn_03",
+    "source": "Trí tuệ nhân tạo đang thay đổi cách chúng ta làm việc và sống. Từ xe tự lái đến trợ lý ảo, AI xuất hiện khắp nơi. Tuy nhiên, AI cũng đặt ra thách thức về đạo đức, việc làm và quyền riêng tư. Cần có quy định rõ ràng để đảm bảo AI phát triển có trách nhiệm và mang lại lợi ích cho toàn xã hội, không chỉ một nhóm nhỏ.",
+    "reference": "AI thay đổi đời sống nhưng đặt ra thách thức đạo đức, việc làm, riêng tư; cần quy định để phát triển có trách nhiệm."
+  },
+  {
+    "id": "vn_04",
+    "source": "Biến đổi khí hậu là một trong những thách thức lớn nhất của thời đại. Nhiệt độ toàn cầu tăng, băng tan, mực nước biển dâng. Nguyên nhân chính là phát thải khí nhà kính từ việc đốt nhiên liệu hóa thạch. Chuyển đổi sang năng lượng tái tạo, tiết kiệm năng lượng và bảo vệ rừng là các giải pháp then chốt. Mỗi cá nhân cũng có thể đóng góp bằng cách thay đổi lối sống.",
+    "reference": "Biến đổi khí hậu do khí nhà kính; giải pháp: năng lượng tái tạo, tiết kiệm, bảo vệ rừng, thay đổi lối sống."
+  },
+  {
+    "id": "vn_05",
+    "source": "Python là ngôn ngữ lập trình phổ biến nhờ cú pháp dễ đọc, cộng đồng lớn và thư viện phong phú. Dùng cho web, dữ liệu, AI, tự động hóa. Cú pháp Python gần ngôn ngữ tự nhiên giúp người mới học nhanh. Hệ sinh thái package (PyPI) có hơn 300 nghìn gói. Python 3 là hiện tại, Python 2 đã ngừng hỗ trợ.",
+    "reference": "Python phổ biến nhờ cú pháp dễ, cộng đồng lớn, thư viện nhiều; dùng cho web, data, AI; Python 3 là hiện tại."
+  },
+  {
+    "id": "vn_06",
+    "source": "Học máy (Machine Learning) là nhánh của AI cho phép máy tính học từ dữ liệu mà không cần lập trình tường minh. Ba loại chính: học có giám sát (dữ liệu có nhãn), học không giám sát (tìm mẫu), học củng cố (thử và sai). Ứng dụng: nhận diện ảnh, dự đoán giá, gợi ý, lọc spam. Mô hình phổ biến: hồi quy, cây quyết định, mạng nơ-ron.",
+    "reference": "Học máy cho máy tính học từ dữ liệu; 3 loại: có giám sát, không giám sát, củng cố; ứng dụng rộng."
+  },
+  {
+    "id": "vn_07",
+    "source": "An ninh mạng ngày càng quan trọng khi mọi thứ đều kết nối internet. Tấn công phổ biến: lừa đảo (phishing), mã độc tống tiền (ransomware), từ chối dịch vụ (DDoS), khai thác lỗ hổng. Biện pháp: mật khẩu mạnh, xác thực 2 yếu tố, cập nhật phần mềm, sao lưu dữ liệu, đào tạo nhân viên. Đầu tư an ninh là bắt buộc, không tùy chọn.",
+    "reference": "An ninh mạng quan trọng; tấn công: phishing, ransomware, DDoS; phòng: mật khẩu mạnh, 2FA, cập nhật, sao lưu."
+  },
+  {
+    "id": "vn_08",
+    "source": "Cơ sở dữ liệu quan hệ (SQL) dùng bảng, hàng, cột, khóa chính/ngoại để đảm bảo tính toàn vẹn. ACID: atomicity, consistency, isolation, durability. Phổ biến: PostgreSQL, MySQL, SQL Server. NoSQL (MongoDB, Redis) linh hoạt hơn cho dữ liệu phi cấu trúc, mở rộng ngang. Chọn SQL khi cần tính nhất quán mạnh, giao dịch phức tạp; chọn NoSQL khi dữ liệu thay đổi liên tục, quy mô lớn.",
+    "reference": "SQL dùng bảng, ACID, phù hợp giao dịch phức tạp; NoSQL linh hoạt, mở rộng ngang cho dữ liệu phi cấu trúc."
+  },
+  {
+    "id": "vn_09",
+    "source": "Docker là nền tảng container hóa ứng dụng, đóng gói mã và phụ thuộc vào một image nhẹ, chạy giống nhau mọi nơi. Khác máy ảo: container chia sẻ kernel host, khởi động giây, nhẹ hơn. Dockerfile định nghĩa image; docker-compose điều phối nhiều container. Dùng cho CI/CD, microservices, triển khai nhất quán. Kubernetes điều phối container ở quy mô lớn.",
+    "reference": "Docker container hóa app, nhẹ, chạy giống mọi nơi; Dockerfile build image; compose điều phối; dùng CI/CD, microservices."
+  },
+  {
+    "id": "vn_10",
+    "source": "Git là hệ thống kiểm soát phiên bản phân tán, theo dõi thay đổi mã nguồn. Khái niệm: repository, commit, branch, merge, pull request. Quy trình: clone, tạo branch, commit, push, tạo PR, review, merge. GitHub/GitLab/Bitbucket cung cấp remote hosting. Git giúp làm việc nhóm, rollback, thử nghiệm an toàn. Lệnh cơ bản: init, add, commit, push, pull, merge, log.",
+    "reference": "Git kiểm soát phiên bản phân tán; khái niệm: repo, commit, branch, merge, PR; quy trình: branch, commit, push, PR, review, merge."
+  },
+  {
+    "id": "vn_11",
+    "source": "REST API là kiến trúc dịch vụ web dùng HTTP method (GET, POST, PUT, PATCH, DELETE) trên resource. Nguyên tắc: stateless, cacheable, uniform interface, layered system. Endpoint: /users (GET danh sách, POST tạo), /users/{id} (GET, PUT, DELETE). Mã trạng thái: 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 404 Not Found, 500 Server Error. JSON là định dạng phổ biến.",
+    "reference": "REST API dùng HTTP method trên resource; stateless, cacheable; endpoint chuẩn; mã 200/201/400/401/404/500; JSON phổ biến."
+  },
+  {
+    "id": "vn_12",
+    "source": "Kubernetes (K8s) là nền tảng điều phối container tự động triển khai, mở rộng, quản lý ứng dụng container. Thành phần: Pod (nhỏ nhất), Service (network), Deployment (quản lý replica), Ingress (ngoài vào), ConfigMap/Secret (cấu hình). Tự chữa lành: restart pod lỗi, scale theo tải. Dùng cho microservices quy mô lớn. Học đường cong dốc nhưng mạnh.",
+    "reference": "K8s điều phối container tự động; Pod, Service, Deployment, Ingress; tự chữa lành, scale theo tải; cho microservices lớn."
+  },
+  {
+    "id": "vn_13",
+    "source": "Tóm tắt văn bản (Text Summarization) là nhiệm vụ NLP tạo bản rút gọn giữ ý chính. Hai cách: trích xuất (chọn câu gốc) và trừu tượng (viết lại). TextRank là trích xuất dựa đồ thị; BART, T5, GPT dùng transformer cho trừu tượng. Đánh giá: ROUGE (n-gram overlap), BERTScore (ngữ nghĩa). Thách thức: giữ tính chính xác, tránh幻覺, xử lý văn bản dài.",
+    "reference": "Tóm tắt văn bản: trích xuất (TextRank) hoặc trừu tượng (BART, T5, GPT); đánh giá ROUGE, BERTScore; thách thức: chính xác, tránh ảo giác."
+  },
+  {
+    "id": "vn_14",
+    "source": "DevOps là tập hợp thực tiễn kết hợp phát triển (Dev) và vận hành (Ops) để rút ngắn chu kỳ phát triển, tăng độ tin cậy. CI/CD: tích hợp liên tục (test tự động mỗi commit), triển khai liên tục (deploy tự động). Infrastructure as Code (Terraform, Ansible) quản lý hạ tầng bằng mã. Giám sát (Prometheus, Grafana) và log tập trung (ELK) phát hiện sự cố sớm. Văn hóa: hợp tác, tự động hóa, đo lường, chia sẻ.",
+    "reference": "DevOps gộp Dev + Ops; CI/CD tự động test/deploy; IaC quản lý hạ tầng bằng mã; giám sát, log tập trung; văn hóa hợp tác, tự động hóa."
+  },
+  {
+    "id": "vn_15",
+    "source": "React là thư viện JavaScript xây dựng giao diện người dùng dựa trên component. Khái niệm: component (tái sử dụng), props (dữ liệu cha->con), state (trạng thái cục bộ), hook (useState, useEffect). Virtual DOM tối ưu render. JSX cho phép viết HTML trong JS. Hệ sinh thái: Redux (state), React Router (điều hướng), Next.js (SSR). Phổ biến nhất frontend hiện nay.",
+    "reference": "React thư viện JS component-based; component, props, state, hook; Virtual DOM, JSX; hệ sinh thái Redux, Router, Next.js; phổ biến nhất frontend."
+  }
+]

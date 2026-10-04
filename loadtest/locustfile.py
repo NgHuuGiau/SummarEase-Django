@@ -134,51 +134,46 @@ class AuthenticatedUser(SummarEaseUser):
 
     def on_start(self):
         super().on_start()
+        # Use a fixed username that seed_demo creates
+        self.username = "demo"
+        self.password = "demo123456"
         self.login()
 
-    def login(self):
-        """Login as test user."""
-        # Create/register a test user first
-        username = f"loadtest_{random.randint(1000, 9999)}"
-        password = "LoadTest123!"
+    def _get_csrf_from_form(self, url):
+        """Get CSRF token from a form page."""
+        with self.client.get(url, catch_response=True) as response:
+            if response.status_code == 200:
+                import re
+                match = re.search(r'name="csrfmiddlewaretoken" value="([^"]+)"', response.text)
+                if match:
+                    return match.group(1)
+        return None
 
-        # Try to register
+    def login(self):
+        """Login as demo user (created by seed_demo)."""
+        # Get CSRF from login page
+        csrf = self._get_csrf_from_form("/login/")
+        if not csrf:
+            self.authenticated = False
+            return
+
         with self.client.post(
-            "/register/",
+            "/login/",
             data={
-                "username": username,
-                "password1": password,
-                "password2": password,
-                "csrfmiddlewaretoken": self.csrf_token or "",
+                "username": self.username,
+                "password": self.password,
+                "csrfmiddlewaretoken": csrf,
             },
-            name="Register",
+            name="Login",
             catch_response=True,
         ) as response:
             if response.status_code in (200, 302):
                 self.authenticated = True
-            elif "already exists" in response.text:
-                # User might already exist, try login
-                self.authenticated = True
+                # Update CSRF from cookies after login
+                self.csrf_token = response.cookies.get("csrftoken")
             else:
-                response.failure(f"Registration failed: {response.status_code}")
-
-        # Login
-        if self.authenticated:
-            with self.client.post(
-                "/login/",
-                data={
-                    "username": username,
-                    "password": password,
-                    "csrfmiddlewaretoken": self.csrf_token or "",
-                },
-                name="Login",
-                catch_response=True,
-            ) as response:
-                if response.status_code in (200, 302):
-                    self.authenticated = True
-                else:
-                    self.authenticated = False
-                    response.failure(f"Login failed: {response.status_code}")
+                self.authenticated = False
+                response.failure(f"Login failed: {response.status_code}")
 
     @task(10)
     def create_summary_text(self):
