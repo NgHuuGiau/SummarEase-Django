@@ -16,6 +16,7 @@ from .nlp_utils import (
     build_summary_result,
     load_stop_words,
     split_sentences,
+    split_words,
     truncate_text,
 )
 from .readers import TransientNetworkError
@@ -118,10 +119,7 @@ def _textrank_compute(
         return build_summary_result(sentences[0], language, normalized)
 
     stop_words = load_stop_words()
-    words = [
-        {word for word in sentence.lower().split() if word not in stop_words}
-        for sentence in sentences
-    ]
+    words = [{w for w in split_words(sentence) if w not in stop_words} for sentence in sentences]
     similarities = []
     for index, current in enumerate(words):
         neighbors = []
