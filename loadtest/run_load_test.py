@@ -44,11 +44,16 @@ def run_locust(
 
     cmd = [
         "locust",
-        "-f", str(locustfile),
-        "--host", host,
-        "-u", str(users),
-        "-r", str(spawn_rate),
-        "-t", duration,
+        "-f",
+        str(locustfile),
+        "--host",
+        host,
+        "-u",
+        str(users),
+        "-r",
+        str(spawn_rate),
+        "-t",
+        duration,
     ]
 
     if headless:
@@ -77,38 +82,21 @@ def run_locust(
 def main():
     parser = argparse.ArgumentParser(description="Run SummarEase load tests")
     parser.add_argument(
-        "--scenario",
-        choices=list(SCENARIOS.keys()),
-        default="steady",
-        help="Load test scenario"
+        "--scenario", choices=list(SCENARIOS.keys()), default="steady", help="Load test scenario"
     )
     parser.add_argument(
-        "--host",
-        default=os.getenv("LOCUST_HOST", "http://localhost:8000"),
-        help="Target host URL"
+        "--host", default=os.getenv("LOCUST_HOST", "http://localhost:8000"), help="Target host URL"
+    )
+    parser.add_argument("--headless", action="store_true", help="Run in headless mode (no web UI)")
+    parser.add_argument("--html-report", help="Path to save HTML report")
+    parser.add_argument(
+        "-u", "--users", type=int, help="Number of users (overrides scenario default)"
     )
     parser.add_argument(
-        "--headless",
-        action="store_true",
-        help="Run in headless mode (no web UI)"
+        "-r", "--spawn-rate", type=int, help="Spawn rate (users/second, overrides scenario default)"
     )
     parser.add_argument(
-        "--html-report",
-        help="Path to save HTML report"
-    )
-    parser.add_argument(
-        "-u", "--users",
-        type=int,
-        help="Number of users (overrides scenario default)"
-    )
-    parser.add_argument(
-        "-r", "--spawn-rate",
-        type=int,
-        help="Spawn rate (users/second, overrides scenario default)"
-    )
-    parser.add_argument(
-        "-t", "--duration",
-        help="Test duration (e.g., 5m, 30s, 1h, overrides scenario default)"
+        "-t", "--duration", help="Test duration (e.g., 5m, 30s, 1h, overrides scenario default)"
     )
 
     args = parser.parse_args()

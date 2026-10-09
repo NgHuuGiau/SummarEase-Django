@@ -20,10 +20,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# Copy source with frontend (templates/static) alongside backend and manage.py at root.
+# Django reads templates and static assets from the frontend directory.
 COPY backend ./backend
 COPY manage.py .
-COPY frontend ./frontend
+COPY frontend/templates ./frontend/templates
+COPY frontend/static ./frontend/static
 
 RUN pip install --upgrade pip && pip install -r requirements.txt \
     && python -c "import pyodbc; assert 'ODBC Driver 18 for SQL Server' in pyodbc.drivers()" \

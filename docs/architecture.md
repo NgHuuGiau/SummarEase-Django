@@ -156,8 +156,8 @@ SummarEase-Django/
 ├── backend/
 │   ├── config/                 # Settings, URLs, WSGI/ASGI, middleware
 │   ├── summaries/              # Django app, API, NLP, tasks, migrations
-│   │   ├── base.py             # Helper dùng chung cho các module kiểm thử
 │   │   └── test_*.py           # Kiểm thử backend, tách theo domain
+│   ├── api-tests/              # Request HTTP mẫu để thử API thủ công
 │   ├── sql/                    # SQLite mặc định và schema SQL Server tham khảo
 │   ├── .env.example            # Mẫu cấu hình
 │   └── conftest.py             # Cấu hình pytest
@@ -166,6 +166,8 @@ SummarEase-Django/
 │   ├── static/                 # CSS và JavaScript
 │   └── e2e/                    # Kiểm thử Playwright
 ├── scripts/                    # Script chạy HTTPS/dev trên Windows
+├── loadtest/                   # Locust, tải kiểm thử và benchmark
+├── monitoring/                 # Dashboard Grafana
 ├── docs/                       # Tài liệu hướng dẫn
 ├── Dockerfile
 ├── docker-compose.yml
@@ -203,7 +205,6 @@ Thư mục `media/`, chứng chỉ tự ký và SQLite local có thể được 
 | `backend/summaries/readers.py` | Trích xuất tài liệu/URL và kiểm tra URL |
 | `backend/summaries/nlp.py` | TextRank và tích hợp Gemini |
 | `backend/summaries/tasks.py` | Tác vụ Celery và phục hồi webhook outbox |
-| `backend/summaries/base.py` | Helper dùng chung cho các module kiểm thử |
 | `frontend/static/js/app.js` | Tương tác form, kiểm tra UX và hiển thị kết quả |
 | `scripts/run-dev.ps1` | Chạy Daphne HTTPS local trên Windows |
 | `docker-compose.yml` | Web production mẫu, Redis, Celery worker và Beat |

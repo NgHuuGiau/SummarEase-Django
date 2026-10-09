@@ -48,7 +48,6 @@ DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
 }
 
 $selectedPort = Get-FreePort -PreferredPort $Port
-$baseUrl = "http://127.0.0.1:$selectedPort/"
 
 Set-Location $projectRoot
 

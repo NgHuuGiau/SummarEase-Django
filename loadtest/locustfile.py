@@ -163,6 +163,7 @@ class AuthenticatedUser(SummarEaseUser):
         with self.client.get(url, catch_response=True) as response:
             if response.status_code == 200:
                 import re
+
                 match = re.search(r'name="csrfmiddlewaretoken" value="([^"]+)"', response.text)
                 if match:
                     return match.group(1)
@@ -211,6 +212,7 @@ class AuthenticatedUser(SummarEaseUser):
                         response.failure(f"API error: {data.get('message', 'Unknown')}")
                 except json.JSONDecodeError:
                     response.failure("Invalid JSON response")
+
 
 class AnonymousUser(SummarEaseUser):
     """Anonymous user (no authentication)."""
@@ -285,20 +287,3 @@ class SpikeUser(HttpUser):
     @task
     def burst_home(self):
         self.client.get("/", name="Burst Home")
-
-
-# Load shape for different scenarios
-class LoadShape:
-    """Define load shape for different test scenarios."""
-
-    # Steady load: 10 users, 2 spawn rate, 5 min duration
-    STEADY = {"users": 10, "spawn_rate": 2, "duration": "5m"}
-
-    # Stress test: ramp to 50 users over 2 min, hold 3 min
-    STRESS = {"users": 50, "spawn_rate": 5, "duration": "5m"}
-
-    # Spike test: quick burst to 100 users
-    SPIKE = {"users": 100, "spawn_rate": 20, "duration": "2m"}
-
-    # Soak test: 20 users for 30 min
-    SOAK = {"users": 20, "spawn_rate": 2, "duration": "30m"}

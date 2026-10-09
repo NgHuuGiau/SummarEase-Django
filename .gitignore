@@ -9,8 +9,7 @@ __pycache__/
 backend/.env
 
 backend/media/
-backend/staticfiles/*
-!backend/staticfiles/.gitkeep
+backend/staticfiles/
 backend/ssl/
 
 .pytest_cache/
@@ -21,6 +20,8 @@ htmlcov/
 coverage.xml
 test-results-*.xml
 test-results.xml
+loadtest-report.html
+stress-report.html
 *.sarif
 pip-audit-results.json
 safety-results.json

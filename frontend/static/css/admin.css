@@ -534,8 +534,7 @@ p.help,
 .quiet,
 form .aligned p.help,
 .errornote,
-ul.messagelist li,
-.admin-login-copy {
+ul.messagelist li {
     color: var(--admin-muted);
 }
 

@@ -74,7 +74,7 @@ MySQL dùng `DB_ENGINE=mysql`, `DB_NAME`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_P
 
 Script yêu cầu môi trường ảo ở `.venv`, chạy `manage.py setup`, tự chọn cổng trống từ cổng bắt đầu (mặc định 8000) đến 19 cổng tiếp theo, rồi in URL HTTPS chính xác. Trình duyệt có thể cảnh báo chứng chỉ tự ký; chỉ chấp nhận khi đang truy cập máy local.
 
-Script thay thế `scripts/run-ssl.ps1` dùng cổng 8443 mặc định và nhận tham số `-Port`, ví dụ `.scripts\run-ssl.ps1 -Port 8444`. Hai script này chỉ phục vụ phát triển, không thay thế cấu hình TLS production.
+Script thay thế `scripts/run-ssl.ps1` dùng cổng 8443 mặc định và nhận tham số `-Port`, ví dụ `.\scripts\run-ssl.ps1 -Port 8444`. Hai script này chỉ phục vụ phát triển, không thay thế cấu hình TLS production.
 
 ## Luồng demo
 

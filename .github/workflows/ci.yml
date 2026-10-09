@@ -40,7 +40,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install Ruff
-        run: pip install "ruff>=0.6"
+        run: pip install ruff==0.16.3
 
       - name: Run Ruff check
         run: ruff check backend manage.py
@@ -62,9 +62,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install mypy
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run mypy
         run: mypy --no-error-summary
@@ -266,18 +264,23 @@ jobs:
         env:
           PYTHONPATH: backend
         run: |
-          pip install rouge-score==0.1.2
           python manage.py evaluate --ratio 0.3 --output benchmark-pg.json
           echo "### PostgreSQL Benchmark Results" >> "$GITHUB_STEP_SUMMARY"
-          cat benchmark-pg.json | python -c "
-import json, sys
-d = json.load(sys.stdin)
-print('| Method | ROUGE-1 | ROUGE-2 | ROUGE-L | Latency (ms) |')
-print('|---|---:|---:|---:|---:|')
-for k, v in d['results'].items():
-    if 'rouge' in v:
-        print(f\"| {k} | {v['rouge']['rouge1']:.3f} | {v['rouge']['rouge2']:.3f} | {v['rouge']['rougeL']:.3f} | {v.get('avg_latency_ms', 'N/A')} |\")
-          "
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("benchmark-pg.json").read_text(encoding="utf-8"))
+          print("| Method | ROUGE-1 | ROUGE-2 | ROUGE-L | Latency (ms) |")
+          print("|---|---:|---:|---:|---:|")
+          for method, result in data["results"].items():
+              if "rouge" in result:
+                  scores = result["rouge"]
+                  print(
+                      f"| {method} | {scores['rouge1']:.3f} | {scores['rouge2']:.3f} "
+                      f"| {scores['rougeL']:.3f} | {result.get('avg_latency_ms', 'N/A')} |"
+                  )
+          PY
 
   frontend_lint:
     name: Frontend Lint
@@ -330,7 +333,6 @@ for k, v in d['results'].items():
           sudo apt-get update
           sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core
           pip install -r requirements.txt -r requirements-dev.txt
-          pip install pytest-playwright
           playwright install --with-deps chromium
 
       - name: Start Django server
@@ -366,7 +368,9 @@ for k, v in d['results'].items():
         with:
           python-version: '3.12'
           cache: 'pip'
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt

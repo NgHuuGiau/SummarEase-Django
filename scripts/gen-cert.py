@@ -1,4 +1,6 @@
 """Tạo chứng chỉ self-signed cho dev HTTPS (SAN: localhost, 127.0.0.1)."""
+
+import ipaddress
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -26,7 +28,7 @@ def main() -> None:
         .not_valid_after(now + timedelta(days=3650))
         .add_extension(
             x509.SubjectAlternativeName(
-                [x509.DNSName("localhost"), x509.IPAddress(_ip("127.0.0.1"))]
+                [x509.DNSName("localhost"), x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
             ),
             critical=False,
         )
@@ -41,12 +43,6 @@ def main() -> None:
     )
     (SSLDIR / "cert.pem").write_bytes(cert.public_bytes(serialization.Encoding.PEM))
     print(f"OK: {SSLDIR / 'cert.pem'} (SAN: localhost, 127.0.0.1)")
-
-
-def _ip(s: str):
-    import ipaddress
-
-    return ipaddress.ip_address(s)
 
 
 if __name__ == "__main__":

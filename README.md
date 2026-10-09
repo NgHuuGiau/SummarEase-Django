@@ -127,10 +127,13 @@ SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấ
 | Lệnh quản lý Django | `manage.py` |
 | Cấu hình ứng dụng | `backend/config/` |
 | Tính năng tóm tắt và API | `backend/summaries/` |
+| Request API mẫu | `backend/api-tests/` |
 | Kiểm thử backend theo domain | `backend/summaries/test_*.py` |
 | Giao diện, CSS và JavaScript | `frontend/` |
 | Kiểm thử trình duyệt Playwright | `frontend/e2e/` |
 | Script chạy HTTPS phát triển trên Windows | `scripts/run-dev.ps1` |
+| Kịch bản và benchmark tải | `loadtest/` |
+| Dashboard Grafana | `monitoring/` |
 | Cấu hình CI và CodeQL | `.github/workflows/` |
 | Cấu hình pre-commit | `.pre-commit-config.yaml` |
 | Docker và dịch vụ nền | `Dockerfile`, `docker-compose.yml` |
@@ -198,6 +201,7 @@ Compose production không tự cung cấp TLS hoặc máy chủ database. Khi tr
 ## Tài liệu
 
 - [Trợ giúp sử dụng](docs/help.md)
+- [Kịch bản quay video demo](docs/demo-video-script.md)
 - [Kiến trúc hệ thống](docs/architecture.md)
 - [Hướng dẫn triển khai production](docs/production.md)
 - [Quy trình đánh giá đồ án](docs/evaluation.md)

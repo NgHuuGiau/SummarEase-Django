@@ -6,8 +6,6 @@
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
-$certFile = Join-Path $projectRoot "backend\ssl\cert.pem"
-$keyFile = Join-Path $projectRoot "backend\ssl\key.pem"
 
 $env:PYTHONPATH = (Join-Path $projectRoot "backend") + ";" + $env:PYTHONPATH
 $certFile = "backend/ssl/cert.pem"
