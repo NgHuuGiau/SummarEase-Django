@@ -10,8 +10,17 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 os.environ.setdefault("DJANGO_ALLOWED_HOSTS", "*")
 os.environ.setdefault("DJANGO_TEST", "1")
 
+_TEST_MEDIA_DIR = None
+
 
 def pytest_configure(config):
+    global _TEST_MEDIA_DIR
     from django.conf import settings
 
-    settings.MEDIA_ROOT = tempfile.mkdtemp(prefix="summarease-test-media-")
+    _TEST_MEDIA_DIR = tempfile.TemporaryDirectory(prefix="summarease-test-media-")
+    settings.MEDIA_ROOT = _TEST_MEDIA_DIR.name
+
+
+def pytest_unconfigure(config):
+    if _TEST_MEDIA_DIR is not None:
+        _TEST_MEDIA_DIR.cleanup()

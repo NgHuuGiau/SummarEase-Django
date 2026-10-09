@@ -9,8 +9,10 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 try:
     from summaries.exports import _check_weasyprint
 except ImportError:
+
     def _check_weasyprint():
         return False
+
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
@@ -303,7 +305,9 @@ class TestAuthentication:
                 response = format_export.value
                 if response.status == 500 and extension == "pdf":
                     # weasyprint installed but Pango not available - skip PDF test
-                    pytest.skip("weasyprint installed but Pango not available - skipping PDF export test")
+                    pytest.skip(
+                        "weasyprint installed but Pango not available - skipping PDF export test"
+                    )
                 raise AssertionError(
                     f"{extension} export did not download: HTTP {response.status}, "
                     f"Content-Disposition={response.headers.get('content-disposition')}, "
@@ -462,7 +466,9 @@ class TestAccessibility:
         prev_level = 0
         for h in headings:
             if prev_level > 0:
-                assert h["level"] <= prev_level + 1, f"Heading level jump: {prev_level} -> {h['level']} ({h['text']})"
+                assert h["level"] <= prev_level + 1, (
+                    f"Heading level jump: {prev_level} -> {h['level']} ({h['text']})"
+                )
             prev_level = h["level"]
 
     def test_form_labels_and_inputs(self, page: Page, base_url: str):
@@ -477,12 +483,9 @@ class TestAccessibility:
                 input_id = text_input.get_attribute("id")
                 if input_id:
                     label_count = page.locator(f'label[for="{input_id}"]').count()
-                    assert label_count > 0, "Text input missing accessible label (no aria-label, no label[for])"
-
-    def test_color_contrast_not_tested_here(self):
-        """Color contrast requires axe-core or manual testing; skipped in automated suite."""
-        # This is a placeholder - color contrast tested manually or with axe-core in CI
-        pass
+                    assert label_count > 0, (
+                        "Text input missing accessible label (no aria-label, no label[for])"
+                    )
 
     def test_focus_visible(self, page: Page, base_url: str):
         """Check focus styles are visible on interactive elements."""
@@ -493,8 +496,9 @@ class TestAccessibility:
         focused_tag = page.evaluate("document.activeElement.tagName")
         assert focused_tag, "No element received focus on Tab"
         # Check that focused element is focusable type
-        assert focused_tag in ["BUTTON", "A", "INPUT", "TEXTAREA", "SELECT"], \
+        assert focused_tag in ["BUTTON", "A", "INPUT", "TEXTAREA", "SELECT"], (
             f"Focused element {focused_tag} is not a standard focusable element"
+        )
 
 
 class TestHealthEndpoint:

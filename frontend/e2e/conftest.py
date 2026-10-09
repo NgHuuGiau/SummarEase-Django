@@ -9,9 +9,7 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
 # Playwright configuration
 def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "e2e: mark test as end-to-end test requiring running server"
-    )
+    config.addinivalue_line("markers", "e2e: mark test as end-to-end test requiring running server")
 
 
 @pytest.fixture(scope="session")
