@@ -79,6 +79,17 @@ class TestHomePage:
         expect(page.locator("main")).to_be_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
 
+    def test_source_selector_has_stable_hover_and_keyboard_focus(self, page: Page, base_url: str):
+        page.goto(base_url)
+        button = page.locator('[data-source="file"]')
+        before = button.bounding_box()
+        button.hover()
+        after = button.bounding_box()
+        assert before == after
+
+        page.keyboard.press("Tab")
+        assert page.evaluate("getComputedStyle(document.activeElement).outlineStyle") == "solid"
+
     def test_guest_mode_shows_login_prompt(self, page: Page, base_url: str):
         """Guest mode shows login prompt instead of submit button."""
         page.goto(base_url)

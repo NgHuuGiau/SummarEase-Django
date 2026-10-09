@@ -39,6 +39,18 @@
 }
 
 @media (max-width: 640px) {
+    .hero-section {
+        padding: 24px 0 16px;
+    }
+
+    .hero-title {
+        font-size: clamp(1.75rem, 8vw, 2.4rem);
+    }
+
+    .workspace-grid {
+        gap: 16px;
+    }
+
     .site-header,
     .flash-wrap,
     .page-shell,
@@ -78,6 +90,22 @@
     
     .footer-divider {
         display: none;
+    }
+}
+
+:focus-visible {
+    outline: 3px solid var(--brand);
+    outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }
 

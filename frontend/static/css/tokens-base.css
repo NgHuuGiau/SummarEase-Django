@@ -190,7 +190,7 @@ button, input, select, textarea {
     inset: 0;
     background-image: radial-gradient(var(--line) 1px, transparent 1px);
     background-size: 28px 28px;
-    opacity: 0.4;
+    opacity: 0.25;
 }
 
 /* Page Container Layout */
