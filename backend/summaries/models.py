@@ -3,9 +3,7 @@ from django.contrib.auth.models import User
 from django.db import models
 
 
-# Kiểu trường full-text search tùy database. Quyết định đến từ settings
-# (USE_POSTGRES_SEARCH) chứ không phải connection.vendor: đọc connection lúc import
-# khiến schema phụ thuộc database nào được mở trước.
+# Bật PostgreSQL full-text search theo cấu hình và chỉ khi có SearchVectorField.
 def _load_search_vector_field() -> type[models.Field] | None:
     try:
         from django.contrib.postgres.search import SearchVectorField
@@ -141,20 +139,14 @@ class Summary(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name="summaries")
 
-    # Full-text search vector (PostgreSQL uses SearchVectorField, SQLite uses TextField)
-    if HAS_POSTGRES_SEARCH and _search_vector_field is not None:
-        search_vector = _search_vector_field(null=True, editable=False)
-    else:
-        # SQLite fallback: simple text field for compatibility
-        search_vector = models.TextField(null=True, blank=True, editable=False)
+    # Keep this field aligned with migration state; PostgreSQL casts it to tsvector for search.
+    search_vector = models.TextField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["-created_at", "-id"]
         indexes = [
             models.Index(fields=["user", "-created_at"]),
         ]
-        if HAS_POSTGRES_SEARCH and _search_vector_field is not None:
-            indexes.append(models.Index(fields=["search_vector"]))
 
     def __str__(self) -> str:
         return self.title
@@ -172,10 +164,17 @@ class Summary(models.Model):
             ).order_by("-created_at")
 
         from django.contrib.postgres.search import SearchQuery, SearchRank
+        from django.db.models.functions import Cast
 
+        assert _search_vector_field is not None
         search_query = SearchQuery(query, config=language)
         return (
-            summaries.annotate(rank=SearchRank("search_vector", search_query))
+            summaries.annotate(
+                rank=SearchRank(
+                    Cast("search_vector", output_field=_search_vector_field()),
+                    search_query,
+                )
+            )
             .filter(rank__gte=0.1)
             .order_by("-rank", "-created_at")
         )

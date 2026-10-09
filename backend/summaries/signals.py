@@ -2,6 +2,8 @@
 
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.db.models import TextField
+from django.db.models.functions import Cast
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 
@@ -47,8 +49,9 @@ if HAS_POSTGRES_SEARCH:
         """Update search vector on summary save (PostgreSQL only)."""
         # Use update() to avoid triggering this signal again
         Summary.objects.filter(pk=instance.pk).update(
-            search_vector=(
+            search_vector=Cast(
                 SearchVector("title", weight="A", config="simple")
-                + SearchVector("summary_text", weight="B", config="simple")
+                + SearchVector("summary_text", weight="B", config="simple"),
+                output_field=TextField(),
             )
         )
