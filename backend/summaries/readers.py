@@ -251,6 +251,7 @@ def extract_text_from_url(url: str) -> str:
                 last_url,
                 timeout=REQUEST_TIMEOUT,
                 allow_redirects=False,
+                stream=True,
                 headers={
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     "Accept-Language": "vi,en;q=0.9",
@@ -268,6 +269,7 @@ def extract_text_from_url(url: str) -> str:
         if response is not None and response.status_code in (301, 302, 303, 307, 308):
             redirect_url = response.headers.get("Location", "")
             if redirect_url:
+                response.close()
                 last_url = urljoin(last_url, redirect_url)
                 parsed_redirect = urlparse(last_url)
                 if parsed_redirect.scheme not in {"http", "https"}:
@@ -276,24 +278,53 @@ def extract_text_from_url(url: str) -> str:
                 continue
 
         break
+    else:
+        raise ValueError("URL có quá nhiều lần chuyển hướng.")
 
     if response is None:
         raise ValueError("Không thể tải URL.")
 
-    if response.status_code >= 400:
-        raise ValueError(f"URL trả về lỗi HTTP {response.status_code}.")
-    if int(response.headers.get("Content-Length", 0) or 0) > MAX_RESPONSE_BYTES:
-        raise ValueError("Nội dung URL vượt quá giới hạn 20MB.")
-    if len(response.content) > MAX_RESPONSE_BYTES:
-        raise ValueError("Nội dung URL vượt quá giới hạn 20MB.")
+    try:
+        if response.status_code >= 400:
+            raise ValueError(f"URL trả về lỗi HTTP {response.status_code}.")
+        if int(response.headers.get("Content-Length", 0) or 0) > MAX_RESPONSE_BYTES:
+            raise ValueError("Nội dung URL vượt quá giới hạn 20MB.")
+        content_type = response.headers.get("Content-Type", "")
+        is_plain_text = "text/plain" in content_type
+        if (
+            not is_plain_text
+            and "text/html" not in content_type
+            and "application/xhtml" not in content_type
+        ):
+            raise ValueError(f"URL không phải trang HTML (Content-Type: {content_type}).")
 
-    content_type = response.headers.get("Content-Type", "")
-    if "text/html" not in content_type and "application/xhtml" not in content_type:
-        if "text/plain" in content_type:
-            return response.text
-        raise ValueError(f"URL không phải trang HTML (Content-Type: {content_type}).")
+        body = bytearray()
+        try:
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if chunk:
+                    body.extend(chunk)
+                    if len(body) > MAX_RESPONSE_BYTES:
+                        raise ValueError("Nội dung URL vượt quá giới hạn 20MB.")
+        except requests.exceptions.Timeout:
+            raise TransientNetworkError(
+                "Không thể tải URL: yêu cầu đã hết thời gian chờ."
+            ) from None
+        except requests.exceptions.RequestException:
+            raise TransientNetworkError(
+                "Không thể kết nối tới URL. Kiểm tra địa chỉ hoặc kết nối mạng."
+            ) from None
+    finally:
+        response.close()
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    encoding = requests.utils.get_encoding_from_headers(response.headers) or "utf-8"
+    try:
+        text = body.decode(encoding, errors="replace")
+    except LookupError:
+        text = body.decode("utf-8", errors="replace")
+    if is_plain_text:
+        return text
+
+    soup = BeautifulSoup(text, "html.parser")
     for tag in soup(
         ["script", "style", "noscript", "meta", "link", "nav", "footer", "header", "aside"]
     ):

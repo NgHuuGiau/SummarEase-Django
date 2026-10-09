@@ -41,18 +41,14 @@ class UrlExtractionTests(TestCase):
         resolver.start()
         self.addCleanup(resolver.stop)
 
-    def _mock_session_get(self, mock_get):
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.headers = {"Content-Type": "text/html; charset=utf-8"}
-
     @patch("summaries.readers._get_http_session")
     def test_extract_text_from_url(self, mock_session):
         sess = mock_session.return_value
         sess.get.return_value.status_code = 200
         sess.get.return_value.headers = {"Content-Type": "text/html; charset=utf-8"}
-        sess.get.return_value.text = (
-            "<html><body><p>Hello world. This is a test page.</p></body></html>"
-        )
+        sess.get.return_value.iter_content.return_value = [
+            b"<html><body><p>Hello world. This is a test page.</p></body></html>"
+        ]
         result = extract_text("https://example.com")
         self.assertIn("Hello world", result)
 
@@ -61,10 +57,10 @@ class UrlExtractionTests(TestCase):
         sess = mock_session.return_value
         sess.get.return_value.status_code = 200
         sess.get.return_value.headers = {"Content-Type": "text/html; charset=utf-8"}
-        sess.get.return_value.text = (
-            "<html><head><script>alert('xss')</script></head>"
-            "<body><p>Main content here.</p></body></html>"
-        )
+        sess.get.return_value.iter_content.return_value = [
+            b"<html><head><script>alert('xss')</script></head>"
+            b"<body><p>Main content here.</p></body></html>"
+        ]
         result = extract_text("https://example.com")
         self.assertIn("Main content", result)
         self.assertNotIn("alert", result)
@@ -74,7 +70,6 @@ class UrlExtractionTests(TestCase):
         sess = mock_session.return_value
         sess.get.return_value.status_code = 200
         sess.get.return_value.headers = {"Content-Type": "application/pdf"}
-        sess.get.return_value.text = "not html"
         with self.assertRaises(ValueError):
             extract_text("https://example.com/file.pdf")
 
@@ -162,10 +157,10 @@ class UrlSourceFlowTests(TestCase):
         sess = mock_session.return_value
         sess.get.return_value.status_code = 200
         sess.get.return_value.headers = {"Content-Type": "text/html; charset=utf-8"}
-        sess.get.return_value.text = (
-            "<html><body><p>First useful sentence. "
-            "Second useful sentence. Third sentence.</p></body></html>"
-        )
+        sess.get.return_value.iter_content.return_value = [
+            b"<html><body><p>First useful sentence. "
+            b"Second useful sentence. Third sentence.</p></body></html>"
+        ]
         response = self.client.post(
             reverse("create_summary"),
             {
@@ -192,7 +187,10 @@ class UrlSourceFlowTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
 
-@override_settings(MEDIA_ROOT=tempfile.mkdtemp(), RATE_LIMIT_SECONDS=0)
+_UPLOAD_MEDIA_DIR = tempfile.TemporaryDirectory()
+
+
+@override_settings(MEDIA_ROOT=_UPLOAD_MEDIA_DIR.name, RATE_LIMIT_SECONDS=0)
 class FileUploadTests(TestCase):
     def setUp(self):
         from django.core.cache import cache
@@ -428,10 +426,11 @@ class ReaderUnitTests(TestCase):
         r1, r2 = MagicMock(), MagicMock()
         r1.status_code = 301
         r1.headers = {"Location": "https://final.example.com/page"}
-        r1.text = ""
         r2.status_code = 200
         r2.headers = {"Content-Type": "text/html; charset=utf-8"}
-        r2.text = "<html><body><p>Final page content here.</p></body></html>"
+        r2.iter_content.return_value = [
+            b"<html><body><p>Final page content here.</p></body></html>"
+        ]
         sess.get.side_effect = [r1, r2]
 
         out = extract_text("https://start.example.com/old")
@@ -443,7 +442,6 @@ class ReaderUnitTests(TestCase):
         sess = mock_get_session.return_value
         resp = MagicMock()
         resp.status_code = 404
-        resp.text = "nope"
         resp.headers = {}
         sess.get.return_value = resp
 
@@ -467,7 +465,7 @@ class ReaderUnitTests(TestCase):
         resp = MagicMock()
         resp.status_code = 200
         resp.headers = {"Content-Type": "text/plain; charset=utf-8"}
-        resp.text = "Just some plain text document."
+        resp.iter_content.return_value = [b"Just some plain text document."]
         sess.get.return_value = resp
 
         out = extract_text("https://example.com/notes.txt")
@@ -480,7 +478,7 @@ class ReaderUnitTests(TestCase):
         resp = MagicMock()
         resp.status_code = 200
         resp.headers = {"Content-Type": "text/html; charset=utf-8"}
-        resp.text = "<html><body></body></html>"
+        resp.iter_content.return_value = [b"<html><body></body></html>"]
         sess.get.return_value = resp
 
         with self.assertRaises(ValueError):
@@ -515,7 +513,6 @@ class ReaderCoverageTests(TestCase):
         session = _get_http_session()
         self.assertIs(session, _get_http_session())
         self.assertIn("User-Agent", session.headers)
-        _ = getattr(_get_http_session, "__self__", None)
 
     def test_extract_text_from_url_requests_missing(self):
         from .readers import extract_text_from_url
@@ -550,7 +547,6 @@ class ReaderCoverageTests(TestCase):
         r = MagicMock()
         r.status_code = 302
         r.headers = {"Location": ""}
-        r.text = ""
         sess.get.return_value = r
         with self.assertRaises(ValueError):
             extract_text("https://example.com")

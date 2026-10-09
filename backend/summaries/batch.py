@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
-from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -33,6 +33,7 @@ def create_batch_from_zip(
     results = []
     errors = []
     processed = 0
+    temp_dir = None
 
     try:
         with zipfile.ZipFile(zip_file, "r") as zip_ref:
@@ -71,13 +72,15 @@ def create_batch_from_zip(
                     }
 
             # Extract and process each file
-            temp_dir = Path(settings.MEDIA_ROOT) / "batch_uploads" / uuid4().hex
-            temp_dir.mkdir(parents=True, exist_ok=True)
+            temp_root = Path(settings.MEDIA_ROOT) / "batch_uploads"
+            temp_root.mkdir(parents=True, exist_ok=True)
+            temp_dir = tempfile.TemporaryDirectory(dir=temp_root, ignore_cleanup_errors=True)
+            temp_path = Path(temp_dir.name)
 
             for name in file_list:
                 try:
-                    file_path = Path(zip_ref.extract(name, temp_dir)).resolve()
-                    if not file_path.is_relative_to(temp_dir.resolve()):
+                    file_path = Path(zip_ref.extract(name, temp_path)).resolve()
+                    if not file_path.is_relative_to(temp_path.resolve()):
                         errors.append(f"{name}: đường dẫn không hợp lệ")
                         continue
 
@@ -121,11 +124,6 @@ def create_batch_from_zip(
                     logger.exception("Batch item failed: %s", name)
                     errors.append(f"{name}: Không thể xử lý tệp này.")
 
-            # Cleanup temp directory
-            import shutil
-
-            shutil.rmtree(temp_dir, ignore_errors=True)
-
             return {
                 "ok": True,
                 "processed": processed,
@@ -143,6 +141,9 @@ def create_batch_from_zip(
             "message": "Không thể xử lý lô tệp. Vui lòng thử lại sau.",
             "errors": errors,
         }
+    finally:
+        if temp_dir is not None:
+            temp_dir.cleanup()
 
 
 def create_batch_from_urls(
