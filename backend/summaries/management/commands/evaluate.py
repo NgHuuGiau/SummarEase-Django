@@ -40,7 +40,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         if rouge_scorer is None:
-            raise CommandError("Missing rouge-score. Install dependencies from requirements.txt.")
+            raise CommandError("Missing rouge-score. Install dependencies from requirements-dev.txt.")
 
         ratio = opts["ratio"]
         if not math.isfinite(ratio) or not 0 < ratio <= 1:

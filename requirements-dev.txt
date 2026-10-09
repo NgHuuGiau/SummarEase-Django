@@ -7,3 +7,4 @@ mypy==2.1.0
 pip-audit==2.8.0
 playwright==1.48.0
 locust==2.30.0
+rouge-score==0.1.2

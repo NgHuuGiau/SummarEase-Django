@@ -38,7 +38,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='tag',
             name='slug',
-            field=models.SlugField(blank=True, max_length=120),
+            # The unique AlterField below creates the PostgreSQL slug index.
+            field=models.SlugField(blank=True, db_index=False, max_length=120),
         ),
         migrations.RunPython(backfill_tag_slugs, migrations.RunPython.noop),
         migrations.AlterField(
