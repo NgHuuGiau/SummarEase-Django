@@ -12,6 +12,7 @@ Or headless:
 import json
 import os
 import random
+from uuid import uuid4
 
 from locust import HttpUser, between, events, task
 
@@ -134,10 +135,28 @@ class AuthenticatedUser(SummarEaseUser):
 
     def on_start(self):
         super().on_start()
-        # Use a fixed username that seed_demo creates
-        self.username = "demo"
-        self.password = "demo123456"
-        self.login()
+        # Each simulated client owns an account so login lockout is not shared.
+        self.username = f"loadtest-{uuid4().hex[:12]}"
+        self.password = f"Load-{uuid4().hex}!9"
+        csrf = self._get_csrf_from_form("/register/")
+        if not csrf:
+            self.authenticated = False
+            return
+        with self.client.post(
+            "/register/",
+            data={
+                "username": self.username,
+                "password1": self.password,
+                "password2": self.password,
+                "csrfmiddlewaretoken": csrf,
+            },
+            name="Register load-test user",
+            catch_response=True,
+        ) as response:
+            self.authenticated = response.status_code == 302
+            self.csrf_token = response.cookies.get("csrftoken") or csrf
+            if not self.authenticated:
+                response.failure(f"Registration failed: {response.status_code}")
 
     def _get_csrf_from_form(self, url):
         """Get CSRF token from a form page."""
@@ -148,32 +167,6 @@ class AuthenticatedUser(SummarEaseUser):
                 if match:
                     return match.group(1)
         return None
-
-    def login(self):
-        """Login as demo user (created by seed_demo)."""
-        # Get CSRF from login page
-        csrf = self._get_csrf_from_form("/login/")
-        if not csrf:
-            self.authenticated = False
-            return
-
-        with self.client.post(
-            "/login/",
-            data={
-                "username": self.username,
-                "password": self.password,
-                "csrfmiddlewaretoken": csrf,
-            },
-            name="Login",
-            catch_response=True,
-        ) as response:
-            if response.status_code in (200, 302):
-                self.authenticated = True
-                # Update CSRF from cookies after login
-                self.csrf_token = response.cookies.get("csrftoken")
-            else:
-                self.authenticated = False
-                response.failure(f"Login failed: {response.status_code}")
 
     @task(10)
     def create_summary_text(self):
@@ -218,38 +211,6 @@ class AuthenticatedUser(SummarEaseUser):
                         response.failure(f"API error: {data.get('message', 'Unknown')}")
                 except json.JSONDecodeError:
                     response.failure("Invalid JSON response")
-
-    @task(5)
-    def create_summary_url(self):
-        """Create summary from URL (authenticated)."""
-        if not self.authenticated:
-            return
-
-        urls = [
-            "https://vnexpress.net/giao-duc/du-hoc-sinh-viet-nam-tang-manh-4721234.html",
-            "https://tuoitre.vn/cong-nghe/ai-se-thay-the-con-nguoi-trong-tuong-lai-20240101.htm",
-            "https://thanhnien.vn/khoa-hoc-cong-nghe/tri-tue-nhan-tao-va-tuong-lai-1852345.html",
-        ]
-
-        with self.client.post(
-            "/api/v1/summaries/create/",
-            data={
-                "source_type": "url",
-                "source_url": random.choice(urls),
-                "method": "textrank",
-                "ratio": 0.3,
-                "csrfmiddlewaretoken": self.csrf_token or "",
-            },
-            headers={"X-Requested-With": "XMLHttpRequest"},
-            name="Create Summary (URL)",
-            catch_response=True,
-        ) as response:
-            if response.status_code == 429:
-                response.failure("Rate limited")
-            elif response.status_code != 200:
-                # URL extraction might fail, that's OK for load test
-                response.failure(f"URL summary failed: {response.status_code}")
-
 
 class AnonymousUser(SummarEaseUser):
     """Anonymous user (no authentication)."""
