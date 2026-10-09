@@ -1,6 +1,7 @@
 """Kiểm thử: batch."""
 
 import io
+import json
 import zipfile
 from unittest.mock import patch
 
@@ -124,7 +125,7 @@ class BatchUrlsTests(TestCase):
     def _post(self, body):
         return self.client.post(
             self.url,
-            data=__import__("json").dumps(body),
+            data=json.dumps(body),
             content_type="application/json",
         )
 

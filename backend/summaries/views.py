@@ -120,8 +120,6 @@ class RegisterPageView(View):
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save()
-            user.email = form.cleaned_data["email"]
-            user.save(update_fields=["email"])
             login(request, user)
             return redirect("home")
         return render(request, self.template_name, {"form": form})

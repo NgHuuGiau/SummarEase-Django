@@ -85,9 +85,7 @@ class Document(models.Model):
         (SOURCE_URL, "URL"),
     )
 
-    user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="documents", db_index=True
-    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="documents")
     source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
     title = models.CharField(max_length=255)
     source_name = models.CharField(max_length=255, blank=True)
@@ -132,12 +130,8 @@ class Summary(models.Model):
         (METHOD_GEMINI, "Gemini"),
     )
 
-    document = models.ForeignKey(
-        Document, on_delete=models.CASCADE, related_name="summaries", db_index=True
-    )
-    user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="summaries", db_index=True
-    )
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="summaries")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="summaries")
     title = models.CharField(max_length=255)
     method = models.CharField(max_length=20, choices=METHOD_CHOICES, default=METHOD_TEXTRANK)
     language = models.CharField(max_length=20, default="auto")
@@ -188,9 +182,7 @@ class Summary(models.Model):
 
 
 class SummarySentence(models.Model):
-    summary = models.ForeignKey(
-        Summary, on_delete=models.CASCADE, related_name="sentences", db_index=True
-    )
+    summary = models.ForeignKey(Summary, on_delete=models.CASCADE, related_name="sentences")
     sentence_text = models.TextField()
     sentence_index = models.PositiveIntegerField(default=0)
 

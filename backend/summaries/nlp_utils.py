@@ -175,5 +175,5 @@ def build_summary_result(summary: str, language: str, original_text: str) -> dic
         "highlighted_summary": highlight_keywords(summary, keywords),
         "keywords": keywords,
         "sentences": sentences,
-        "title": generate_title(summary) if not sentences else _title_from_sentences(sentences),
+        "title": _title_from_sentences(sentences),
     }

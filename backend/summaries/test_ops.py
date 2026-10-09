@@ -359,29 +359,27 @@ class RateLimitMiddlewareTests(TestCase):
     def test_trusted_proxy_forwarded_chain_uses_first_untrusted_hop(self):
         from django.test import RequestFactory
 
-        from summaries.middleware import RateLimitMiddleware
+        from summaries.middleware import get_client_ip
 
-        middleware = RateLimitMiddleware(lambda request: None)
         request = RequestFactory().get(
             "/api/test/",
             REMOTE_ADDR="10.0.0.2",
             HTTP_X_FORWARDED_FOR="198.51.100.15, 10.0.0.1",
         )
         with override_settings(TRUSTED_PROXY_IPS=("10.0.0.0/8",)):
-            self.assertEqual(middleware._get_client_ip(request), "198.51.100.15")
+            self.assertEqual(get_client_ip(request), "198.51.100.15")
 
     def test_untrusted_forwarded_chain_is_ignored(self):
         from django.test import RequestFactory
 
-        from summaries.middleware import RateLimitMiddleware
+        from summaries.middleware import get_client_ip
 
         request = RequestFactory().get(
             "/api/test/",
             REMOTE_ADDR="192.0.2.9",
             HTTP_X_FORWARDED_FOR="198.51.100.15",
         )
-        middleware = RateLimitMiddleware(lambda request: None)
-        self.assertEqual(middleware._get_client_ip(request), "192.0.2.9")
+        self.assertEqual(get_client_ip(request), "192.0.2.9")
 
     def test_rate_limit_exempt_paths(self):
         # Health endpoint should not be rate limited

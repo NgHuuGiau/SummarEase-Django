@@ -8,7 +8,6 @@ import hmac
 import json
 import time
 from datetime import timedelta
-from typing import cast
 
 from django.conf import settings
 from django.http import Http404
@@ -21,12 +20,7 @@ from .models import Summary
 DEFAULT_EXPIRY_DAYS = 7
 
 # Separate signing key for share links (can be same as API_ENCRYPTION_KEY or different)
-SHARE_SECRET_KEY = cast(
-    str,
-    getattr(settings, "SHARE_SECRET_KEY", None)
-    or getattr(settings, "API_ENCRYPTION_KEY", "")
-    or __import__("secrets").token_urlsafe(32),
-)
+SHARE_SECRET_KEY = getattr(settings, "SHARE_SECRET_KEY", None) or settings.API_ENCRYPTION_KEY
 
 
 def generate_share_token(summary: Summary, expiry_days: int = DEFAULT_EXPIRY_DAYS) -> str:

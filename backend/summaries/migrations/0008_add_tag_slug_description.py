@@ -19,10 +19,6 @@ def backfill_tag_slugs(apps, schema_editor):
         tag.save(update_fields=["slug"])
 
 
-def noop(apps, schema_editor):
-    pass
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -44,7 +40,7 @@ class Migration(migrations.Migration):
             name='slug',
             field=models.SlugField(blank=True, max_length=120),
         ),
-        migrations.RunPython(backfill_tag_slugs, noop),
+        migrations.RunPython(backfill_tag_slugs, migrations.RunPython.noop),
         migrations.AlterField(
             model_name='tag',
             name='slug',

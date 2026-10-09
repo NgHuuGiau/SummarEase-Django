@@ -44,7 +44,7 @@ class RateLimitMiddleware(MiddlewareMixin):
         return path.startswith("/api/") or path == "/create-summary/"
 
     def _check_limit(self, request):
-        ip = self._get_client_ip(request)
+        ip = get_client_ip(request)
         path = request.path
         user_id = getattr(getattr(request, "user", None), "pk", None) or "anonymous"
         key = f"ratelimit:{ip}:{user_id}:{path}"
@@ -65,9 +65,6 @@ class RateLimitMiddleware(MiddlewareMixin):
             )
 
         return None
-
-    def _get_client_ip(self, request):
-        return get_client_ip(request)
 
     @staticmethod
     def _is_trusted_proxy(address):

@@ -91,28 +91,31 @@ def textrank_summarize(text: str, ratio: float = 0.2, language: str = "english")
         raise TextTooLargeError(
             f"Văn bản vượt quá giới hạn {MAX_TEXTRANK_CHARACTERS:,} ký tự cho TextRank."
         )
-    if len(split_sentences(normalized)) > MAX_TEXTRANK_SENTENCES:
+    # Cache by hash of content to avoid memory bloat from large text keys
+    key = _cache_key(normalized, ratio, language)
+    cached = _textrank_cache.get(key)
+    if cached is not None:
+        return cached
+
+    sentences = split_sentences(normalized)
+    if len(sentences) > MAX_TEXTRANK_SENTENCES:
         raise TextTooLargeError(
             f"Văn bản có quá nhiều câu cho TextRank (tối đa {MAX_TEXTRANK_SENTENCES} câu)."
         )
 
-    # Cache by hash of content to avoid memory bloat from large text keys
-    key = _cache_key(normalized, ratio, language)
-    cached = _textrank_cache.get(key)
-    if cached is None:
-        cached = _textrank_compute(normalized, ratio, language)
-        if len(_textrank_cache) >= _TEXTRANK_CACHE_MAX:
-            _textrank_cache.pop(next(iter(_textrank_cache)))
-        _textrank_cache[key] = cached
+    cached = _textrank_compute(normalized, sentences, ratio, language)
+    if len(_textrank_cache) >= _TEXTRANK_CACHE_MAX:
+        _textrank_cache.pop(next(iter(_textrank_cache)))
+    _textrank_cache[key] = cached
     return cached
 
 
 def _textrank_compute(
     normalized: str,
+    sentences: list[str],
     ratio: float,
     language: str,
 ) -> dict[str, Any]:
-    sentences = split_sentences(normalized)
     total_sentences = max(1, len(sentences))
     sentence_count = max(1, min(total_sentences, int(total_sentences * ratio) or 1))
     if total_sentences == 1:
