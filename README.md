@@ -19,7 +19,7 @@ Snapshot kiểm thử ngày **18/09/2026**:
 | Đầu vào | Văn bản, URL, PDF, DOCX, EPUB, TXT và Markdown |
 | Kiểm thử backend | 304 bài đạt; độ bao phủ 91,5% (không tính tệp kiểm thử) |
 | Kiểm thử giao diện E2E | 20 bài đạt cục bộ trên Chromium |
-| Cơ sở dữ liệu / hạ tầng | SQLite cho phát triển; CI kiểm tra MySQL, SQL Server và Docker build |
+| Cơ sở dữ liệu / hạ tầng | SQLite cho phát triển; CI kiểm tra MySQL, PostgreSQL và Docker build |
 
 > Đây là kết quả kiểm thử cục bộ ngày 18/09/2026, không phải cam kết trạng thái CI hiện tại. Huy hiệu CI/CodeQL phía trên phản ánh trạng thái mới nhất trên GitHub. Trên máy Windows, một số kiểm thử tạo PDF có thể bỏ qua nếu thiếu Pango; luồng PDF được kiểm tra trên môi trường Linux của CI.
 
@@ -118,7 +118,7 @@ Lưu kết quả và lịch sử ──► xem / chia sẻ / xuất tệp
     └── tác vụ nền, Redis/Celery và webhook (khi được bật/cấu hình)
 ```
 
-SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấu hình triển khai có thể dùng MySQL, SQL Server hoặc Postgres (Postgres là tuỳ chọn và bật full-text search thật; xem [kiến trúc](docs/architecture.md)). Docker Compose cung cấp ứng dụng, Redis, Celery worker và Celery beat; cơ sở dữ liệu được cấu hình bên ngoài, không phải một container DB mặc định trong Compose.
+SQLite là cơ sở dữ liệu mặc định cho phát triển cục bộ. Cấu hình triển khai có thể dùng MySQL, SQL Server hoặc PostgreSQL (PostgreSQL bật full-text search thật; xem [kiến trúc](docs/architecture.md)). Docker Compose production cung cấp ứng dụng, Redis, Celery worker và Celery beat; database production được cấu hình bên ngoài. Compose phát triển riêng có PostgreSQL và Redis cục bộ.
 
 ## Điểm vào và cấu trúc dự án
 
@@ -182,7 +182,7 @@ Docker Compose dành cho kiểm tra/triển khai có cấu hình môi trường.
 docker compose --env-file backend/.env up --build
 ```
 
-Compose không tự cung cấp TLS hoặc máy chủ MySQL/SQL Server. Khi triển khai, cần cấu hình reverse proxy/TLS, cơ sở dữ liệu, Redis và proxy tin cậy phù hợp với hạ tầng thực tế. Xem [hướng dẫn production](docs/production.md) trước khi đưa lên máy chủ công khai.
+Compose production không tự cung cấp TLS hoặc máy chủ database. Khi triển khai, cần cấu hình reverse proxy/TLS, cơ sở dữ liệu, Redis và proxy tin cậy phù hợp với hạ tầng thực tế. Xem [hướng dẫn production](docs/production.md) trước khi đưa lên máy chủ công khai. Chạy local bằng `docker compose -f docker-compose.dev.yml up --build`.
 
 ## API và trang tiện ích
 
@@ -200,6 +200,7 @@ Compose không tự cung cấp TLS hoặc máy chủ MySQL/SQL Server. Khi tri�
 - [Trợ giúp sử dụng](docs/help.md)
 - [Kiến trúc hệ thống](docs/architecture.md)
 - [Hướng dẫn triển khai production](docs/production.md)
+- [Quy trình đánh giá đồ án](docs/evaluation.md)
 - [Đóng góp và phát triển](docs/CONTRIBUTING.md)
 - [Chính sách bảo mật](docs/SECURITY.md)
 - [Giấy phép MIT](LICENSE)
@@ -208,8 +209,8 @@ Compose không tự cung cấp TLS hoặc máy chủ MySQL/SQL Server. Khi tri�
 
 | Chủ đề | File / Link | Mô tả |
 |---|---|---|
-| Load test (Locust) | `loadtest-report.html` | 1.848 requests, 6.18 req/s, p95 10ms, failure 1.73% |
-| Benchmark TextRank vs Gemini | `loadtest/benchmark.py` | ROUGE-1/2/L, latency, memory trên 15 mẫu VN |
+| Load test (Locust) | `loadtest-report.html`, `stress-report.html` | Snapshot cũ có 1,73% và 19,2% lỗi; phần lớn do rate-limit và user test dùng chung, không đại diện throughput thành công |
+| Benchmark tóm tắt | `python manage.py evaluate`, [quy trình đánh giá](docs/evaluation.md) | ROUGE-1/2/L, độ nén, thời gian và kết quả theo mẫu; Gemini chỉ gọi khi chỉ định `--method gemini` |
 | Security audit | `docs/production.md` §8 | pip-audit: 0 CVE Critical/High; CodeQL: 0 findings |
 | Grafana dashboard | `monitoring/grafana-dashboard.json` | 10 panels: error rate, latency p50/95/99, request rate, Celery queue, webhook, system, cache |
 | SBOM (CycloneDX) | `sbom.json` | 378 components, full license/hash |

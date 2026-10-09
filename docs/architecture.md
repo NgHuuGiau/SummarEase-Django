@@ -12,7 +12,7 @@ SummarEase là ứng dụng Django 5.2 dạng MVT, gồm giao diện server-rend
 | Django app `backend/summaries/` | Tài khoản, biểu mẫu, tóm tắt, lịch sử, chia sẻ, webhook, xuất tệp và API |
 | NLP và trích xuất | TextRank nội bộ; Gemini tùy chọn; đọc TXT/Markdown, PDF, DOCX, EPUB và nội dung URL |
 | Giao diện `frontend/` | Django templates, CSS và JavaScript thuần; không cần frontend build tool |
-| SQLite / MySQL / SQL Server | SQLite mặc định cho local/test; MySQL và SQL Server là lựa chọn cấu hình |
+| SQLite / MySQL / PostgreSQL / SQL Server | SQLite mặc định cho local/test; CI kiểm tra MySQL và PostgreSQL |
 | Celery + Redis | Tác vụ nền trong chế độ production khi cấu hình broker; không bắt buộc cho demo local |
 | Docker Compose | Web, Redis, Celery worker và Celery Beat; database production được cung cấp bên ngoài |
 | GitHub Actions | Ruff, mypy, bảo mật dependencies, test Python, tích hợp database, E2E và Docker build |
@@ -51,13 +51,13 @@ Khi bản tóm tắt phát sinh sự kiện webhook, bản ghi outbox được g
 
 - Django migrations là nguồn chuẩn để tạo/cập nhật schema.
 - SQLite mặc định lưu tại `backend/sql/db.sqlite3`; có thể đổi bằng `SQLITE_DB_PATH`.
-- Cấu hình MySQL/SQL Server đặt qua `DB_ENGINE` và các biến `DB_*` trong `backend/.env`.
+- Cấu hình MySQL/PostgreSQL/SQL Server đặt qua `DB_ENGINE` và các biến `DB_*` trong `backend/.env`.
 - `DB_ENGINE=postgres` là tuỳ chọn và là backend duy nhất bật full-text search thật
   (`SearchVectorField` + `SearchVector` trong signal). Kiểu trường được quyết định từ
   setting `USE_POSTGRES_SEARCH`, không đọc `connection.vendor` lúc import. Trên các
   backend còn lại, tìm kiếm rơi về `icontains` trên `title`/`summary_text`.
-  **Không có job CI nào chạy Postgres** — backend này mới ở mức hỗ trợ cấu hình.
-- Docker Compose production yêu cầu MySQL hoặc SQL Server bên ngoài; SQLite không phù hợp với nhiều tiến trình web/worker trong cấu hình đó.
+  CI chạy migration check, webhook security tests và benchmark TextRank trên PostgreSQL.
+- Docker Compose production yêu cầu database bên ngoài (MySQL, PostgreSQL hoặc SQL Server); SQLite không phù hợp với nhiều tiến trình web/worker trong cấu hình đó.
 - `backend/.env.example` chứa cấu hình mẫu; file `backend/.env`, khóa thật, media và chứng chỉ local không được commit.
 - Khóa Gemini có thể cấu hình ở cấp hệ thống hoặc người dùng. Khóa người dùng được mã hóa trong database; nội dung đưa vào Gemini được gửi tới Google.
 - Không có tài khoản tạo sẵn. `python manage.py setup` chạy migrations; dùng giao diện để đăng ký hoặc `createsuperuser` cho quản trị.
@@ -213,10 +213,10 @@ Thư mục `media/`, chứng chỉ tự ký và SQLite local có thể được 
 - Python 3.10–3.13, Django 5.2.
 - HTML, CSS, JavaScript thuần; WhiteNoise phục vụ static files.
 - TextRank nội bộ; Gemini API tùy chọn.
-- SQLite local; MySQL/SQL Server tùy cấu hình; Postgres tùy chọn, không có CI.
+- SQLite local; MySQL/PostgreSQL/SQL Server tùy cấu hình; CI kiểm tra MySQL và PostgreSQL.
 - Playwright/Chromium cho E2E; pytest cho backend.
 - Kiểm tra tĩnh: `ruff check` + `ruff format --check` và `mypy` (cấu hình tập trung trong
   `pyproject.toml`; mypy bỏ qua bốn mã lỗi là giới hạn khi chưa dùng `django-stubs`).
-- GitHub Actions kiểm tra test nhiều phiên bản Python, MySQL, SQL Server, lint/type/security, E2E và Docker build.
+- GitHub Actions kiểm tra test nhiều phiên bản Python, MySQL, PostgreSQL, lint/type/security, E2E và Docker build.
 
 Các lệnh kiểm thử và hướng dẫn chạy ứng dụng nằm trong [README](../README.md) và [hướng dẫn sử dụng](help.md). Quy trình triển khai chi tiết hơn ở [production runbook](production.md).

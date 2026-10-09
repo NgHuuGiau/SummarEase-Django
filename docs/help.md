@@ -58,11 +58,11 @@ Cấu hình được đọc từ biến môi trường và `backend/.env`. Chạ
 
 TextRank là lựa chọn mặc định và không cần API key. Để bật Gemini, cấu hình `GEMINI_API_KEY` trong `backend/.env`, hoặc lưu khóa cá nhân tại trang **Cài đặt** sau khi đăng nhập. Khi dùng Gemini, nội dung được chọn để tóm tắt sẽ được gửi tới Google; không dùng dữ liệu nhạy cảm trong demo và không commit khóa thật.
 
-### MySQL hoặc SQL Server
+### MySQL, PostgreSQL hoặc SQL Server
 
 Cơ sở dữ liệu mặc định là SQLite tại `backend/sql/db.sqlite3`. Nếu chọn database khác, đặt `DB_ENGINE` cùng thông tin kết nối trong `backend/.env`. Các migration Django tạo/cập nhật bảng; không cần chạy thủ công `backend/sql/schema_sqlserver.sql` cho cài đặt mới.
 
-MySQL dùng `DB_ENGINE=mysql`, `DB_NAME`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`. SQL Server dùng `DB_ENGINE=sqlserver`, các biến kết nối tương ứng và ODBC Driver 18. Có thể dùng Windows Authentication bằng `DB_USE_WINDOWS_AUTH=True` trong môi trường hỗ trợ.
+MySQL dùng `DB_ENGINE=mysql`, `DB_NAME`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`. PostgreSQL dùng `DB_ENGINE=postgres` với các biến kết nối tương ứng. SQL Server dùng `DB_ENGINE=sqlserver` và ODBC Driver 18. Có thể dùng Windows Authentication trên môi trường SQL Server phù hợp.
 
 ## Chạy HTTPS trên Windows
 
@@ -100,7 +100,7 @@ Các route trong bảng dưới đây là đường dẫn tương đối với h
 | `/api/v1/summaries/create/` | POST | Route tạo tóm tắt phiên bản 1 |
 | `/api/summaries/status/<task_id>/` | GET | Kiểm tra tác vụ; chỉ chủ sở hữu tác vụ |
 | `/api/v1/summaries/status/<task_id>/` | GET | Route trạng thái phiên bản 1 |
-| `/api/summaries/batch/zip/`, `/api/summaries/batch/urls/` | POST | Xử lý tuần tự theo lô; cần đăng nhập và CSRF; phù hợp demo nhỏ |
+| `/api/summaries/batch/zip/`, `/api/summaries/batch/urls/` | POST | Trả task ID để poll qua endpoint status khi chạy production; xử lý đồng bộ ở chế độ DEBUG; cần đăng nhập và CSRF |
 | `/history/<id>/export/<format>/` | GET | Xuất Markdown, DOCX hoặc PDF; cần quyền với bản tóm tắt |
 | `/history/<id>/share/` | POST | Tạo liên kết chia sẻ; cần đăng nhập và CSRF |
 | `/share/<token>/` | GET | Xem bản tóm tắt được chia sẻ bằng token |
@@ -125,8 +125,17 @@ python -m playwright install chromium
 Chạy backend tests:
 
 ```bash
-python -m pytest backend/summaries/tests.py -q
+python -m pytest backend -q
 ```
+
+Đánh giá ROUGE trên bộ mẫu tiếng Việt có sẵn (Gemini không chạy mặc định):
+
+```bash
+python manage.py evaluate --ratio 0.3 --output results/evaluate.json
+python manage.py evaluate --method gemini --ratio 0.3 --output results/gemini.json
+```
+
+Lệnh Gemini cần `GEMINI_API_KEY` trong môi trường và có thể phát sinh chi phí. Bộ 15 mẫu hiện tại chỉ dùng thử; xem [quy trình đánh giá cho đồ án](evaluation.md) trước khi đưa số liệu vào báo cáo.
 
 E2E cần ứng dụng đang chạy ở terminal khác:
 

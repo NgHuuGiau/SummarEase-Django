@@ -22,7 +22,7 @@ Chạy các kiểm tra phù hợp với phần đã sửa:
 ```bash
 python manage.py check
 python manage.py makemigrations --check --dry-run
-python -m pytest backend/summaries/tests.py -q
+python -m pytest backend -q
 ruff check backend manage.py
 ruff format --check backend manage.py
 ```
@@ -40,7 +40,7 @@ python -m pytest frontend/e2e/test_home.py -q
 
 Bash dùng `export BASE_URL="http://127.0.0.1:8000"`. Trên Windows, test xuất PDF có thể bỏ qua nếu thiếu Pango; môi trường CI Linux cài runtime này.
 
-Workflow CI là nguồn chuẩn cho các cờ Ruff/mypy và thứ tự kiểm tra. Hiện CI kiểm tra Python 3.10–3.13, backend tests/coverage, Ruff, mypy, pip-audit, Playwright E2E, kiểm tra tích hợp MySQL/SQL Server và Docker build. Không cần chạy database tích hợp hoặc Docker cục bộ nếu chưa cài các dịch vụ đó; hãy nêu rõ phần nào chưa được xác minh.
+Workflow CI là nguồn chuẩn cho các cờ Ruff/mypy và thứ tự kiểm tra. Hiện CI kiểm tra Python 3.10–3.13, backend tests/coverage, Ruff, mypy, pip-audit, Playwright E2E, kiểm tra tích hợp MySQL/PostgreSQL và Docker build. Không cần chạy database tích hợp hoặc Docker cục bộ nếu chưa cài các dịch vụ đó; hãy nêu rõ phần nào chưa được xác minh.
 
 ## Nguyên tắc thay đổi
 

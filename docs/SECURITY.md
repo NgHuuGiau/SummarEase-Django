@@ -36,6 +36,6 @@ Các khu vực cần được chú ý khi thay đổi hoặc kiểm thử:
 - Rate limit dựa trên cache local chỉ chia sẻ giữa các worker nếu cấu hình cache dùng chung (ví dụ Redis). Không coi giới hạn local là kiểm soát chống lạm dụng đủ cho hệ thống public.
 - Chứng chỉ tự ký của script Windows chỉ dành cho phát triển. Production cần TLS hợp lệ ở reverse proxy/load balancer, chỉ cho proxy tin cậy truy cập ứng dụng và đặt `TRUSTED_PROXY_IPS` chính xác.
 - Không dùng `DJANGO_DEBUG=True`, khóa mặc định, `ALLOWED_HOSTS=*`, tài khoản demo hoặc secrets trong Git khi triển khai.
-- Với Docker Compose production, cấu hình secret manager, MySQL/SQL Server bên ngoài, Redis trong mạng riêng, quyền truy cập media và backup/khôi phục trước khi nhận dữ liệu thật.
+- Với Docker Compose production, cấu hình secret manager, database bên ngoài (MySQL, PostgreSQL hoặc SQL Server), Redis trong mạng riêng, quyền truy cập media và backup/khôi phục trước khi nhận dữ liệu thật.
 
 Nếu nghi ngờ secret bị lộ, thu hồi/rotate secret liên quan, kiểm tra log và hoạt động truy cập, rồi mới tiếp tục sử dụng dịch vụ.

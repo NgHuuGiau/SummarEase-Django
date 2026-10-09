@@ -4,7 +4,7 @@ SummarEase hiện chủ yếu phục vụ demo/học tập. Có thể dùng SQLi
 
 ## 1. Docker Compose
 
-Compose hiện chạy bốn dịch vụ: web, Redis, Celery worker và Celery Beat. Database **không** được tạo trong Compose; phải cung cấp MySQL hoặc SQL Server có thể truy cập từ container. SQLite phù hợp cho phát triển/test đơn tiến trình, không dùng với cấu hình đa tiến trình này.
+Compose production chạy bốn dịch vụ: web, Redis, Celery worker và Celery Beat. Database production **không** được tạo trong Compose; cung cấp MySQL, PostgreSQL hoặc SQL Server có thể truy cập từ container. SQLite phù hợp cho phát triển/test đơn tiến trình, không dùng với cấu hình đa tiến trình này. Compose phát triển riêng chạy PostgreSQL/Redis cục bộ bằng `docker compose -f docker-compose.dev.yml up --build`.
 
 Tạo `backend/.env` từ `backend/.env.example` và đặt tối thiểu các giá trị production:
 
@@ -130,7 +130,7 @@ Nếu phát hiện lỗi dữ liệu: drop DB → tạo lại → lặp lại t�
 Chạy Locust 10 users, spawn 2/s, 5 phút, scenario `steady` (xem `loadtest/`):
 
 ```bash
-python loadtest/run_load_test.py --scenario steady --headless --html-report loadtest-report.html
+RATE_LIMIT_SECONDS=0 python loadtest/run_load_test.py --scenario steady --headless --html-report loadtest-report.html
 ```
 
 **Kết quả (snapshot 03/10/2026, local Windows, SQLite, 10 users, 5 phút):**
@@ -144,17 +144,14 @@ python loadtest/run_load_test.py --scenario steady --headless --html-report load
 | p50 / p95 / p99 | 6 ms / 10 ms / 51 ms |
 | Tỷ lệ thất bại | **1,73 %** (32/1.848) |
 
-**Phân loại lỗi (được mong đợi):**
-- **Login 100%**: test user tạo mới nhưng CSRF token chưa sync trong Locust (không ảnh hưởng user thật).
-- **OpenAPI / Swagger / ReDoc (429)**: rate-limit đang hoạt động đúng.
-- **Health Check (1× 503)**: transient khi DB busy, tự phục hồi.
+**Giới hạn kết quả:** báo cáo cũ dùng một tài khoản và một IP cho toàn bộ Locust users. Các lỗi 429 do limiter, lỗi login và lỗi health làm p95/throughput không đo riêng được năng lực xử lý thành công. Locust hiện tạo tài khoản riêng cho từng user; hãy dùng database thử nghiệm riêng vì các tài khoản đó được giữ lại.
 
-**Kết luận**: throughput ~6 req/s trên SQLite single-thread dev server, latency p95 < 15 ms. Với gunicorn workers + MySQL/PostgreSQL production, throughput và p95 sẽ tốt hơn đáng kể. Báo cáo HTML đầy đủ: `loadtest-report.html`.
+Không dùng snapshot này để khẳng định ngưỡng tải production. Chạy lại trong môi trường benchmark riêng với `RATE_LIMIT_SECONDS=0`, nhiều tài khoản, và chỉ dùng dữ liệu/endpoint nằm trong môi trường thử nghiệm.
 
 ### Stress Test (50 users, 5 phút)
 
 ```bash
-python loadtest/run_load_test.py --scenario stress --headless --html-report stress-report.html
+RATE_LIMIT_SECONDS=0 python loadtest/run_load_test.py --scenario stress --headless --html-report stress-report.html
 ```
 
 **Kết quả (50 users, spawn 5/s, 5 phút):**
@@ -173,25 +170,32 @@ python loadtest/run_load_test.py --scenario stress --headless --html-report stre
 - **Swagger/OpenAPI/ReDoc 70%**: rate limit 429 trên docs endpoints
 - **Health Check 2%**: transient 503 khi DB busy
 
-**Kết luận**: throughput ~47 req/s, p95 ~21 ms. Rate limit hoạt động đúng, bảo vệ hệ thống khỏi quá tải. Với production (gunicorn workers + PostgreSQL), throughput cao hơn và p95 ổn định hơn.
+Tỷ lệ lỗi snapshot này khoảng 19,2%, phần lớn do mọi user dùng chung tài khoản/IP và bị rate-limit. Không so sánh p95 của snapshot này với cấu hình production.
 
 ---
 
 ## 7. So sánh TextRank vs Gemini (Benchmark chất lượng)
 
-Dataset: 15 văn bản tiếng Việt (kỹ thuật, giáo dục, công nghệ) có reference summary tay (`summaries/eval/vn_dataset.json`).
+Lệnh `evaluate` dùng cùng một dataset/reference cho mỗi phương pháp và ghi kết quả theo từng ID để đối chiếu. Dataset hiện có 15 mẫu là **pilot**, chưa đủ đại diện để khẳng định chất lượng tổng quát.
 
 ```bash
-python manage.py evaluate --ratio 0.3
+python manage.py evaluate --ratio 0.3 --output results/evaluate.json
+# Gemini chỉ chạy khi chọn rõ; đặt GEMINI_API_KEY trong môi trường trước
+python manage.py evaluate --method gemini --ratio 0.3 --output results/gemini.json
 ```
 
-| Phương pháp | ROUGE-1 | ROUGE-2 | ROUGE-L | Tỉ lệ nén | Latency (CPU) |
-|---|---:|---:|---:|---:|---:|
-| **TextRank (offline)** | **0.513** | **0.222** | **0.368** | 24,7% | ~15 ms |
-| Baseline "câu đầu" | 0.520 | 0.266 | 0.390 | 26,0% | <1 ms |
-| **Gemini 1.5 Flash** (API) | *chưa đo* | *chưa đo* | *chưa đo* | ~30% | 800–2000 ms |
+Có thể chạy qua lối gọi tương thích `python loadtest/benchmark.py --ratio 0.3`. Lệnh mặc định so sánh TextRank với baseline chọn câu đầu; Gemini không chạy mặc định để tránh gọi API ngoài ý muốn. Báo cáo JSON gồm ROUGE-1/2/L F1, tỷ lệ nén, thời gian mỗi mẫu, dự đoán và lỗi theo đúng ID. Thời gian Gemini phụ thuộc mạng, model và quota, nên ghi cấu hình/model cùng ngày chạy trong luận văn.
 
-**Nhận xét**: TextRank extractive đạt ROUGE-1 ~0,51 so với reference extractive, đủ tốt cho demo/đọc nhanh. Baseline "câu đầu" thắng nhẹ vì văn bản kỹ thuật thường tóm tắt ở đầu. Gemini abstractive sẽ tốt hơn về ngữ nghĩa (cần API key, có latency, cost). TextRank: free, offline, deterministic, p95 < 20 ms.
+Một lần chạy local ngày 09/10/2026 (Windows, Python 3.12, 15 mẫu, ratio 0.3) cho kết quả pilot:
+
+| Phương pháp | ROUGE-1 F1 | ROUGE-2 F1 | ROUGE-L F1 | Độ nén | Thời gian TB |
+|---|---:|---:|---:|---:|---:|
+| TextRank | 0.5132 | 0.2215 | 0.3679 | 24.67% | 1.7953 ms |
+| Baseline câu đầu | 0.5201 | 0.2661 | 0.3895 | 26.01% | 0.1953 ms |
+
+Đây là một lần chạy trên máy phát triển, không phải kết quả suy rộng hay kiểm định ý nghĩa thống kê; thời gian thay đổi theo phần cứng. Gemini chưa được chạy và chưa có đánh giá người dùng.
+
+ROUGE đo độ trùng từ/cụm từ, không đủ để kết luận tính đúng đắn hoặc độ dễ đọc; Gemini có thể phát sinh chi phí và kết quả không hoàn toàn lặp lại. Xem quy trình mở rộng dataset và chấm thủ công trong [hướng dẫn đánh giá](evaluation.md).
 
 ---
 
@@ -233,14 +237,14 @@ Import vào Grafana → Dashboards → Import JSON.
 Các lệnh kiểm tra repository:
 
 ```bash
-python -m pytest backend/summaries/tests.py -q
+python -m pytest backend -q
 ruff check backend manage.py
 ruff format --check backend manage.py
 python manage.py check --deploy --fail-level ERROR
 docker compose --env-file backend/.env config --quiet
 ```
 
-CI kiểm tra Python 3.10–3.13, E2E, MySQL, SQL Server và Docker build. Việc đó không thay thế smoke test sau triển khai trên môi trường thật. Với một bản demo, kiểm tra đăng nhập, tạo tóm tắt TextRank, lịch sử, chia sẻ có hạn, upload, xuất file và health là đủ cơ bản. Kiểm tra PDF trên Windows cần Pango; CI Linux kiểm tra luồng này.
+CI kiểm tra Python 3.10–3.13, E2E, MySQL, PostgreSQL và Docker build. Việc đó không thay thế smoke test sau triển khai trên môi trường thật. Với một bản demo, kiểm tra đăng nhập, tạo tóm tắt TextRank, lịch sử, chia sẻ có hạn, upload, xuất file và health là đủ cơ bản. Kiểm tra PDF trên Windows cần Pango; CI Linux kiểm tra luồng này.
 
 ## 5. Lưu ý bảo mật tối thiểu
 
