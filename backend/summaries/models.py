@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
@@ -22,9 +20,14 @@ HAS_POSTGRES_SEARCH = HAS_POSTGRES_SEARCH and _search_vector_field is not None
 
 
 def _cleanup_uploaded_file(file_path: str) -> None:
+    from pathlib import Path
+
     if not file_path:
         return
-    full_path = Path(settings.MEDIA_ROOT) / file_path
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    full_path = (media_root / file_path).resolve()
+    if not full_path.is_relative_to(media_root):
+        return
     try:
         if full_path.exists():
             full_path.unlink()
@@ -41,7 +44,12 @@ class UserProfile(models.Model):
     )
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_USER)
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default=ROLE_USER,
+        help_text="Metadata cũ; quyền truy cập dùng is_staff/is_superuser của Django.",
+    )
 
     def __str__(self) -> str:
         return f"{self.user.username} ({self.role})"
@@ -50,7 +58,11 @@ class UserProfile(models.Model):
 class UserSetting(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="setting")
     default_summary_ratio = models.FloatField(default=0.2)
-    language_preference = models.CharField(max_length=20, default="auto")
+    language_preference = models.CharField(
+        max_length=20,
+        default="auto",
+        help_text="Chưa áp dụng; ngôn ngữ hiện được nhận diện từ nội dung.",
+    )
     gemini_api_key = models.CharField(
         max_length=255, blank=True, default="", help_text="API key Gemini cá nhân (nếu có)"
     )
@@ -88,10 +100,6 @@ class Document(models.Model):
         indexes = [
             models.Index(fields=["user", "-created_at"]),
         ]
-
-    def delete(self, *args, **kwargs):
-        _cleanup_uploaded_file(self.uploaded_file)
-        super().delete(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.title
@@ -135,6 +143,7 @@ class Summary(models.Model):
     language = models.CharField(max_length=20, default="auto")
     ratio = models.FloatField(default=0.2)
     summary_text = models.TextField()
+    idempotency_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name="summaries")
 

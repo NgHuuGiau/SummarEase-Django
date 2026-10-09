@@ -9,6 +9,7 @@ from uuid import uuid4
 from celery.exceptions import CeleryError
 from django.conf import settings
 from django.core.cache import cache
+from kombu.exceptions import OperationalError as BrokerOperationalError
 
 from .models import _cleanup_uploaded_file
 from .signing import resolve_user_api_key
@@ -45,7 +46,15 @@ class SummaryService:
             return {"ok": False, "message": msg, "status": 429}
 
         file_path = ""
-        user_api_key = ""
+        # Validate the Gemini key before writing an uploaded file to media.
+        if method == "gemini":
+            system_key = getattr(settings, "GEMINI_API_KEY", "")
+            user_key = resolve_user_api_key(self.user)
+            if not system_key and not user_key:
+                msg = (
+                    "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."
+                )
+                return {"ok": False, "message": msg, "status": 400}
 
         if source_type == "text":
             text = text.strip()
@@ -94,17 +103,6 @@ class SummaryService:
         if errors:
             return {"ok": False, "errors": errors, "status": 400}
 
-        # Validate Gemini API key
-        if method == "gemini":
-            system_key = getattr(settings, "GEMINI_API_KEY", "")
-            user_key = resolve_user_api_key(self.user)
-            if not system_key and not user_key:
-                msg = (
-                    "Thiếu GEMINI_API_KEY. Vui lòng cấu hình trong settings cá nhân hoặc file .env."
-                )
-                return {"ok": False, "message": msg, "status": 400}
-            user_api_key = user_key
-
         return {
             "ok": True,
             "task_args": {
@@ -115,7 +113,6 @@ class SummaryService:
                 "text": text,
                 "source_url": source_url,
                 "file_path": file_path,
-                "user_api_key": user_api_key,
             },
         }
 
@@ -137,7 +134,7 @@ class SummaryService:
         # Production: queue async task
         try:
             task = process_summary_task.delay(**task_args)
-        except CeleryError:
+        except (CeleryError, BrokerOperationalError):
             self.cleanup_file(task_args.get("file_path", ""))
             return {
                 "ok": False,

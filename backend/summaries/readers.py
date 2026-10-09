@@ -7,6 +7,7 @@ import ipaddress
 import logging
 import socket
 import threading
+import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
@@ -22,6 +23,9 @@ MAX_REDIRECTS = 5
 REQUEST_TIMEOUT = 25
 MAX_RESPONSE_BYTES = 20 * 1024 * 1024
 MAX_URL_LENGTH = 2048
+MAX_ARCHIVE_EXPANDED_BYTES = 50 * 1024 * 1024
+MAX_DOCUMENT_PAGES = 500
+MAX_EXTRACTED_CHARACTERS = 50_000
 
 
 class TransientNetworkError(ValueError):
@@ -137,8 +141,12 @@ def _extract_text_from_docx(file_path: Path) -> str:
             "Hãy chạy 'pip install -r requirements.txt'."
         ) from exc
 
+    _validate_archive_size(file_path)
     document = DocxDocument(file_path)
-    return "\n".join(paragraph.text for paragraph in document.paragraphs)
+    text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    if len(text) > MAX_EXTRACTED_CHARACTERS:
+        raise ValueError("Tài liệu vượt quá giới hạn 50.000 ký tự.")
+    return text
 
 
 def _extract_text_from_pdf(file_path: Path) -> str:
@@ -151,9 +159,16 @@ def _extract_text_from_pdf(file_path: Path) -> str:
         ) from exc
 
     text = []
+    chars = 0
     with fitz.open(file_path) as pdf:
+        if len(pdf) > MAX_DOCUMENT_PAGES:
+            raise ValueError(f"PDF vượt quá giới hạn {MAX_DOCUMENT_PAGES} trang.")
         for page in pdf:
-            text.append(page.get_text())
+            page_text = page.get_text()
+            text.append(page_text)
+            chars += len(page_text)
+            if chars > MAX_EXTRACTED_CHARACTERS:
+                raise ValueError("Tài liệu vượt quá giới hạn 50.000 ký tự.")
     return "\n".join(text)
 
 
@@ -174,12 +189,31 @@ def _extract_text_from_epub(file_path: Path) -> str:
             "Hãy chạy 'pip install -r requirements.txt'."
         ) from exc
 
+    _validate_archive_size(file_path)
     book = epub.read_epub(str(file_path))
     content = []
     for item in book.get_items():
         soup = BeautifulSoup(item.get_content(), "html.parser")
         content.append(soup.get_text(separator=" ", strip=True))
-    return "\n".join(content)
+    text = "\n".join(content)
+    if len(text) > MAX_EXTRACTED_CHARACTERS:
+        raise ValueError("Tài liệu vượt quá giới hạn 50.000 ký tự.")
+    return text
+
+
+def _validate_archive_size(file_path: Path) -> None:
+    try:
+        with zipfile.ZipFile(file_path) as archive:
+            infos = archive.infolist()
+            if sum(info.file_size for info in infos) > MAX_ARCHIVE_EXPANDED_BYTES:
+                raise ValueError("Tài liệu nén vượt quá giới hạn 50MB sau giải nén.")
+            if any(
+                info.file_size > 1_048_576 and info.file_size > info.compress_size * 100
+                for info in infos
+            ):
+                raise ValueError("Tài liệu có tỷ lệ nén bất thường, không được chấp nhận.")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Tệp tài liệu không hợp lệ hoặc bị hỏng.") from exc
 
 
 def extract_text_from_url(url: str) -> str:

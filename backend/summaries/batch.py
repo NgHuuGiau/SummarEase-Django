@@ -183,7 +183,7 @@ def create_batch_from_urls(
             )
 
         except Exception:  # noqa: BLE001
-            logger.exception("Batch URL failed: %s", url)
+            logger.exception("Batch URL failed")
             errors.append("Không thể xử lý URL đã cung cấp.")
 
     return {

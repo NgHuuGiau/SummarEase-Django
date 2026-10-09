@@ -155,7 +155,7 @@ class HealthDegradedTests(TestCase):
             self.assertNotIn("db down", response.content.decode())
 
     def test_health_degraded_on_media_error(self):
-        with patch("pathlib.Path.unlink", side_effect=OSError("locked")):
+        with patch("tempfile.NamedTemporaryFile", side_effect=OSError("locked")):
             response = self.client.get(reverse("health"))
             self.assertEqual(response.status_code, 503)
             self.assertEqual(response.json()["media"], "error")

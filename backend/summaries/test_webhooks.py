@@ -30,6 +30,9 @@ class WebhookDeliveryTests(TestCase):
     """Nhánh gửi HTTP thật của `_deliver_webhook` — mọi I/O được mock."""
 
     def setUp(self):
+        resolver = patch("summaries.webhooks._resolve_and_validate")
+        resolver.start()
+        self.addCleanup(resolver.stop)
         self.user = User.objects.create_user(username="deliver-user", password="secret123")
         self.webhook = WebhookRegistration.objects.create(
             user=self.user,
@@ -268,6 +271,9 @@ class WebhookViewTests(TestCase):
     """Các view quản lý webhook: tạo, xoá và gửi thử."""
 
     def setUp(self):
+        resolver = patch("summaries.webhooks._resolve_and_validate")
+        resolver.start()
+        self.addCleanup(resolver.stop)
         self.user = User.objects.create_user(username="hook-owner", password="secret123")
         self.other = User.objects.create_user(username="hook-other", password="secret123")
         self.webhook = WebhookRegistration.objects.create(
@@ -299,11 +305,24 @@ class WebhookViewTests(TestCase):
         response = self.client.post(
             reverse("webhook_list"),
             {"url": VALID_HOOK, "events": ["summary.completed"]},
+            follow=True,
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
         created = WebhookRegistration.objects.exclude(pk=self.webhook.pk).get()
         self.assertTrue(created.secret)
+        self.assertContains(response, created.secret)
         self.assertEqual(created.events, ["summary.completed"])
+
+    def test_regenerate_secret_is_one_time_and_user_scoped(self):
+        self.client.login(username="hook-owner", password="secret123")
+        old_secret = self.webhook.secret
+        response = self.client.post(
+            reverse("webhook_regenerate_secret", kwargs={"pk": self.webhook.pk}), follow=True
+        )
+        self.webhook.refresh_from_db()
+        self.assertNotEqual(self.webhook.secret, old_secret)
+        self.assertContains(response, self.webhook.secret)
+        self.assertNotContains(self.client.get(reverse("webhook_list")), self.webhook.secret)
 
     def test_create_registration_rejects_blank_url(self):
         self.client.login(username="hook-owner", password="secret123")
@@ -665,6 +684,25 @@ class CeleryTaskIntegrationTests(TestCase):
         )
         self.assertFalse(result["ok"])
         self.assertIn("giây", result["message"])
+
+    def test_service_reports_unavailable_when_broker_is_down(self):
+        from kombu.exceptions import OperationalError
+
+        from .services import SummaryService
+
+        with override_settings(DEBUG=False, RATE_LIMIT_SECONDS=0):
+            with (
+                patch.dict("os.environ", {"DJANGO_TEST": ""}),
+                patch(
+                    "summaries.services.process_summary_task.delay",
+                    side_effect=OperationalError("broker down"),
+                ),
+            ):
+                result = SummaryService(self.user).create_summary(
+                    "text", "textrank", 0.5, text="First sentence. Second sentence."
+                )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"], 503)
 
     def test_process_summary_task_invalid_user(self):
         from .tasks import process_summary_task

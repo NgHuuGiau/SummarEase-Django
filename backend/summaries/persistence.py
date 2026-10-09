@@ -3,12 +3,12 @@
 from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 
 from .models import Document, Summary, SummarySentence, Tag
 from .nlp import gemini_summarize, textrank_summarize
-from .nlp_utils import detect_language
+from .nlp_utils import build_summary_result, detect_language
 
 
 def summarize_and_persist(
@@ -20,8 +20,16 @@ def summarize_and_persist(
     ratio: float,
     user_api_key: str = "",
     uploaded_file: str = "",
+    idempotency_key: str = "",
 ) -> tuple[Summary, dict[str, Any]]:
     """Run the chosen summarizer and persist the result. Returns (summary, result)."""
+    if idempotency_key:
+        existing = Summary.objects.filter(idempotency_key=idempotency_key).first()
+        if existing:
+            return existing, build_summary_result(
+                existing.summary_text, existing.language, existing.document.content
+            )
+
     language = detect_language(original_text)
     if method == "gemini":
         result = gemini_summarize(
@@ -38,7 +46,11 @@ def summarize_and_persist(
         ratio,
         result,
         uploaded_file=uploaded_file,
+        idempotency_key=idempotency_key,
     )
+    if idempotency_key:
+        result = build_summary_result(summary.summary_text, summary.language, original_text)
+        result["title"] = summary.title
     return summary, result
 
 
@@ -51,44 +63,54 @@ def persist_summary(
     ratio: float,
     result: dict[str, Any],
     uploaded_file: str = "",
+    idempotency_key: str = "",
 ) -> Summary:
     """Persist a document and its generated summary atomically."""
     title = result["title"][:255]
-    with transaction.atomic():
-        document = Document.objects.create(
-            user=user,
-            source_type=source_type,
-            title=title,
-            source_name=source_name[:255],
-            uploaded_file=uploaded_file,
-            content=original_text,
-        )
-        summary = Summary.objects.create(
-            document=document,
-            user=user,
-            title=title,
-            method=method,
-            language=result["language"],
-            ratio=ratio,
-            summary_text=result["summary"],
-        )
-        tag_names = list(dict.fromkeys(keyword[:100] for keyword in result["keywords"]))
-        if tag_names:
-            # Bulk upsert: 2 queries total instead of N get_or_create round-trips.
-            # ignore_conflicts covers concurrent inserts; re-fetch picks up race winners.
-            existing = {tag.name: tag for tag in Tag.objects.filter(name__in=tag_names)}
-            missing = [name for name in tag_names if name not in existing]
-            if missing:
-                Tag.objects.bulk_create(
-                    [Tag(name=name, slug=slugify(name, allow_unicode=True)) for name in missing],
-                    ignore_conflicts=True,
-                )
+    try:
+        with transaction.atomic():
+            document = Document.objects.create(
+                user=user,
+                source_type=source_type,
+                title=title,
+                source_name=source_name[:255],
+                uploaded_file=uploaded_file,
+                content=original_text,
+            )
+            summary = Summary.objects.create(
+                document=document,
+                user=user,
+                title=title,
+                method=method,
+                language=result["language"],
+                ratio=ratio,
+                summary_text=result["summary"],
+                idempotency_key=idempotency_key or None,
+            )
+            tag_names = list(dict.fromkeys(keyword[:100] for keyword in result["keywords"]))
+            if tag_names:
+                # Bulk upsert: 2 queries total instead of N get_or_create round-trips.
+                # ignore_conflicts covers concurrent inserts; re-fetch picks up race winners.
                 existing = {tag.name: tag for tag in Tag.objects.filter(name__in=tag_names)}
-            summary.tags.add(*[existing[name] for name in tag_names if name in existing])
-        SummarySentence.objects.bulk_create(
-            [
-                SummarySentence(summary=summary, sentence_text=sentence, sentence_index=index)
-                for index, sentence in enumerate(result["sentences"], start=1)
-            ]
-        )
-    return summary
+                missing = [name for name in tag_names if name not in existing]
+                if missing:
+                    Tag.objects.bulk_create(
+                        [
+                            Tag(name=name, slug=slugify(name, allow_unicode=True))
+                            for name in missing
+                        ],
+                        ignore_conflicts=True,
+                    )
+                    existing = {tag.name: tag for tag in Tag.objects.filter(name__in=tag_names)}
+                summary.tags.add(*[existing[name] for name in tag_names if name in existing])
+            SummarySentence.objects.bulk_create(
+                [
+                    SummarySentence(summary=summary, sentence_text=sentence, sentence_index=index)
+                    for index, sentence in enumerate(result["sentences"], start=1)
+                ]
+            )
+        return summary
+    except IntegrityError:
+        if not idempotency_key:
+            raise
+        return Summary.objects.get(idempotency_key=idempotency_key)

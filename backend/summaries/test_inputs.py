@@ -36,6 +36,11 @@ class FormValidationTests(TestCase):
 
 
 class UrlExtractionTests(TestCase):
+    def setUp(self):
+        resolver = patch("summaries.readers._resolve_and_validate")
+        resolver.start()
+        self.addCleanup(resolver.stop)
+
     def _mock_session_get(self, mock_get):
         mock_get.return_value.status_code = 200
         mock_get.return_value.headers = {"Content-Type": "text/html; charset=utf-8"}
@@ -107,6 +112,21 @@ class SsrfProtectionTests(TestCase):
         self.assertFalse(_is_private_ip("8.8.8.8"))
         self.assertFalse(_is_private_ip("93.184.216.34"))
 
+    def test_document_archive_expansion_is_bounded(self):
+        import pathlib
+        import tempfile as _tf
+        import zipfile
+
+        from .readers import _validate_archive_size
+
+        with _tf.TemporaryDirectory() as directory:
+            archive_path = pathlib.Path(directory) / "large.docx"
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("word/document.xml", "x" * 11)
+            with patch("summaries.readers.MAX_ARCHIVE_EXPANDED_BYTES", 10):
+                with self.assertRaisesRegex(ValueError, "sau giải nén"):
+                    _validate_archive_size(archive_path)
+
     @patch("summaries.readers.socket.getaddrinfo")
     def test_resolve_and_validate_blocks_private(self, mock_getaddrinfo):
         mock_getaddrinfo.return_value = [(None, None, None, None, ("127.0.0.1", 80))]
@@ -127,6 +147,9 @@ class SsrfProtectionTests(TestCase):
 
 class UrlSourceFlowTests(TestCase):
     def setUp(self):
+        resolver = patch("summaries.readers._resolve_and_validate")
+        resolver.start()
+        self.addCleanup(resolver.stop)
         self.user = User.objects.create_user(username="url-test", password="secret123")
 
         self.client.login(username="url-test", password="secret123")
@@ -571,6 +594,7 @@ class ReaderCoverageTests(TestCase):
 
     def test_extract_text_from_epub_success(self):
         import pathlib
+        import zipfile
 
         from .readers import _extract_text_from_epub
 
@@ -580,8 +604,12 @@ class ReaderCoverageTests(TestCase):
             b"<html><body><p>Epub chapter content here.</p></body></html>"
         )
         book.get_items.return_value = [item]
-        with patch("ebooklib.epub.read_epub", return_value=book):
-            out = _extract_text_from_epub(pathlib.Path("book.epub"))
+        with tempfile.TemporaryDirectory() as directory:
+            archive_path = pathlib.Path(directory) / "book.epub"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("mimetype", "application/epub+zip")
+            with patch("ebooklib.epub.read_epub", return_value=book):
+                out = _extract_text_from_epub(archive_path)
         self.assertIn("Epub chapter content", out)
 
     def test_extract_text_unsupported_extension(self):

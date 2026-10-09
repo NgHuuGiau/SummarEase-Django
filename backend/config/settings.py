@@ -90,10 +90,10 @@ db_engine = os.getenv("DB_ENGINE", "sqlite").lower()
 if (
     not DEBUG
     and os.getenv("DJANGO_REQUIRE_EXTERNAL_DATABASE", "").lower() == "true"
-    and db_engine not in {"mysql", "sqlserver"}
+    and db_engine not in {"mysql", "sqlserver", "postgres"}
 ):
     raise ImproperlyConfigured(
-        "This multi-process deployment requires DB_ENGINE=mysql or DB_ENGINE=sqlserver."
+        "This multi-process deployment requires DB_ENGINE=mysql, postgres, or sqlserver."
     )
 
 if db_engine == "mysql":
@@ -311,7 +311,7 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # ── Rate limiting ──────────────────────────────────
-RATE_LIMIT_SECONDS = 5
+RATE_LIMIT_SECONDS = int(os.getenv("RATE_LIMIT_SECONDS", "5"))
 
 # ── Upload ───────────────────────────────────────────
 FILE_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024

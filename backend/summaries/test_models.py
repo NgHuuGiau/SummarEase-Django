@@ -128,6 +128,21 @@ class ModelStrAndCleanupTests(TestCase):
         with override_settings(MEDIA_ROOT="C:\\nonexistent\\nope"):
             _cleanup_uploaded_file("missing.txt")
 
+    def test_cleanup_uploaded_file_rejects_paths_outside_media(self):
+        import pathlib
+        import tempfile as _tf
+
+        from .models import _cleanup_uploaded_file
+
+        with _tf.TemporaryDirectory() as d:
+            root = pathlib.Path(d) / "media"
+            root.mkdir()
+            outside = pathlib.Path(d) / "keep.txt"
+            outside.write_text("keep", encoding="utf-8")
+            with override_settings(MEDIA_ROOT=root):
+                _cleanup_uploaded_file("../keep.txt")
+            self.assertTrue(outside.exists())
+
     def test_user_setting_str(self):
         user = User.objects.create_user(username="str-user", password="secret123")
         setting, _ = UserSetting.objects.get_or_create(
@@ -141,6 +156,38 @@ class ModelStrAndCleanupTests(TestCase):
             user=user, source_type="text", title="My Doc Title", content="x"
         )
         self.assertEqual(str(doc), "My Doc Title")
+
+    def test_document_delete_cleans_uploaded_file_after_commit(self):
+        import pathlib
+        import tempfile as _tf
+
+        from django.test import override_settings
+
+        with _tf.TemporaryDirectory() as d:
+            target = pathlib.Path(d) / "uploads" / "source.txt"
+            target.parent.mkdir()
+            target.write_text("source", encoding="utf-8")
+            with override_settings(MEDIA_ROOT=d), self.captureOnCommitCallbacks(execute=True):
+                user = User.objects.create_user(username="file-owner", password="secret123")
+                doc = Document.objects.create(
+                    user=user,
+                    source_type="file",
+                    title="Source",
+                    uploaded_file="uploads/source.txt",
+                    content="source",
+                )
+                Document.objects.filter(pk=doc.pk).delete()
+            self.assertFalse(target.exists())
+
+    def test_summary_persistence_is_idempotent_for_task_id(self):
+        from .persistence import summarize_and_persist
+
+        user = User.objects.create_user(username="retry-user", password="secret123")
+        args = (user, "text", "manual", "First sentence. Second sentence.", "textrank", 0.5)
+        first, _ = summarize_and_persist(*args, idempotency_key="task-retry-1")
+        second, _ = summarize_and_persist(*args, idempotency_key="task-retry-1")
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(Summary.objects.filter(user=user).count(), 1)
 
     def test_cleanup_uploaded_file_ignores_oserror(self):
         from .models import _cleanup_uploaded_file

@@ -35,7 +35,7 @@ DELIVERY_RETRY_DELAYS = [30, 120, 600, 1800]  # 30s, 2min, 10min, 30min
 class WebhookPayload:
     """Structured webhook payload for summary completion."""
 
-    event: str  # "summary.completed" | "summary.failed"
+    event: str  # Currently only summary.completed is delivered.
     summary_id: int
     title: str
     method: str
@@ -75,7 +75,7 @@ class WebhookRegistration(models.Model):
     secret = models.CharField(max_length=64, help_text="HMAC secret for signature verification")
     events = models.JSONField(
         default=list,
-        help_text="List of events to subscribe to: ['summary.completed', 'summary.failed']",
+        help_text="List of events to subscribe to: ['summary.completed']",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -296,4 +296,4 @@ def summary_webhook_signal(sender, instance: Summary, created: bool, **kwargs):
 
     transaction.on_commit(enqueue_deliveries)
 
-    # Failure webhooks are triggered from the summarization task itself.
+    # Only summary.completed is currently delivered.

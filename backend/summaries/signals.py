@@ -1,10 +1,25 @@
 """Post-save signals for SummarEase."""
 
 from django.contrib.auth.models import User
-from django.db.models.signals import post_save
+from django.db import transaction
+from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 
-from .models import HAS_POSTGRES_SEARCH, Summary, UserProfile, UserSetting
+from .models import (
+    HAS_POSTGRES_SEARCH,
+    Document,
+    Summary,
+    UserProfile,
+    UserSetting,
+    _cleanup_uploaded_file,
+)
+
+
+@receiver(pre_delete, sender=Document)
+def cleanup_document_upload(sender, instance, **kwargs):
+    if instance.uploaded_file:
+        transaction.on_commit(lambda: _cleanup_uploaded_file(instance.uploaded_file))
+
 
 if HAS_POSTGRES_SEARCH:
     from django.contrib.postgres.search import SearchVector

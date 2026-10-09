@@ -91,7 +91,7 @@ class DeploymentConfigTests(TestCase):
             check=False,
         )
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("requires DB_ENGINE=mysql or DB_ENGINE=sqlserver", result.stderr)
+        self.assertIn("requires DB_ENGINE=mysql, postgres, or sqlserver", result.stderr)
 
 
 class BackupDbTests(TestCase):

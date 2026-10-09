@@ -1,6 +1,9 @@
 import logging
+import os
 from pathlib import Path
+from uuid import uuid4
 
+from celery.exceptions import CeleryError
 from celery.result import AsyncResult
 from django.conf import settings
 from django.contrib import messages
@@ -17,12 +20,13 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_POST
+from kombu.exceptions import OperationalError as BrokerOperationalError
 
-from .batch import create_batch_from_urls, create_batch_from_zip
+from .batch import MAX_BATCH_SIZE, MAX_ZIP_SIZE, create_batch_from_urls, create_batch_from_zip
 from .exports import export_summary
 from .forms import LoginForm, RegisterForm, SettingsForm, SummaryRequestForm
 from .middleware import get_client_ip
-from .models import Document, Summary, UserSetting
+from .models import Document, Summary, UserSetting, _cleanup_uploaded_file
 from .sharing import generate_share_token, get_shared_summary
 from .signing import resolve_user_api_key
 from .webhooks import WebhookRegistration, validate_webhook_url
@@ -59,9 +63,10 @@ def health(request: HttpRequest) -> HttpResponse:
     media = Path(settings.MEDIA_ROOT)
     try:
         media.mkdir(parents=True, exist_ok=True)
-        probe = media / ".healthcheck"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink()
+        from tempfile import NamedTemporaryFile
+
+        with NamedTemporaryFile(dir=media):
+            pass
         checks["media"] = "ok"
     except OSError:
         logger.exception("Health check media probe failed")
@@ -307,6 +312,10 @@ def check_task_status(request: HttpRequest, task_id: str) -> JsonResponse:
         return JsonResponse({"ok": False, "message": "Không tìm thấy tác vụ."}, status=404)
     result = AsyncResult(task_id)
     if result.ready():
+        if not result.successful():
+            return JsonResponse(
+                {"status": "done", "data": {"ok": False, "message": "Tác vụ xử lý thất bại."}}
+            )
         return JsonResponse({"status": "done", "data": result.result})
     return JsonResponse({"status": "pending"})
 
@@ -336,6 +345,8 @@ def batch_summarize_zip(request: HttpRequest) -> JsonResponse:
         return JsonResponse(
             {"ok": False, "errors": {"zip_file": ["Chọn file ZIP để tải lên."]}}, status=400
         )
+    if uploaded_file.size is None or uploaded_file.size > MAX_ZIP_SIZE:
+        return JsonResponse({"ok": False, "message": "File ZIP vượt quá 50MB."}, status=400)
 
     if method == "gemini":
         user_api_key = resolve_user_api_key(request.user)
@@ -345,7 +356,26 @@ def batch_summarize_zip(request: HttpRequest) -> JsonResponse:
     else:
         user_api_key = ""
 
-    result = create_batch_from_zip(request.user, uploaded_file, method, ratio, user_api_key)
+    if settings.DEBUG or os.getenv("DJANGO_TEST") == "1":
+        result = create_batch_from_zip(request.user, uploaded_file, method, ratio, user_api_key)
+    else:
+        temp_dir = Path(settings.MEDIA_ROOT) / "batch_uploads"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        file_path = f"batch_uploads/{uuid4().hex}.zip"
+        try:
+            with (Path(settings.MEDIA_ROOT) / file_path).open("wb") as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+            from .tasks import process_batch_zip_task
+
+            task = process_batch_zip_task.delay(request.user.id, file_path, method, ratio)
+        except (OSError, CeleryError, BrokerOperationalError):
+            _cleanup_uploaded_file(file_path)
+            return JsonResponse(
+                {"ok": False, "message": "Dịch vụ xử lý nền hiện không khả dụng."}, status=503
+            )
+        cache.set(f"task_owner:{task.id}", request.user.id, 60 * 60)
+        return JsonResponse({"ok": True, "task_id": task.id}, status=202)
     status = 200 if result.get("ok") else 400
     return JsonResponse(result, status=status)
 
@@ -358,6 +388,8 @@ def batch_summarize_urls(request: HttpRequest) -> JsonResponse:
 
     try:
         data = json.loads(request.body)
+        if not isinstance(data, dict):
+            raise ValueError("Expected a JSON object")
         urls = data.get("urls", [])
         method = data.get("method", "textrank")
         ratio = float(data.get("ratio", 0.2))
@@ -367,6 +399,10 @@ def batch_summarize_urls(request: HttpRequest) -> JsonResponse:
 
     if not isinstance(urls, list) or not urls or not all(isinstance(url, str) for url in urls):
         return JsonResponse({"ok": False, "message": "Danh sách URL trống."}, status=400)
+    if len(urls) > MAX_BATCH_SIZE:
+        return JsonResponse(
+            {"ok": False, "message": f"Quá nhiều URL (tối đa {MAX_BATCH_SIZE})."}, status=400
+        )
     if method not in {"textrank", "gemini"} or not 0.0 <= ratio <= 1.0:
         return JsonResponse({"ok": False, "message": "Method hoặc ratio không hợp lệ."}, status=400)
 
@@ -378,7 +414,23 @@ def batch_summarize_urls(request: HttpRequest) -> JsonResponse:
     else:
         user_api_key = ""
 
-    result = create_batch_from_urls(request.user, urls, method, ratio, user_api_key)
+    if any(len(url) > 2048 for url in urls):
+        return JsonResponse(
+            {"ok": False, "message": "URL vượt quá giới hạn 2048 ký tự."}, status=400
+        )
+    if settings.DEBUG or os.getenv("DJANGO_TEST") == "1":
+        result = create_batch_from_urls(request.user, urls, method, ratio, user_api_key)
+    else:
+        try:
+            from .tasks import process_batch_urls_task
+
+            task = process_batch_urls_task.delay(request.user.id, urls, method, ratio)
+        except (CeleryError, BrokerOperationalError):
+            return JsonResponse(
+                {"ok": False, "message": "Dịch vụ xử lý nền hiện không khả dụng."}, status=503
+            )
+        cache.set(f"task_owner:{task.id}", request.user.id, 60 * 60)
+        return JsonResponse({"ok": True, "task_id": task.id}, status=202)
     status = 200 if result.get("ok") else 400
     return JsonResponse(result, status=status)
 
@@ -427,6 +479,7 @@ def webhook_list(request: HttpRequest) -> HttpResponse:
     """List and manage webhook registrations."""
     webhooks = WebhookRegistration.objects.filter(user=request.user).order_by("-created_at")
 
+    new_secret = request.session.pop("new_webhook_secret", None)
     if request.method == "POST":
         url = request.POST.get("url", "").strip()
         events = request.POST.getlist("events")
@@ -449,10 +502,26 @@ def webhook_list(request: HttpRequest) -> HttpResponse:
                     secret=secret,
                     events=events,
                 )
-                messages.success(request, "Đã tạo webhook mới.")
+                request.session["new_webhook_secret"] = secret
                 return redirect("webhook_list")
 
-    return render(request, "summaries/webhook_list.html", {"webhooks": webhooks})
+    return render(
+        request,
+        "summaries/webhook_list.html",
+        {"webhooks": webhooks, "new_secret": new_secret},
+    )
+
+
+@login_required
+@require_POST
+def webhook_regenerate_secret(request: HttpRequest, pk: int) -> HttpResponse:
+    import secrets
+
+    webhook = get_object_or_404(WebhookRegistration, pk=pk, user=request.user)
+    webhook.secret = secrets.token_urlsafe(32)
+    webhook.save(update_fields=["secret", "updated_at"])
+    request.session["new_webhook_secret"] = webhook.secret
+    return redirect("webhook_list")
 
 
 @login_required
@@ -493,7 +562,7 @@ def webhook_test(request: HttpRequest, pk: int) -> JsonResponse:
     )
 
     payload = _build_webhook_payload(test_summary, "summary.completed")
-    success = _deliver_webhook(webhook, payload)
+    success = _deliver_webhook(webhook, payload, max_retries=1)
 
     return JsonResponse(
         {

@@ -19,6 +19,7 @@ from .models import _cleanup_uploaded_file
 from .nlp import TextTooLargeError
 from .persistence import summarize_and_persist
 from .readers import TransientNetworkError, extract_text
+from .signing import resolve_user_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,37 @@ def enqueue_pending_webhook_deliveries() -> int:
     return enqueued
 
 
+@shared_task
+def process_batch_urls_task(user_id: int, urls: list[str], method: str, ratio: float) -> dict:
+    from .batch import create_batch_from_urls
+
+    user = User.objects.get(pk=user_id)
+    return create_batch_from_urls(
+        user, urls, method, ratio, resolve_user_api_key(user) if method == "gemini" else ""
+    )
+
+
+@shared_task
+def process_batch_zip_task(user_id: int, file_path: str, method: str, ratio: float) -> dict:
+    from django.core.files import File
+
+    from .batch import create_batch_from_zip
+
+    path = Path(settings.MEDIA_ROOT) / file_path
+    try:
+        user = User.objects.get(pk=user_id)
+        with path.open("rb") as raw_file:
+            return create_batch_from_zip(
+                user,
+                File(raw_file, name=path.name),
+                method,
+                ratio,
+                resolve_user_api_key(user) if method == "gemini" else "",
+            )
+    finally:
+        _cleanup_uploaded_file(file_path)
+
+
 def _schedule_file_cleanup(file_path: str) -> None:
     """Schedule file cleanup after transaction commits."""
     if file_path:
@@ -137,7 +169,6 @@ def process_summary_task(
     text: str = "",
     source_url: str = "",
     file_path: str = "",
-    user_api_key: str = "",
 ) -> dict:
     """Background task to process summarization request."""
     start_time = time.time()
@@ -193,6 +224,8 @@ def process_summary_task(
 
         if not original_text.strip():
             raise ValueError("Không thể trích xuất nội dung từ nguồn đã chọn.")
+        if len(original_text) > 50_000:
+            raise ValueError("Tài liệu vượt quá giới hạn 50.000 ký tự.")
 
         summary, result = summarize_and_persist(
             user,
@@ -201,8 +234,9 @@ def process_summary_task(
             original_text,
             method,
             ratio,
-            user_api_key=user_api_key,
+            user_api_key=resolve_user_api_key(user),
             uploaded_file=stored_file_name,
+            idempotency_key=self.request.id or "",
         )
 
         elapsed = time.time() - start_time

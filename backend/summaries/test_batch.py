@@ -136,6 +136,12 @@ class BatchUrlsTests(TestCase):
         response = self.client.post(self.url, data="{", content_type="application/json")
         self.assertEqual(response.status_code, 400)
 
+    def test_rejects_non_object_json(self):
+        self.client.login(username="batch-url", password="secret123")
+        for body in ([], None, "text"):
+            with self.subTest(body=body):
+                self.assertEqual(self._post(body).status_code, 400)
+
     def test_rejects_empty_url_list(self):
         self.client.login(username="batch-url", password="secret123")
         for body in ({"urls": []}, {}, {"urls": "not-a-list"}, {"urls": [1, 2]}):

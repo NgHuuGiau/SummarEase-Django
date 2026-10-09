@@ -10,12 +10,14 @@ admin.site.index_title = "Quản trị hệ thống tóm tắt"
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ("user", "role")
+    readonly_fields = ("role",)
 
 
 @admin.register(UserSetting)
 class UserSettingAdmin(admin.ModelAdmin):
     list_display = ("user", "default_summary_ratio", "language_preference", "has_gemini_key")
     search_fields = ("user__username",)
+    readonly_fields = ("language_preference",)
 
     @admin.display(boolean=True, description="Đã cấu hình Gemini")
     def has_gemini_key(self, obj):

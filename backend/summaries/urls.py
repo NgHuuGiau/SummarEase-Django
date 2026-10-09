@@ -21,6 +21,7 @@ from .views import (
     shared_summary_view,
     webhook_delete,
     webhook_list,
+    webhook_regenerate_secret,
     webhook_test,
 )
 
@@ -94,6 +95,11 @@ urlpatterns = [
     path("api/summaries/batch/urls/", batch_summarize_urls, name="batch_summarize_urls"),
     path("webhooks/", webhook_list, name="webhook_list"),
     path("webhooks/<int:pk>/delete/", webhook_delete, name="webhook_delete"),
+    path(
+        "webhooks/<int:pk>/regenerate-secret/",
+        webhook_regenerate_secret,
+        name="webhook_regenerate_secret",
+    ),
     path("webhooks/<int:pk>/test/", webhook_test, name="webhook_test"),
     path("health/", health, name="health"),
     path("robots.txt", _robots_txt, name="robots_txt"),
