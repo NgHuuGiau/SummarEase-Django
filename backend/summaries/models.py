@@ -160,7 +160,7 @@ class Summary(models.Model):
         return self.title
 
     @classmethod
-    def search(cls, user, query: str, language: str = "vietnamese"):
+    def search(cls, user, query: str, language: str = "simple"):
         """Full-text search summaries for a user (PostgreSQL only)."""
         summaries = cls.objects.all()
         if user is not None:
